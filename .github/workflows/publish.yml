@@ -93,7 +93,12 @@ jobs:
       # already provided in `git tag -a vX.Y.Z -m "..."`.
       - name: Create GitHub Release for the pushed tag
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Prefer a user-supplied PAT (RELEASE_TOKEN) when present —
+          # bypasses any org-level "Workflow permissions" lockdown that
+          # caps the auto-provided GITHUB_TOKEN at read-only. Falls back
+          # to GITHUB_TOKEN when the org policy allows write or when
+          # the secret is unset.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           # Skip if Release already exists (idempotent — supports manual re-runs).
@@ -118,9 +123,9 @@ jobs:
       # already exists). Once both are backfilled this becomes a no-op.
       - name: Backfill GitHub Releases for prior tags (idempotent)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          for PRIOR_TAG in v1.7.0 v2.0.0 v2.0.1; do
+          for PRIOR_TAG in v1.7.0 v2.0.0 v2.0.1 v2.0.2; do
             if gh release view "$PRIOR_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
               echo "Backfill: $PRIOR_TAG Release already exists — skipping."
             else

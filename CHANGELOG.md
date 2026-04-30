@@ -2,6 +2,37 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.0.3 — 2026-05-01
+
+**Final release-process hotfix. No runtime change.**
+
+The v2.0.2 attempted fix (adding `permissions: contents: write` to
+publish.yml) failed because the StoaChain organization has the
+"Workflow permissions" setting locked at the org level, which caps
+the auto-provided `GITHUB_TOKEN` to read-only regardless of what the
+workflow YAML requests.
+
+### Fixed
+
+- **`.github/workflows/publish.yml` now uses a fallback token
+  expression:** `${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}`.
+  When the user-supplied `RELEASE_TOKEN` PAT secret is present (with
+  Contents: Read and write scope on this repo), it bypasses the
+  org-level workflow-permissions cap. When the secret is not set, the
+  expression falls back to the auto-provided `GITHUB_TOKEN` — which
+  works in orgs that allow write at the workflow level.
+- **Backfill list extended to v2.0.2.** The v2.0.3 workflow run
+  creates Releases retroactively for v1.7.0, v2.0.0, v2.0.1, and
+  v2.0.2 — all the tags whose Release-creation step had previously
+  failed or not yet existed.
+
+### Stats
+
+- Files changed: 3 (`package.json`, `CHANGELOG.md`, `.github/workflows/publish.yml`).
+- Lines added: ~25; lines removed: ~3.
+- No `src/` changes; no `tests/` changes.
+- Test count unchanged at 346.
+
 ## 2.0.2 — 2026-05-01
 
 **Permissions hotfix for the v2.0.1 release-process patch. No runtime change.**
