@@ -6,6 +6,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    typecheck: { enabled: true, tsconfig: "tsconfig.tests.json", include: ["tests/types.test.ts"] },
   },
   resolve: {
     alias: {

@@ -8,6 +8,8 @@ import { Pact, createClient } from "@kadena/client";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { calculateAutoGasLimit } from "../gas";
 import { pactRead } from "../reads";
+import type { IKadenaKeypair } from "../signing";
+export type { IKadenaKeypair } from "../signing";
 
 /**
  * Safe creation time for Pact transactions.
@@ -26,14 +28,6 @@ export interface IOuroAccountKeypair {
   address: string;
   publicKey: string;
   privateKey?: string;
-}
-
-export interface IKadenaKeypair {
-  publicKey: string;
-  privateKey: string;
-  seedType?: "koala" | "chainweaver" | "eckowallet";
-  encryptedSecretKey?: any;
-  password?: string;
 }
 
 // Type definitions for DEX data structures

@@ -4,24 +4,13 @@ import {
   KADENA_NETWORK,
   getPactUrl,
 } from "../constants";
-import { formatDecimalForPact } from "../pact";
-// Use same interfaces as ouroFunctions.ts
-interface IOuroAccountKeypair {
-  address: string;
-  publicKey: string;
-  privateKey?: string;
-}
-
-interface IKadenaKeypair {
-  publicKey: string;
-  privateKey: string;
-  seedType?: "koala" | "chainweaver" | "eckowallet";
-  encryptedSecretKey?: any;
-  password?: string;
-}
 import { Pact, createClient } from "@kadena/client";
 import { pactRead } from "../reads";
+import { formatDecimalForPact } from "../pact";
 import { universalSignTransaction, fromKeypair } from "../signing";
+import type { IKadenaKeypair } from "../signing";
+export type { IKadenaKeypair } from "../signing";
+import type { IOuroAccountKeypair } from "./ouroFunctions";
 
 /**
  * Safe creation time for Pact transactions.

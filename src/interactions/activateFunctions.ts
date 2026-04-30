@@ -12,6 +12,8 @@ import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { calculateAutoGasLimit } from "../gas";
 import { createSimulationError, logDetailedError } from "../errors";
+import type { IKadenaKeypair } from "../signing";
+export type { IKadenaKeypair } from "../signing";
 
 /**
  * Safe creation time for Pact transactions.
@@ -19,17 +21,6 @@ import { createSimulationError, logDetailedError } from "../errors";
  */
 function safeCreationTime(): number {
   return Math.floor(Date.now() / 1000) - 30;
-}
-
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface IKadenaKeypair {
-  publicKey: string;
-  privateKey: string;
-  seedType?: "koala" | "chainweaver" | "eckowallet";
-  encryptedSecretKey?: any;
-  password?: string;
 }
 
 export interface DeployStandardAccountInfo {

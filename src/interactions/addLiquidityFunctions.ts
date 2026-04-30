@@ -7,8 +7,9 @@ import {
 } from "../constants";
 import { Pact, createClient } from "@kadena/client";
 import { universalSignTransaction, fromKeypair } from "../signing";
-import { IOuroAccountKeypair, IKadenaKeypair } from "./dexFunctions";
+import { IOuroAccountKeypair } from "./dexFunctions";
 import { mayComeWithDeimal } from "../pact";
+import type { IKadenaKeypair } from "../signing";
 
 /**
  * Safe creation time for Pact transactions.

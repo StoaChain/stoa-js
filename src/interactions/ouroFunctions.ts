@@ -809,6 +809,10 @@ export interface IOuroAccountKeypair {
   privateKey?: string;
 }
 
+/**
+ * @deprecated Phase-2b backwards-compat copy. Use the canonical `IKadenaKeypair` from
+ * `@stoachain/ouronet-core/signing` (declared in `src/signing/types.ts`) instead.
+ */
 export interface IKadenaKeypair {
   publicKey: string;
   privateKey: string;

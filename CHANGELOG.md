@@ -2,6 +2,105 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 1.7.0 — 2026-04-30
+
+**Consolidate `IKadenaKeypair` to a single canonical declaration.**
+
+Closes audit finding **F-CORE-001 (CRITICAL)** from the v1.6.1 audit pass.
+The signing-ready keypair shape was declared SIX times across the
+codebase: once canonically in `src/signing/types.ts:22-30`, once with
+documented Phase-2b backwards-compat in `src/interactions/ouroFunctions.ts`,
+and four undocumented duplicates (in `activateFunctions`, `dexFunctions`,
+`kpayFunctions`, `coilFunctions` — the last one non-exported). The
+duplicates were not byte-identical: each omitted `"foreign"` from the
+`seedType` literal-union and used `encryptedSecretKey?: any` instead of
+`unknown`.
+
+Post-consolidation: only TWO declarations remain. The four undocumented
+duplicates are deleted and re-routed to the canonical via type-only
+imports through the `../signing` barrel; each subpath also gets an
+`export type { IKadenaKeypair } from "../signing"` re-export to preserve
+its public API surface (consumers that imported `IKadenaKeypair` from
+those subpaths still resolve cleanly). The Phase-2b copy in
+`ouroFunctions.ts` stays in place but gains an `@deprecated` JSDoc tag.
+
+The `IKadenaKeypair` half of the F-INT-001 circular dependency between
+`addLiquidityFunctions` and `dexFunctions` is broken as a side effect:
+`addLiquidityFunctions.ts:10` is split — `IOuroAccountKeypair` keeps its
+value-position import from `./dexFunctions` (deferred consolidation),
+`IKadenaKeypair` moves to a type-only import from `../signing`.
+
+A new `tests/types.test.ts` regression-lock test asserts cross-subpath
+assignability of `IKadenaKeypair` via `Parameters<typeof fn>` slots
+against real exported functions in each subpath. Combined with a new
+`tsconfig.tests.json` and `vitest.config.ts` `typecheck.tsconfig`
+pointer, the lock fires under `npm test`: any future change that
+reintroduces a drifted local `IKadenaKeypair` (omitting `"foreign"`)
+breaks CI.
+
+### Public API impact
+
+- **Type widening (intentional):** the `IKadenaKeypair` resolved through
+  `@stoachain/ouronet-core/interactions/{activate,dex,kpay,coil}Functions`
+  now includes `seedType: "foreign"` in its literal-union (it didn't
+  before — those subpaths' duplicates had a narrower `seedType`).
+- **Type tightening (intentional, mildly breaking):** the resolved type
+  now uses `encryptedSecretKey?: unknown` instead of `?: any`. Consumer
+  code that did `kp.encryptedSecretKey.someField` (relying on `any`'s
+  permissive structural access) needs a narrowing cast. The canonical
+  declaration in `src/signing/types.ts` already used `unknown` since
+  earlier versions; consumers importing from there are unaffected.
+- **No runtime behaviour change.** All edits are type-position only.
+- **Deprecated copy preserved.** `src/interactions/ouroFunctions.ts:816`
+  retains its `IKadenaKeypair` declaration with `encryptedSecretKey?: any`
+  for root-barrel consumers. The new `@deprecated` JSDoc surfaces in IDEs
+  as strikethrough on import sites.
+
+### Changed
+
+- `src/interactions/activateFunctions.ts` — duplicate deleted; canonical
+  imported and re-exported via `export type`
+- `src/interactions/dexFunctions.ts` — same
+- `src/interactions/kpayFunctions.ts` — same
+- `src/interactions/coilFunctions.ts` — same; sibling non-exported
+  `IOuroAccountKeypair` duplicate also deleted (routed to
+  `./ouroFunctions`); imports reordered into a single contiguous block
+- `src/interactions/addLiquidityFunctions.ts` — line 10's combined import
+  split (F-INT-001 cycle break for `IKadenaKeypair`)
+- `src/interactions/guardFunctions.ts:13` — value-position import from
+  `./ouroFunctions` switched to type-only from `../signing`
+- `src/interactions/wrapFunctions.ts:18` — same
+- `src/interactions/ouroFunctions.ts:812-818` — `@deprecated` JSDoc added;
+  declaration body byte-equivalent (preserves `any` for backwards-compat)
+- `vitest.config.ts` — added `test.typecheck = { enabled: true,
+  tsconfig: "tsconfig.tests.json", include: ["tests/types.test.ts"] }`
+
+### Added
+
+- `tests/types.test.ts` — type-level regression lock with 5 assignability
+  assertion sites (1 canonical via direct type import + 4
+  `Parameters<typeof fn>[N]` extractions covering both struct-nested and
+  direct-positional shapes)
+- `tsconfig.tests.json` — narrow tsconfig that includes only
+  `tests/types.test.ts` alongside `src/**/*.ts`, used exclusively by
+  vitest's typecheck pass to make the regression lock fire under
+  `npm test`
+
+### Process notes
+
+This release was produced via the BeeDev workflow (`/bee:init` →
+`/bee:audit` → `/bee:audit-to-spec` → `/bee:new-spec` → `/bee:plan-all` →
+`/bee:ship`). The audit pass produced 32 confirmed findings; this
+release closes one of them (the CRITICAL). Specs for the remaining 9
+are stored in `.bee/audit-specs/` for future releases. The plan went
+through 3 rounds of plan-review per phase plus 3 rounds of cross-plan
+consistency review, surfacing several real planning errors before
+implementation began (see `.bee/STATE.md` Decisions Log for the full
+audit trail). Final implementation review caught a public-API
+regression (deletion of `export interface` without re-export) and a
+critical regression-lock failure (vitest 4.1.5's typecheck mode does
+not auto-add test files to its tsc program); both were auto-fixed.
+
 ## 1.6.1 — 2026-04-27
 
 **Fix: every internal `interactions/*` helper now honors the active node.**

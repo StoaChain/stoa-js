@@ -15,8 +15,8 @@ import {
 } from "../constants";
 import { formatDecimalForPact } from "../pact";
 import { universalSignTransaction, fromKeypair } from "../signing";
-import { IKadenaKeypair } from "./ouroFunctions";
 import { createSimulationError, logDetailedError } from "../errors";
+import type { IKadenaKeypair } from "../signing";
 
 /**
  * Safe creation time for Pact transactions.

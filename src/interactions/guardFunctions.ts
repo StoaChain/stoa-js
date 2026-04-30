@@ -10,7 +10,7 @@ import { Pact, createClient } from "@kadena/client";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { createSimulationError, logDetailedError } from "../errors";
-import { IKadenaKeypair } from "./ouroFunctions";
+import type { IKadenaKeypair } from "../signing";
 
 /**
  * Safe creation time for Pact transactions.
