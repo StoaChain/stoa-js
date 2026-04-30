@@ -2,7 +2,7 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
-## Unreleased — TBD
+## 2.0.0 — 2026-05-01
 
 **Cut the `wallet -> interactions` import edge with a `BalanceResolver` seam, and adopt the `pactRead` injection seam across all sixteen pure-read sites in `interactions/*`.**
 
