@@ -16,6 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # The default GITHUB_TOKEN has read-only `contents` scope. Creating
+    # a Release via `gh release create` requires `contents: write`.
+    # Without this block the v2.0.1 publish-workflow run failed at the
+    # "Create GitHub Release for the pushed tag" step with a 403 from
+    # the GitHub Releases API. Granting `contents: write` here scopes
+    # the token to *just* what the Release-creation step needs.
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -111,7 +120,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for PRIOR_TAG in v1.7.0 v2.0.0; do
+          for PRIOR_TAG in v1.7.0 v2.0.0 v2.0.1; do
             if gh release view "$PRIOR_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
               echo "Backfill: $PRIOR_TAG Release already exists — skipping."
             else

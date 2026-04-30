@@ -2,6 +2,37 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.0.2 — 2026-05-01
+
+**Permissions hotfix for the v2.0.1 release-process patch. No runtime change.**
+
+The v2.0.1 publish-workflow run published the package to npm
+successfully but failed at the new "Create GitHub Release for the
+pushed tag" step with HTTP 403. Root cause: the default
+`GITHUB_TOKEN` ships with read-only `contents` scope, and
+`gh release create` requires `contents: write`. Because the failure
+happened mid-run, the subsequent backfill step was skipped, so v1.7.0
+and v2.0.0 Releases also remained un-created.
+
+### Fixed
+
+- **`.github/workflows/publish.yml` now declares `permissions:
+  contents: write`** at the job level. This grants the auto-provided
+  `GITHUB_TOKEN` the minimum scope needed for `gh release create` to
+  succeed. Verified via the failed v2.0.1 workflow-run job log.
+- **Backfill list extended to include v2.0.1** alongside v1.7.0 and
+  v2.0.0. The v2.0.2 workflow run will create Releases retroactively
+  for all three previously-shipped tags whose Release-creation step
+  was not yet possible. Idempotent — becomes a no-op once complete.
+
+### Stats
+
+- Files changed: 3 (`package.json`, `CHANGELOG.md`,
+  `.github/workflows/publish.yml`).
+- Lines added: ~30; lines removed: ~3.
+- No `src/` changes; no `tests/` changes.
+- Test count unchanged at 346.
+
 ## 2.0.1 — 2026-05-01
 
 **Documentation + release-process patch. No runtime behaviour change.**
