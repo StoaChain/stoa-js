@@ -1,5 +1,4 @@
-import { KADENA_CHAIN_ID, KADENA_NETWORK, getPactUrl } from "../constants";
-import { Pact, createClient } from "@kadena/client";
+import { pactRead } from "../reads";
 
 export interface BalanceItem {
   account: string;
@@ -7,15 +6,8 @@ export interface BalanceItem {
 }
 
 export async function getBalance(account: string): Promise<BalanceItem> {
-  const transaction = Pact.builder
-    .execution((Pact.modules as any).coin["get-balance"](account))
-    .setMeta({ senderAccount: account, chainId: KADENA_CHAIN_ID })
-    .setNetworkId(KADENA_NETWORK)
-    .createTransaction();
-
-  const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-
-  const response = await dirtyRead(transaction);
+  const pactCode = `(coin.get-balance "${account}")`;
+  const response = await pactRead(pactCode, { tier: "T1" });
 
   const raw = (response.result as any).data;
   // Kadena may return { decimal: "..." } — unwrap to plain string
@@ -27,15 +19,8 @@ export async function getBalance(account: string): Promise<BalanceItem> {
 }
 
 export async function accountDescription(address: string) {
-  const transaction = Pact.builder
-    .execution((Pact.modules as any).coin.details(address))
-    .setMeta({ senderAccount: address, chainId: KADENA_CHAIN_ID })
-    .setNetworkId(KADENA_NETWORK)
-    .createTransaction();
-
-  const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-
-  const { result }: any = await dirtyRead(transaction);
+  const pactCode = `(coin.details "${address}")`;
+  const { result }: any = await pactRead(pactCode, { tier: "T5" });
 
   return {
     isNewAccount: result?.status === "failure",

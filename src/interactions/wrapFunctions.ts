@@ -14,6 +14,7 @@ import {
   STOA_AUTONOMIC_LIQUIDPOT,
 } from "../constants";
 import { formatDecimalForPact } from "../pact";
+import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { createSimulationError, logDetailedError } from "../errors";
 import type { IKadenaKeypair } from "../signing";
@@ -40,13 +41,7 @@ export async function getWrapStoaInfo(
   try {
     const decimalAmount = formatDecimalForPact(amount);
     const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.LIQUID|INFO_WrapStoa "${patron}" "${wrapper}" ${decimalAmount})`;
-    const transaction = Pact.builder
-      .execution(pactCode)
-      .setNetworkId(KADENA_NETWORK)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 100_000 })
-      .createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const response = await dirtyRead(transaction);
+    const response = await pactRead(pactCode, { tier: "T2" });
     if (response?.result?.status === "success") {
       return (response.result as any).data;
     }
@@ -64,13 +59,7 @@ export async function getWrapStoaInfo(
 export async function getWrapperPaymentKey(wrapper: string): Promise<string | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.DALOS.UR_AccountKadena "${wrapper}")`;
-    const transaction = Pact.builder
-      .execution(pactCode)
-      .setNetworkId(KADENA_NETWORK)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 50_000 })
-      .createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const response = await dirtyRead(transaction);
+    const response = await pactRead(pactCode, { tier: "T5" });
     if (response?.result?.status === "success") {
       return String((response.result as any).data);
     }
@@ -88,13 +77,7 @@ export async function getWrapperPaymentKey(wrapper: string): Promise<string | nu
 export async function getPaymentKeyBalance(paymentKeyAddress: string): Promise<number | null> {
   try {
     const pactCode = `(try 0.0 (coin.get-balance "${paymentKeyAddress}"))`;
-    const transaction = Pact.builder
-      .execution(pactCode)
-      .setNetworkId(KADENA_NETWORK)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 50_000 })
-      .createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const response = await dirtyRead(transaction);
+    const response = await pactRead(pactCode, { tier: "T1" });
     if (response?.result?.status === "success") {
       const data = (response.result as any).data;
       if (typeof data === "number") return data;
@@ -236,13 +219,7 @@ export async function getWrapUrStoaInfo(
   try {
     const decimalAmount = formatDecimalForPact(amount);
     const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.LIQUID|INFO_WrapUrStoa "${patron}" "${wrapper}" ${decimalAmount})`;
-    const transaction = Pact.builder
-      .execution(pactCode)
-      .setNetworkId(KADENA_NETWORK)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 100_000 })
-      .createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const response = await dirtyRead(transaction);
+    const response = await pactRead(pactCode, { tier: "T2" });
     if (response?.result?.status === "success") {
       return (response.result as any).data;
     }

@@ -20,3 +20,32 @@
  * turns a mnemonic into that key differs between these three labels.
  */
 export type SeedType = "koala" | "chainweaver" | "eckowallet";
+
+/**
+ * Consumer-side balance lookup seam — resolves a Kadena account address to
+ * its decimal `coin` balance as a string.
+ *
+ * Contract:
+ *   - Resolves to the literal string `"0"` when the account does not yet
+ *     exist on chain (i.e. `coin.details` returns a row-not-found error).
+ *     Callers may rely on `"0"` as a stable sentinel for "absent" without
+ *     parsing error shapes.
+ *   - Returns a decimal string (not a number, not a `BigNumber`) so callers
+ *     keep full Kadena `decimal` precision; downstream code parses with
+ *     `BigNumber` as needed.
+ *   - Asynchronous — implementations typically wrap a `coin.details` Pact
+ *     read or a cache layered on top of one.
+ *
+ * This is the consumer-side resolver that replaces the previous
+ * `wallet → interactions` import edge: `KadenaWallet` no longer reaches into
+ * `@stoachain/ouronet-core/interactions/*` to fetch balances; instead the
+ * consumer wires whichever reader fits its environment (browser cache-aware
+ * read, server raw read, in-memory mock for tests) by assigning a
+ * `BalanceResolver`. Same narrow-seam approach used by `PactReader`
+ * (`src/reads/pactReader.ts`) and `KeyResolver` (`src/signing/types.ts`).
+ *
+ * Example — wiring at boot or per-instance:
+ *
+ *   wallet.balanceResolver = (address) => coinDetails(address).then(r => r.balance ?? "0");
+ */
+export type BalanceResolver = (address: string) => Promise<string>;

@@ -40,10 +40,11 @@ import { analyzeGuard } from "@stoachain/ouronet-core";              // not supp
 
 ## Architectural patterns to preserve
 
-**Pluggable seams, not DI.** Two narrow injection points let core stay environment-agnostic without a framework:
+**Pluggable seams, not DI.** Three narrow injection points let core stay environment-agnostic without a framework:
 
 1. `setPactReader(fn)` in `src/reads/pactReader.ts` — consumers call once at boot. Browser plugs in its cache-aware reader; server leaves the default uncached `rawCalibratedDirtyRead`. Interaction code calls `pactRead(...)`, never the raw reader directly.
 2. `KeyResolver` + `PactClient` interfaces in `src/signing/types.ts` — consumed by `CodexSigningStrategy`. OuronetUI implements `ReduxCodexResolver`, HUB will implement `FileCodexResolver`. Never import a concrete resolver into core.
+3. `BalanceResolver` type in `src/wallet/types.ts` — instance-level analogue of `setPactReader`'s function-shaped seam (function alias, NOT an interface), applied to `KadenaWallet.getBalance()`. Default throws clearly-worded error if not configured; `getBalance()` propagates resolver errors. Cuts the previous `wallet -> interactions` import edge so the wallet subpath no longer transitively pulls in `@kadena/client`.
 
 **Node failover is global state.** `src/network/nodeFailover.ts` switches the active Stoa node on health-check failure. Anything making an HTTP call must route through this — historically `interactions/*` had `createClient(PACT_URL)` calls pinned to node2; the v1.6.1 fix (most recent commit) removed those and they should not come back.
 

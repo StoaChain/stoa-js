@@ -388,15 +388,22 @@ export async function listenForCompletion(
 }
 
 /**
- * Simulate a transaction to check if it will succeed
+ * Simulate a Pact code execution to check if it will succeed.
+ *
+ * Public-API break (v1.8): the first parameter is now the raw Pact code string
+ * rather than a built transaction. Consumers that previously held the built
+ * transaction now hold the pact-code string they fed into `.execution(...)`.
  */
 export async function simulateTransaction(
-  transaction: any,
+  pactCode: string,
   chainId: string
 ): Promise<{ success: boolean; result?: any; error?: string; gas?: number }> {
   try {
-    const { dirtyRead } = createClient(getPactUrl(chainId));
-    const result = await dirtyRead(transaction);
+    const result = await pactRead(pactCode, {
+      pactUrl: getPactUrl(chainId),
+      chainId,
+      tier: "T2",
+    });
 
     if (result.result.status === "failure") {
       return {

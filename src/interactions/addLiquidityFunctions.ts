@@ -9,6 +9,7 @@ import { Pact, createClient } from "@kadena/client";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { IOuroAccountKeypair } from "./dexFunctions";
 import { mayComeWithDeimal } from "../pact";
+import { pactRead } from "../reads";
 import type { IKadenaKeypair } from "../signing";
 
 /**
@@ -90,17 +91,10 @@ export async function generateLiquidityData(
       return amountStr.includes('.') ? amountStr : `${amountStr}.0`;
     }).join(' ')}]`;
     
-    const transaction = Pact.builder
-      .execution(`(${KADENA_NAMESPACE}.SWPL.URC_LD "${swpair}" "${input}" ${pactAmounts})`)
-      .setNetworkId(KADENA_NETWORK)
-      .setMeta({
-        chainId: KADENA_CHAIN_ID,
-        gasLimit: 150_000,
-      })
-      .createTransaction();
-
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const response = await dirtyRead(transaction);
+    const response = await pactRead(
+      `(${KADENA_NAMESPACE}.SWPL.URC_LD "${swpair}" "${input}" ${pactAmounts})`,
+      { tier: "T2" },
+    );
 
     if (!response || !response.result) {
       throw new Error("Failed to generate liquidity data from the transaction.");
@@ -126,17 +120,10 @@ export async function validateLiquidityDeviation(
   liquidityData: LiquidityData
 ): Promise<DeviationResult | null> {
   try {
-    const transaction = Pact.builder
-      .execution(`(${KADENA_NAMESPACE}.SWPL.UEV_Liquidity "${swpair}" ${JSON.stringify(liquidityData)})`)
-      .setNetworkId(KADENA_NETWORK)
-      .setMeta({
-        chainId: KADENA_CHAIN_ID,
-        gasLimit: 100_000,
-      })
-      .createTransaction();
-
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const response = await dirtyRead(transaction);
+    const response = await pactRead(
+      `(${KADENA_NAMESPACE}.SWPL.UEV_Liquidity "${swpair}" ${JSON.stringify(liquidityData)})`,
+      { tier: "T2" },
+    );
 
     if (!response || !response.result) {
       throw new Error("Failed to validate liquidity deviation from the transaction.");
@@ -195,18 +182,8 @@ export async function calculateBalancedLiquidity(
       : `${inputAmount}.0`;
     
     const pactCode = `(${KADENA_NAMESPACE}.SWPL.URC_BalancedLiquidity "${swpair}" "${inputTokenId}" ${pactAmount} ${withValidation})`;
-    
-    const transaction = Pact.builder
-      .execution(pactCode)
-      .setNetworkId(KADENA_NETWORK)
-      .setMeta({
-        chainId: KADENA_CHAIN_ID,
-        gasLimit: 100_000,
-      })
-      .createTransaction();
 
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const response = await dirtyRead(transaction);
+    const response = await pactRead(pactCode, { tier: "T2" });
 
     if (!response || !response.result) {
       throw new Error("Failed to calculate balanced liquidity from the transaction.");
@@ -244,33 +221,25 @@ export async function getLPTypeInfo(swpair: string): Promise<LPTypeInfo> {
       // Check for Frozen LP support
       (async () => {
         try {
-          const transaction = Pact.builder
-            .execution(`(${KADENA_NAMESPACE}.SWP.UR_IzFrozenLP "${swpair}")`)
-            .setNetworkId(KADENA_NETWORK)
-            .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 50_000 })
-            .createTransaction();
+          const response = await pactRead(
+            `(${KADENA_NAMESPACE}.SWP.UR_IzFrozenLP "${swpair}")`,
+            { tier: "T7" },
+          );
 
-          const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-          const response = await dirtyRead(transaction);
-          
           return response?.result?.status === "success" ? response.result.data === true : false;
         } catch {
           return false;
         }
       })(),
-      
+
       // Check for Sleeping LP support
       (async () => {
         try {
-          const transaction = Pact.builder
-            .execution(`(${KADENA_NAMESPACE}.SWP.UR_IzSleepingLP "${swpair}")`)
-            .setNetworkId(KADENA_NETWORK)
-            .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 50_000 })
-            .createTransaction();
+          const response = await pactRead(
+            `(${KADENA_NAMESPACE}.SWP.UR_IzSleepingLP "${swpair}")`,
+            { tier: "T7" },
+          );
 
-          const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-          const response = await dirtyRead(transaction);
-          
           return response?.result?.status === "success" ? response.result.data === true : false;
         } catch {
           return false;
@@ -847,11 +816,7 @@ export async function getBalancedLiquidity(
   try {
     const amt = inputAmount.includes(".") ? inputAmount : inputAmount + ".0";
     const pactCode = `(${KADENA_NAMESPACE}.SWPL.URC_BalancedLiquidity "${swpair}" "${inputId}" ${amt} ${withValidation})`;
-    const tx = Pact.builder.execution(pactCode)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 150_000 })
-      .setNetworkId(KADENA_NETWORK).createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const res = await dirtyRead(tx);
+    const res = await pactRead(pactCode, { tier: "T2" });
     if (!res?.result || res.result.status === "failure") return null;
     const data = res.result.data as any;
     if (!Array.isArray(data)) return null;
@@ -872,11 +837,7 @@ export async function getSortLiquidity(
   try {
     const pactAmounts = `[${inputAmounts.map(a => { const s = String(a); return s.includes(".") ? s : s + ".0"; }).join(" ")}]`;
     const pactCode = `(${KADENA_NAMESPACE}.SWPL.URC_SortLiquidity "${swpair}" ${pactAmounts})`;
-    const tx = Pact.builder.execution(pactCode)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 150_000 })
-      .setNetworkId(KADENA_NETWORK).createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const res = await dirtyRead(tx);
+    const res = await pactRead(pactCode, { tier: "T2" });
     if (!res?.result || res.result.status === "failure") return null;
     const data = res.result.data as any;
     const parseArr = (arr: any[]) => arr.map((v: any) => typeof v === "object" && v?.decimal ? String(v.decimal) : String(v));
@@ -896,11 +857,7 @@ export async function getLiquidityData(
   try {
     const pactAmounts = `[${inputAmounts.map(a => { const s = String(a); return s.includes(".") ? s : s + ".0"; }).join(" ")}]`;
     const pactCode = `(${KADENA_NAMESPACE}.SWPL.URC_LD "${swpair}" ${pactAmounts})`;
-    const tx = Pact.builder.execution(pactCode)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 150_000 })
-      .setNetworkId(KADENA_NETWORK).createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const res = await dirtyRead(tx);
+    const res = await pactRead(pactCode, { tier: "T2" });
     if (!res?.result || res.result.status === "failure") return null;
     return res.result.data;
   } catch (e) { console.error("getLiquidityData error:", e); return null; }
@@ -922,11 +879,7 @@ export async function validateLiquidity(
     const pactAmounts = `[${inputAmounts.map(a => { const s = String(a || "0"); return s.includes(".") ? s : s + ".0"; }).join(" ")}]`;
     // Try to run UEV_Liquidity — returns [computed_deviation, max_deviation] on success, throws on exceed
     const pactCode = `(let ((ld (${KADENA_NAMESPACE}.SWPL.URC_LD "${swpair}" ${pactAmounts}))) (try [false false] (${KADENA_NAMESPACE}.SWPL.UEV_Liquidity "${swpair}" ld)))`;
-    const tx = Pact.builder.execution(pactCode)
-      .setMeta({ chainId: KADENA_CHAIN_ID, gasLimit: 200_000 })
-      .setNetworkId(KADENA_NETWORK).createTransaction();
-    const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
-    const res = await dirtyRead(tx);
+    const res = await pactRead(pactCode, { tier: "T2" });
     if (!res?.result || res.result.status === "failure") return { valid: false };
     const data = res.result.data as any;
     // If try caught the error, data = [false, false]

@@ -2,6 +2,314 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## Unreleased — TBD
+
+**Cut the `wallet -> interactions` import edge with a `BalanceResolver` seam, and adopt the `pactRead` injection seam across all sixteen pure-read sites in `interactions/*`.**
+
+Two architectural-layering passes ship together. The first (Phase 1)
+closes the wallet-subpath edge by injecting a per-instance
+`BalanceResolver` seam onto `KadenaWallet`. The second (Phase 2) sweeps
+the remaining direct `createClient(...).local(...)` and
+`Pact.builder...createTransaction()`-then-`.dirtyRead()` call sites in
+`src/interactions/*` onto the existing `pactRead` injection point, so
+every internal pure read now honours the consumer-configured reader
+(cache-aware in OuronetUI, raw in HUB) and the dynamic node-failover
+machinery uniformly.
+
+### Phase 1 — Wallet edge cut
+
+Closes the wallet-subpath half of the architectural-layering audit pass:
+the runtime `KadenaWallet` account class previously reached into
+`@stoachain/ouronet-core/interactions/kadenaFunctions` to fetch on-chain
+balances, which meant any consumer importing
+`@stoachain/ouronet-core/wallet` transitively pulled in the entire
+`interactions/*` tree (and through it, `@kadena/client`, the Pact builders,
+and the failover machinery). For browser SPAs that only wanted the HD
+keypair builder this was dead weight; for server consumers wiring their
+own indexer it was a forced dependency on the Pact-client read path they
+intended to bypass.
+
+Post-edit: `KadenaWallet.getBalance()` delegates to a new instance-level
+`balanceResolver: BalanceResolver` seam (`(address: string) => Promise<string>`).
+The wallet file no longer imports from `interactions/*`; importing the
+wallet subpath no longer transitively pulls in `@kadena/client`. Each
+consumer wires its own resolver. Note: `interactions/kadenaFunctions.getBalance`
+returns `Promise<BalanceItem>` (`{ account, balance }`), so consumers wrap it
+in a one-line adapter to match the `BalanceResolver` contract:
+
+```ts
+import KadenaWallet from "@stoachain/ouronet-core/wallet";
+import { getBalance } from "@stoachain/ouronet-core/interactions/kadenaFunctions";
+
+const wallet = new KadenaWallet({
+  ...,
+  balanceResolver: (address) => getBalance(address).then((r) => r.balance ?? "0"),
+});
+```
+
+A server consumer (HUB) plugs in its own indexer-backed reader; tests plug
+in an in-memory stub. The wrapping adapter is the same pattern shown in
+the `BalanceResolver` JSDoc at `src/wallet/types.ts`.
+
+The seam mirrors the existing `setPactReader` / `KeyResolver` patterns
+documented in `CLAUDE.md` under "Pluggable seams, not DI" — narrow,
+function-shaped, opt-in. The `BalanceResolver` alias is published from
+`src/wallet/types.ts` and is reachable as
+`import type { BalanceResolver } from "@stoachain/ouronet-core/wallet"`.
+
+`KadenaWalletBuilder` is unaffected: its five static methods all return
+keypair tuples or primitives and never instantiate a `KadenaWallet`, so
+there is no construction path through the builder that needs to forward
+the resolver. REQ-06 (builder propagation) is satisfied vacuously with
+grep evidence in the phase TASKS.md.
+
+### Phase 2 — Reader seam adoption across `interactions/*`
+
+Every pure-read call inside `src/interactions/*` now flows through the
+`pactRead(pactCode, { tier, pactUrl?, chainId? })` injection seam (set
+once at boot via `setPactReader(fn)`). Sixteen call sites across four
+files were migrated:
+
+- `kadenaFunctions.ts` — `getBalance` (T1) and `accountDescription` (T5).
+- `wrapFunctions.ts` — `getWrapStoaInfo` (T2), `getWrapperPaymentKey` (T5),
+  `getPaymentKeyBalance` (T1), `getWrapUrStoaInfo` (T2).
+- `addLiquidityFunctions.ts` — nine reads in the URC_LD / UEV_Liquidity /
+  URC_BalancedLiquidity / URC_SortLiquidity / UR_IzFrozenLP /
+  UR_IzSleepingLP family (T2 / T5 / T7 per call).
+- `crossChainFunctions.ts` — `simulateTransaction` reshaped to the
+  read signature (`pactCode`, `chainId`) so it routes through the same
+  reader as the rest. **Public-API break** — see "Breaking change" below.
+
+Each site preserves its existing response-unwrap branching (the
+`{ result: { status, data } }` two-level envelope) and its existing
+return shape, so behavioural equivalence to the prior
+`createClient(...).local(...)` path holds for callers that don't rely
+on cache semantics. Consumers that DO want caching gain it transparently
+once they call `setPactReader(...)` at boot — that path was already
+configured in OuronetUI and HUB, but until this release only a subset of
+internal reads honoured it.
+
+Submit / listen / poll / cross-chain SPV continuation paths (the
+non-read paths inside `crossChainFunctions.ts`,
+`activateFunctions.ts`, `coilFunctions.ts`, etc.) are
+**unchanged** — they still build through `Pact.builder` and submit via
+`createClient(getPactUrl(chainId)).submit(...)` because they need the
+full transaction-descriptor return shape, not a dirty-read result.
+
+A new `tests/interactions-read-seam.test.ts` regression guard
+exercises every migrated function against a counting stub installed via
+`setPactReader(...)` and asserts both the call count and the locked
+`tier` value per site, so future drift back to direct
+`createClient(...).local(...)` is caught at test time.
+
+### Public API impact
+
+- **Constructor signature widened (non-breaking):** `KadenaWallet`'s
+  options object now accepts an optional `balanceResolver?: BalanceResolver`
+  field appended after `derivationPath`. Existing callers that omit it
+  compile and run unchanged — the field defaults to a throwing stub that
+  fires only when `getBalance()` is invoked, so wallets used for
+  address-only flows stay zero-config.
+- **New instance property:** `wallet.balanceResolver` is publicly
+  mutable. Consumers can either inject via the constructor or assign
+  post-construction (`wallet.balanceResolver = fn`) before calling
+  `getBalance()`. Both paths are equivalent.
+- **New exported type:** `BalanceResolver` from
+  `@stoachain/ouronet-core/wallet` —
+  `(address: string) => Promise<string>`. JSDoc documents the `"0"`
+  sentinel for absent accounts and the narrow-seam framing.
+- **Edge cut:** importing `@stoachain/ouronet-core/wallet` no longer
+  transitively pulls in `@kadena/client`, the `interactions/*` tree, or
+  the Pact-client failover machinery. Bundle-size win for browser
+  consumers that only use `KadenaWalletBuilder`.
+- **Default resolver remediation:** if a consumer calls `getBalance()`
+  on a wallet constructed without a resolver, the call rejects with
+  `"KadenaWallet: balanceResolver not configured. Inject one via the
+  constructor or set wallet.balanceResolver before calling getBalance()."`
+  Remediation: either pass `balanceResolver` to the `KadenaWallet`
+  constructor, or set `wallet.balanceResolver = fn` before calling
+  `wallet.getBalance()`. The browser consumer (OuronetUI) wraps
+  `interactions/kadenaFunctions.getBalance` in a one-line adapter
+  (`(addr) => getBalance(addr).then(r => r.balance ?? "0")`) because
+  the interactions function returns the wrapped `BalanceItem` shape
+  `{ account, balance }` while `BalanceResolver` expects a bare
+  decimal string. A server consumer (HUB) wires its own indexer-backed
+  resolver. Mirrors the existing `setPactReader` consumer-wiring
+  guidance in `src/reads/pactReader.ts`.
+- **Breaking change — `simulateTransaction` signature
+  (`@stoachain/ouronet-core/interactions/crossChainFunctions`):** the
+  first parameter changed from a pre-built
+  `IUnsignedCommand` / transaction object to the raw Pact code string
+  the simulation should evaluate. The full new signature is
+  `simulateTransaction(pactCode: string, chainId: string)`; the return
+  shape (`{ success: boolean; result?: any; error?: string; gas?: number }`)
+  is unchanged. Migration: callers that previously did
+  `const tx = Pact.builder.execution(code).…createTransaction();
+  await simulateTransaction(tx, chainId);` should now pass `code`
+  directly — `await simulateTransaction(code, chainId);` — and drop
+  the local `Pact.builder` plumbing. This routes the simulation through
+  the same `pactRead` seam every other read uses, so the consumer-
+  configured reader (e.g. OuronetUI's cache-aware wrapper) governs it
+  uniformly.
+- **Reader seam now adopted (no consumer-facing change for already-
+  configured readers):** sixteen pure-read sites in `interactions/*`
+  that previously bypassed `setPactReader(...)` by calling
+  `createClient(...).local(...)` directly now flow through `pactRead`.
+  Consumers that were already calling `setPactReader(...)` at boot
+  (OuronetUI does; HUB leaves the default) see no API change — the
+  seam was already there; this just makes every internal read honour
+  it. Consumers that were NOT calling `setPactReader(...)` continue to
+  hit the default `rawCalibratedDirtyRead`, identical pre-state behaviour.
+
+### Behavioural impact (mildly breaking)
+
+- **Removed silent `?? "0"` fallback in `getBalance()`.** The previous
+  body was:
+
+  ```ts
+  const balance = await getBalance(this.address);
+  this.balance = balance.balance ?? "0";
+  return this.balance;
+  ```
+
+  The `?? "0"` swallowed any case where the upstream returned an
+  envelope without a `balance` field, fabricating a "0" balance that
+  could not be distinguished from a genuinely-zero on-chain account.
+  The new body assigns the resolver's raw return value and propagates
+  any error verbatim:
+
+  ```ts
+  this.balance = await this.balanceResolver(this.address);
+  return this.balance;
+  ```
+
+  Consumers that today rely on `getBalance()` always returning a string
+  (never throwing) must either (a) wrap their call sites in `try/catch`,
+  or (b) supply a resolver whose own error path returns `"0"` to
+  preserve the old behaviour. The `BalanceResolver` JSDoc still
+  documents `"0"` as the stable sentinel for "absent on chain" — the
+  contract for absent accounts is unchanged; only the silent-on-error
+  swallow is gone.
+
+### Changed
+
+- `src/wallet/KadenaWallet.ts` — removed the `import { getBalance }
+  from "../interactions/kadenaFunctions"` edge; added
+  `import type { BalanceResolver } from "./types"`; added
+  `public balanceResolver: BalanceResolver` instance field; constructor
+  options-object widened with optional `balanceResolver?` argument;
+  `getBalance()` body delegates to `this.balanceResolver(this.address)`
+  with no `?? "0"` swallow; class JSDoc and property JSDoc updated to
+  describe the new injection-seam reality and the last-write-wins
+  race semantics.
+- `src/interactions/kadenaFunctions.ts` — `getBalance` (T1) and
+  `accountDescription` (T5) routed through `pactRead`. Direct
+  `createClient(getPactUrl(...))` + `Pact.builder` plumbing removed;
+  `import { pactRead } from "../reads"` added; unused
+  `Pact` / `createClient` / `getPactUrl` / `KADENA_NETWORK` /
+  `KADENA_CHAIN_ID` imports pruned (where no remaining call sites
+  reference them). The `export interface BalanceItem` declaration is
+  preserved verbatim — it's a public-API contract for downstream
+  consumers.
+- `src/interactions/wrapFunctions.ts` — four reads migrated:
+  `getWrapStoaInfo` (T2), `getWrapperPaymentKey` (T5),
+  `getPaymentKeyBalance` (T1), `getWrapUrStoaInfo` (T2). The eight
+  submit/listen/poll wrap helpers
+  (`executeFirestarter`/`executeWrap*`/etc.) keep their existing
+  `Pact.builder` + `createClient(...).submit(...)` paths — those need
+  the full transaction-descriptor return shape and are not reads.
+- `src/interactions/addLiquidityFunctions.ts` — nine reads migrated
+  across the URC_LD / UEV_Liquidity / URC_BalancedLiquidity /
+  URC_SortLiquidity / UR_IzFrozenLP / UR_IzSleepingLP families at
+  locked tiers (T2 / T5 / T7 per call). The IIFE wrapper shape used
+  for the URC_0027-style batched selector is preserved; the submit /
+  listen / poll paths in the same file are untouched.
+- `src/interactions/crossChainFunctions.ts` — `simulateTransaction`
+  reshaped from `(transaction, chainId)` to `(pactCode, chainId)` and
+  routed through `pactRead`. **Public-API break — see "Breaking
+  change" above.** `getBalanceOnChain` (already on `pactRead` since
+  v1.6.1) is unchanged. The cross-chain transfer build / submit / SPV /
+  finish paths are untouched.
+
+### Added
+
+- `src/wallet/types.ts` — new `BalanceResolver` type alias with full
+  JSDoc (the `"0"` sentinel, the narrow-seam framing, the
+  `wallet.balanceResolver = fn` wiring example).
+- `tests/wallet.test.ts` — 8 behavioural tests covering: default-throw
+  on call (exact error string), constructor-injected resolver delegation,
+  post-construction assignment, async rejection propagation, sync throw
+  propagation, plus construction-sanity checks.
+- `tests/interactions-read-seam.test.ts` — behavioural regression guard
+  with one it-block per migrated function. Each test installs a
+  counting `pactRead` stub via `setPactReader(...)`, invokes the real
+  exported function, and asserts both the call count (the stub fired
+  exactly once per call site) and the `tier` value the stub received
+  (so future drift back to direct `createClient(...).local(...)` or to
+  a wrong tier is caught at test time). Total: ~15 it-blocks across
+  the four migrated files. Combined with the existing
+  `tests/wallet.test.ts` coverage, this is the new safety net the
+  reader-seam adoption rests on.
+
+### Unchanged
+
+- `src/interactions/kadenaFunctions.ts` — `getBalance` (and
+  `accountDescription`) still exported. The per-file subpath
+  `@stoachain/ouronet-core/interactions/kadenaFunctions` continues to
+  resolve. Only the wallet-side import is gone; downstream consumers
+  that imported `getBalance` directly from interactions are unaffected.
+- `KadenaWalletBuilder` — no API changes. The class's five static
+  methods return keypair tuples or primitives; none constructs a
+  `KadenaWallet` instance, so there is no propagation path to add.
+- `package.json` `exports` map — unchanged.
+- All submit / listen / poll / SPV / finish paths in
+  `interactions/*` — unchanged. Only pure reads were touched;
+  transaction-submitting helpers continue to build through
+  `Pact.builder` and submit via
+  `createClient(getPactUrl(chainId)).submit(...)` because they need
+  the full `ITransactionDescriptor` return shape, not a dirty-read
+  result.
+
+### Process notes
+
+This release was produced via the BeeDev workflow. Phase 1 of the
+`arch-layering-and-seams` spec (REQ-01 through REQ-06) addresses the
+wallet edge cut. Phase 2 (REQ-07 through REQ-17) adopts the existing
+`pactRead` seam across the remaining sixteen pure-read sites in
+`interactions/*` and reshapes `simulateTransaction`'s signature. The
+`CLAUDE.md` "Pluggable seams" header is updated in this release from
+"Two narrow injection points" to "Three narrow injection points" — the
+new third bullet (`BalanceResolver`) was added additively in Phase 1;
+the count text was deferred to Phase 2 (this entry) so it would land
+together with the full adoption proof. The version number is left as
+`Unreleased — TBD` in this entry; the release coordinator fills it in
+at tag time per the `Publishing flow` ceremony, picking the
+appropriate semver bump (Phase 2's `simulateTransaction` signature
+change is breaking, so a major bump is the expected outcome unless
+the coordinator rules it out).
+
+### Release ceremony — pre-tag verification
+
+Before tagging this release, the release coordinator MUST re-run the
+import-graph regression grep to confirm Phase 1's wallet edge cut still
+holds in the freshly-built `dist/`. The check is:
+
+```sh
+npm run build
+grep -nE "(from|require\()\s*['\"][^'\"]*interactions" dist/wallet/*.js
+# (or, with ripgrep)
+rg -E "(from|require\()\s*['\"][^'\"]*interactions" dist/wallet/
+```
+
+Expected output: **zero hits** (grep exits 1, rg exits with no
+results). The narrow regex matches only `from "..."` and
+`require("...")` import-graph references — a substring grep of
+"interactions" would produce a false positive on the JSDoc text in
+`BalanceResolver` (TypeScript preserves JSDoc by default in
+`tsconfig.build.json`). Any hit means the wallet subpath has
+re-acquired a transitive dependency on `interactions/*` and the tag
+should NOT proceed until the import is restored to a seam injection.
+
 ## 1.7.0 — 2026-04-30
 
 **Consolidate `IKadenaKeypair` to a single canonical declaration.**
