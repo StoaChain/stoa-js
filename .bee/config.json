@@ -1,0 +1,57 @@
+{
+  "stacks": [
+    { "name": "typescript-library", "path": ".", "linter": "none", "testRunner": "vitest" }
+  ],
+  "implementation_mode": "premium",
+  "ci": "github-actions",
+  "context7": true,
+  "research_policy": "recommended",
+  "review": {
+    "against_spec": true,
+    "against_standards": true,
+    "dead_code": true,
+    "loop": false,
+    "max_loop_iterations": 3
+  },
+  "phases": {
+    "require_review_before_next": true,
+    "post_wave_validation": "auto"
+  },
+  "ship": {
+    "max_review_iterations": 3,
+    "final_review": true
+  },
+  "quick": {
+    "review": false,
+    "fast": false
+  },
+  "metrics": {
+    "enabled": true
+  },
+  "autonomous": {
+    "discuss": true,
+    "auto_approve_confidence": "high"
+  },
+  "adaptive": {
+    "learning": true,
+    "escalation": true
+  },
+  "agent_teams": {
+    "status": "enabled",
+    "allow_in_auto_mode": false,
+    "auto_decision": "smart",
+    "high_cost_confirm": true,
+    "skill_injection": "untested",
+    "skill_bridge_method": "auto",
+    "max_team_size": 5,
+    "max_tokens_per_team_op": 2400000,
+    "block_if_dangerous_perms": true,
+    "declined_at_cc_version": null,
+    "metrics": {
+      "team_runs": 0,
+      "team_runs_succeeded": 0,
+      "team_token_cost_total": 0,
+      "subagent_runs_avoided": 0
+    }
+  }
+}
