@@ -6,11 +6,12 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`1.6.1` on public npmjs** — extraction complete + DALOS cryptography
-integration + Smart-account metadata in the batched selector + historical
-primitives surfaced + Smart-account auth-path resolution primitives + every
-internal `interactions/*` helper now honors the active node (no more
-node2-pinned `createClient(PACT_URL)` calls).
+**`2.0.1` on public npmjs** — full architectural-cleanup pass: wallet
+subpath no longer transitively pulls in `@kadena/client`, `pactRead`
+injection seam adopted across every internal pure-read site, and
+`KadenaWallet.getBalance()` now propagates errors instead of silently
+falling back to `"0"`. See **Migrating to v2.x** below for the consumer
+upgrade path.
 
 Every piece of blockchain logic that used to live in OuronetUI has
 landed here: Pact builders, signing pipeline (CodexSigningStrategy +
@@ -25,43 +26,98 @@ via a new `./dalos` subpath — consumers mint Ouronet accounts locally
 base-49, seed words) without touching the retired
 `go.ouronetwork.io/api/generate` endpoint.
 
-**v1.4.0** extends the `AccountSelectorData` type returned by the
-batched `URC_0027_AccountSelectorMapper` to include `public-key`,
-`sovereign`, and `governor` — the three fields the on-chain mapper
-started returning to support Smart Ouronet Account display (Σ. prefix
-accounts with sovereign + governor authorisation paths).
+**v1.4.0** — `AccountSelectorData` now includes `public-key`,
+`sovereign`, and `governor` for Smart Ouronet Account display (Σ.
+prefix accounts with sovereign + governor authorisation paths).
 
-**v1.5.0** re-exports the new `Leto` / `Artemis` / `Apollo`
-historical-curve primitives (v1.2.0 of dalos-crypto) through the
-`./dalos` subpath, plus the `createGen1Primitive` factory and
-`AddressPrefixPair` type. These are **NOT** registered in
-`createDefaultRegistry()` — Ouronet continues to use DALOS Genesis
-exclusively; the re-exports exist so consumers who need the
-historical primitives can reach them without adding a direct
-dependency on dalos-crypto.
+**v1.5.0** — re-exports `Leto` / `Artemis` / `Apollo` historical-curve
+primitives + `createGen1Primitive` factory through the `./dalos`
+subpath. NOT registered in `createDefaultRegistry()` — Ouronet stays
+Genesis-only; consumers opt in.
 
-**v1.6.0** lands the first batch of Smart Ouronet Account auth-path
-primitives. Smart accounts (Σ. prefix) authorise mutations via
-`enforce-one` over THREE branches (account guard, sovereign account
-guard, governor) — any one branch satisfying its predicate authorises
-the transaction. Standard accounts (Ѻ.) still use a single keyset.
-The new `/guard` exports (`classifyGuardKind`, `extractKeysetFromGuard`,
-`analyzeSmartAccountAuthPaths`) let consumers discriminate the four
-guard shapes (keyset / keyset-ref / capability / user) and produce a
-ready-to-render summary of which branches are signable by the codex.
-A new `buildRotateSovereignPactCode` builder lands the first CFM
-function that targets a Smart account's auth path. Strategy itself
-is unchanged — it still takes a single AND-of-keysets array; the UI
-resolves the OR-of-3 to one chosen branch before calling execute.
+**v1.6.0** — Smart Ouronet Account auth-path primitives. `/guard`
+gains `classifyGuardKind`, `extractKeysetFromGuard`,
+`analyzeSmartAccountAuthPaths` to discriminate the four guard shapes
+and resolve the `enforce-one` over (account guard / sovereign /
+governor). `buildRotateSovereignPactCode` is the first CFM function
+targeting a Smart account's auth path.
 
-**~310 tests** pass on every commit (cfm-builders + smart-account-auth
-+ codex-codec + crypto + DALOS integration + misc). Published to the
-public npmjs registry via `.github/workflows/publish.yml` on every
-`v*` tag.
+**v1.6.1** — every internal `interactions/*` helper now honors the
+active failover node (no more `createClient(PACT_URL)` pinned to
+node2).
+
+**v1.7.0** — `IKadenaKeypair` consolidated to a single canonical
+declaration in `src/signing/types.ts`. The duplicate copies that lived
+across `interactions/*` are replaced with `import type` re-exports.
+Closes audit finding F-CORE-001 (CRITICAL).
+
+**v2.0.0** — wallet subpath layering restored + `pactRead` injection
+seam fully adopted. Closes F-CORE-005 + F-CORE-006 (HIGH). **Two
+breaking changes** for consumers — see migration guide below.
+
+**v2.0.1** — documentation/release-process patch. Adds `CHANGELOG.md`
+to the npm tarball, auto-creates GitHub Releases on tag push, and
+backfills Releases for v1.7.0 and v2.0.0. No runtime change.
+
+**346 tests** pass on every commit. Published to the public npmjs
+registry via `.github/workflows/publish.yml` on every `v*` tag (which
+also creates a GitHub Release).
 
 ```bash
 npm install @stoachain/ouronet-core
 ```
+
+## Migrating to v2.x
+
+Two breaking changes shipped in v2.0.0 — both consumer-side, no
+internal call sites in `src/` are affected.
+
+### 1. `KadenaWallet` requires a `balanceResolver` to fetch balances
+
+The `wallet/` subpath no longer imports from `interactions/*` (closes
+F-CORE-005). The `KadenaWallet` class now exposes a publicly mutable
+`balanceResolver: BalanceResolver` instance property. The default is a
+lazy throwing stub — it fires only when `wallet.getBalance()` is
+actually called, so wallets used purely for address derivation stay
+zero-config.
+
+```ts
+import KadenaWallet from "@stoachain/ouronet-core/wallet";
+import { getBalance } from "@stoachain/ouronet-core/interactions/kadenaFunctions";
+
+const wallet = new KadenaWallet({
+  parentId: 0, index: 0,
+  secret: ..., publicKey: ..., derivationPath: "m/44'/...",
+  // Wrap interactions.getBalance to match the
+  // (address) => Promise<string> contract:
+  balanceResolver: (addr) => getBalance(addr).then((r) => r.balance ?? "0"),
+});
+
+// Or assign post-construction:
+wallet.balanceResolver = (addr) => myIndexer.balanceOf(addr);
+```
+
+`wallet.getBalance()` now **propagates errors** — the previous
+`?? "0"` silent fallback is gone (mildly breaking behavioural shift).
+Wrap the call in `try/catch`, or have your resolver default-on-error
+return `"0"`.
+
+### 2. `simulateTransaction(pactCode, chainId)` signature change
+
+`interactions/crossChainFunctions.simulateTransaction` previously
+accepted a pre-built `IUnsignedCommand` transaction object. It now
+accepts the Pact code string directly:
+
+```ts
+// Before (v1.x):
+const tx = Pact.builder.execution(code).setMeta(...).createTransaction();
+const result = await simulateTransaction(tx, chainId);
+
+// After (v2.x):
+const result = await simulateTransaction(code, chainId);
+```
+
+The return shape `{ success, result?, error?, gas? }` is unchanged.
 
 ## Design docs
 
@@ -91,7 +147,7 @@ Each is a subpath export of the package: `import { ... } from "@stoachain/ourone
 | `@stoachain/ouronet-core/codex` | `PlaintextCodex` generic type, `serializeCodex` / `deserializeCodex` (backup format `"1.2"`), `migrateSeedType` |
 | `@stoachain/ouronet-core/reads` | `rawCalibratedDirtyRead` (pure Pact read with node failover; no cache) |
 | `@stoachain/ouronet-core/pact` | `formatDecimalForPact`, `safeCreationTime`, `filterFreePositionData`, EU locale formatters, and **14 `buildXxxPactCode` builders** for every CFM function the ecosystem ships |
-| `@stoachain/ouronet-core/interactions` | Read helpers (`getXxxInfo`, `getXxxBalance`, `getHibernatedNonces…`) + non-CFM execute helpers (`executeWrapStoa`, `executeWrapUrStoa`, `executeNativeUrStoaTransfer`) |
+| `@stoachain/ouronet-core/interactions` | Read helpers (`getXxxInfo`, `getXxxBalance`, `getHibernatedNonces…`) + non-CFM execute helpers (`executeWrapStoa`, `executeWrapUrStoa`, `executeNativeUrStoaTransfer`); **(v2.0.0+)** `simulateTransaction(pactCode, chainId)` (signature change — see Migrating to v2.x) |
 | `@stoachain/ouronet-core/dalos` | **(v1.3.0+)** thin re-export of `@stoachain/dalos-crypto/registry` + `createOuronetAccount(registry, options)` convenience helper covering all 6 DALOS input modes. One-stop shop for browser-side key-gen; no need to install `dalos-crypto` as a separate dep. |
 
 ## Quick start — `/dalos` subpath
@@ -138,7 +194,7 @@ for deeper documentation on the cryptographic primitive itself.
 npm install
 npm run build        # tsc -p tsconfig.build.json → dist/
 npm run typecheck    # tsc --noEmit
-npm test             # vitest run — 295 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration
+npm test             # vitest run — 346 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam
 ```
 
 To hot-reload changes into OuronetUI (which now depends on the published

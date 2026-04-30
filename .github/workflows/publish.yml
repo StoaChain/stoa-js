@@ -71,3 +71,60 @@ jobs:
 
       - name: Publish to npmjs.org
         run: npm publish --access public
+
+      # ------------------------------------------------------------------
+      # GitHub Release creation
+      # ------------------------------------------------------------------
+      # Reason: a git tag is just a commit pointer — it does NOT create a
+      # user-facing GitHub Release. Without this step the Releases page
+      # stays empty and consumers have no discoverable changelog on GitHub.
+      # We use the `gh` CLI (pre-installed on ubuntu-latest runners) which
+      # auto-authenticates with $GH_TOKEN. The `--notes-from-tag` flag uses
+      # the annotated tag's message as the Release body — exactly what was
+      # already provided in `git tag -a vX.Y.Z -m "..."`.
+      - name: Create GitHub Release for the pushed tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          # Skip if Release already exists (idempotent — supports manual re-runs).
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release for $TAG already exists — skipping."
+          else
+            gh release create "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "$TAG" \
+              --notes-from-tag \
+              --latest
+            echo "Created GitHub Release for $TAG."
+          fi
+
+      # ------------------------------------------------------------------
+      # Retroactive Release backfill (idempotent)
+      # ------------------------------------------------------------------
+      # Reason: v1.7.0 and v2.0.0 shipped to npm before the auto-Release
+      # step existed, so their GitHub Releases pages are missing. This step
+      # creates them from the existing annotated-tag messages on every run
+      # (idempotent — `gh release view` short-circuits if the Release
+      # already exists). Once both are backfilled this becomes a no-op.
+      - name: Backfill GitHub Releases for prior tags (idempotent)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for PRIOR_TAG in v1.7.0 v2.0.0; do
+            if gh release view "$PRIOR_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+              echo "Backfill: $PRIOR_TAG Release already exists — skipping."
+            else
+              # Verify the tag actually exists in the repo before attempting
+              # to create a Release for it.
+              if git rev-parse "$PRIOR_TAG" >/dev/null 2>&1; then
+                gh release create "$PRIOR_TAG" \
+                  --repo "${{ github.repository }}" \
+                  --title "$PRIOR_TAG" \
+                  --notes-from-tag
+                echo "Backfilled GitHub Release for $PRIOR_TAG."
+              else
+                echo "Backfill: tag $PRIOR_TAG does not exist in repo — skipping."
+              fi
+            fi
+          done

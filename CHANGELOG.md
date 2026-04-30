@@ -2,6 +2,62 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.0.1 — 2026-05-01
+
+**Documentation + release-process patch. No runtime behaviour change.**
+
+The v2.0.0 release shipped with two documentation-discoverability gaps
+that this patch closes. Consumers on v2.0.0 do NOT need to upgrade for
+any code reason; v2.0.1 is functionally identical except for the
+shipping artefacts.
+
+### Fixed
+
+- **`CHANGELOG.md` is now bundled with the npm tarball.** v2.0.0 had
+  `package.json:files: ["dist"]` which excluded the changelog.
+  Consumers running `npm view @stoachain/ouronet-core@2.0.0` saw only
+  the README and had to visit the GitHub repo for migration guidance.
+  v2.0.1 ships `CHANGELOG.md` alongside `dist/` so the migration
+  guidance is reachable from the registry.
+- **GitHub Releases now created automatically on every `v*` tag
+  push.** Previously `publish.yml` only published to npm; the
+  Releases page on GitHub stayed empty. The new workflow step uses
+  the `gh` CLI (pre-installed on `ubuntu-latest` runners) with the
+  auto-provided `GITHUB_TOKEN` to call `gh release create
+  --notes-from-tag` on every push. Idempotent — safe to re-run.
+- **Backfill for v1.7.0 and v2.0.0 GitHub Releases.** This v2.0.1
+  workflow run also creates Releases retroactively for the two
+  previously-shipped tags using their existing annotated-tag
+  messages. After this run, `https://github.com/StoaChain/OuronetCore/releases`
+  shows all three versions; the backfill step becomes a no-op on
+  subsequent runs.
+
+### Changed
+
+- **`README.md` refreshed** to reflect v2.0.x state: status section
+  now shows v2.0.1, v1.7.0/v2.0.0/v2.0.1 entries added; new
+  "Migrating to v2.x" section documents the `BalanceResolver` wiring
+  pattern and the `simulateTransaction(pactCode, chainId)` signature
+  change with before/after code samples; test count updated from 295
+  → 346; interactions submodule description flags the v2.0.0 signature
+  change.
+
+### Internal
+
+- `package.json:files` extended from `["dist"]` to `["dist", "CHANGELOG.md"]`.
+- `.github/workflows/publish.yml` gains two steps after `npm publish`:
+  one to create a GitHub Release for the pushed tag, one to backfill
+  Releases for `v1.7.0` and `v2.0.0` (idempotent — guarded by
+  `gh release view`).
+
+### Stats
+
+- Files changed: 4 (`package.json`, `CHANGELOG.md`, `README.md`,
+  `.github/workflows/publish.yml`).
+- Lines added: ~120; lines removed: ~50.
+- No `src/` changes; no `tests/` changes.
+- Test count unchanged at 346.
+
 ## 2.0.0 — 2026-05-01
 
 **Cut the `wallet -> interactions` import edge with a `BalanceResolver` seam, and adopt the `pactRead` injection seam across all sixteen pure-read sites in `interactions/*`.**
