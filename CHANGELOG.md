@@ -2,6 +2,24 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.1.2 — 2026-05-01
+
+**Concurrency-race correction in `withFailover`. No public API change.**
+
+Closes audit finding **F-BUG-001** documented in `.bee/audit-specs/high-withfailover-concurrency-race.md` (will move to `.bee/audit-specs-done/2026-05-01-high-withfailover-concurrency-race.md` post-archive per the project's audit-specs lifecycle). The bug surfaced during the v2.1.0 reliability-failover spec's final implementation review by the audit-bug-detector agent: under concurrent chain calls during a primary-node failover event, sibling `withFailover` invocations could surface spurious TIMEOUT errors even though the fallback host was healthy. v2.1.0's `getFailoverClient` adoption widened the blast radius — every chain call now routes through `withFailover`, making concurrent flows the norm. v2.1.2 is a behavior correction toward the documented "retry once on the fallback if the primary attempt errors with a network-class failure" contract; it is patch-version-eligible per strict semver.
+
+### Fixed
+
+- **F-BUG-001 — `withFailover` retry guard now uses per-invocation captured base URLs.** The catch-block guard at `src/network/nodeFailover.ts:120` previously read the shared module-level `currentHost === PRIMARY_HOST`, which a sibling concurrent call could have already flipped, causing the second invocation's catch to incorrectly skip the fallback retry. The rewrite captures BOTH `attemptedBaseUrl` (current active host at fn-entry) AND `attemptedPrimaryBaseUrl` (current primary host at fn-entry) into local `const`s before invoking the wrapped function, then compares the two captured locals at catch-time. This makes the decision robust to ANY concurrent module-state mutation (sibling `withFailover` flip, mid-flight `setNodeConfig`, mid-flight `resetNodeFailover`). The retry path now calls `switchToFallback()` unconditionally — its pre-existing line-50 idempotency (`if (currentHost === FALLBACK_HOST) return;`) handles the concurrent-flip case correctly without an additional guard. The retry call uses `await fn(getActiveBaseUrl())` (with `await`) for symmetry with the initial call. New module-private helper `getPrimaryBaseUrl()` added to `src/network/nodeFailover.ts:82-85`; not exported (semver-clean).
+
+### Stats
+
+- Files changed: 5 (`src/network/nodeFailover.ts`, `tests/network.test.ts`, `package.json`, `CHANGELOG.md`, `README.md`).
+- Lines added: ~30; lines removed: ~6.
+- Test count: **386** passing (up from `385` at v2.1.1; +1 from the new concurrent-failover regression test in `tests/network.test.ts`).
+- New regression test: `describe("withFailover — concurrent retry race", ...)` added to `tests/network.test.ts` (one new it-block exercising `Promise.all([withFailover(fn1), withFailover(fn2)])` during a primary-down event; pins the request-key dedup-equivalent semantic for concurrent failover).
+- No new public exports. The new `getPrimaryBaseUrl()` helper is module-private.
+
 ## 2.1.1 — 2026-05-01
 
 **README documentation patch. No runtime change.**

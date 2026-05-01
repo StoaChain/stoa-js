@@ -217,6 +217,33 @@ describe("withFailover — primary-fallback retry", () => {
   });
 });
 
+// ══ withFailover — concurrent retry race ═════════════════════════════════════
+describe("withFailover — concurrent retry race", () => {
+  beforeEach(() => {
+    setNodeConfig("node2");
+  });
+
+  it("retries on fallback for both concurrent calls when primary fails", async () => {
+    try {
+      const fn1 = vi.fn()
+        .mockRejectedValueOnce(new Error("Failed to fetch"))
+        .mockResolvedValueOnce("ok-on-fallback");
+      const fn2 = vi.fn()
+        .mockRejectedValueOnce(new Error("Failed to fetch"))
+        .mockResolvedValueOnce("ok-on-fallback");
+
+      const [r1, r2] = await Promise.all([withFailover(fn1), withFailover(fn2)]);
+
+      expect(r1).toBe("ok-on-fallback");
+      expect(r2).toBe("ok-on-fallback");
+      expect(fn1).toHaveBeenCalledTimes(2);
+      expect(fn2).toHaveBeenCalledTimes(2);
+    } finally {
+      resetNodeFailover();
+    }
+  });
+});
+
 // ══ resetNodeFailover ═════════════════════════════════════════════════════════
 describe("resetNodeFailover", () => {
   it("returns observable state slots to initial values after mutation", () => {

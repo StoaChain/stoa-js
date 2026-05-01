@@ -79,6 +79,11 @@ function stopRetryLoop() {
   }
 }
 
+/** Get the canonical primary node base URL (chainweb API root). Module-private — reads PRIMARY_HOST regardless of currentHost. Used by withFailover for per-invocation primary-host comparison. */
+function getPrimaryBaseUrl(): string {
+  return `${PRIMARY_HOST}/chainweb/0.0/${KADENA_NETWORK}`;
+}
+
 /** Get the current active node base URL (chainweb API root) */
 export function getActiveBaseUrl(): string {
   return `${currentHost}/chainweb/0.0/${KADENA_NETWORK}`;
@@ -106,21 +111,27 @@ export function getActiveSpvUrl(chainId: string): string {
 export async function withFailover<T>(
   fn: (baseUrl: string) => Promise<T>
 ): Promise<T> {
+  // Capture BOTH URLs at entry. Re-reading PRIMARY_HOST at catch-time
+  // would be wrong if setNodeConfig/resetNodeFailover ran mid-flight.
+  const attemptedBaseUrl = getActiveBaseUrl();
+  const attemptedPrimaryBaseUrl = getPrimaryBaseUrl();
   try {
-    const result = await fn(getActiveBaseUrl());
-    return result;
+    return await fn(attemptedBaseUrl);
   } catch (err: any) {
-    // Only failover on network errors, not on chain/logic errors
     const isNetworkError =
       err?.message?.includes("Failed to fetch") ||
       err?.message?.includes("NetworkError") ||
       err?.message?.includes("ECONNREFUSED") ||
       err?.name === "AbortError";
 
-    if (isNetworkError && currentHost === PRIMARY_HOST) {
+    if (isNetworkError && attemptedBaseUrl === attemptedPrimaryBaseUrl) {
+      // Call switchToFallback unconditionally — its line-50 idempotency
+      // (if currentHost === FALLBACK_HOST return;) handles the concurrent
+      // flip case correctly. No redundant gate needed.
       switchToFallback();
-      // Retry once on fallback
-      return fn(getActiveBaseUrl());
+      // Retry on the now-active fallback. await ensures sync throws
+      // produce a rejected promise rather than escape the async wrapper.
+      return await fn(getActiveBaseUrl());
     }
     throw err;
   }

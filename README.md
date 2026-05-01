@@ -6,14 +6,15 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`2.1.0` on public npmjs** — reliability hardening release. Wires
-automatic node failover, bounded timeouts, and `TIMEOUT` error
-classification through every chain RPC surface in the library. Closes
-4 HIGH-severity audit findings (F-CORE-002 / F-CORE-003 / F-CORE-004 /
-F-CORE-008). MINOR, non-breaking — all v2.0.x consumers upgrade with no
-code changes. See [`CHANGELOG.md`](CHANGELOG.md) for the full entry,
-and the **What's new in v2.1.0** section below for the new public
-surface.
+**`2.1.2` on public npmjs** — concurrency-race correction in
+`withFailover`. No public API change. Closes audit finding F-BUG-001
+(`withFailover` retry guard now uses per-invocation captured base URLs
+instead of shared module-level state, so concurrent chain calls during
+a primary-node failover all retry on the fallback as documented). The
+v2.1.0 reliability hardening surface is intact. PATCH-level fix; v2.1.x
+consumers upgrade transparently. See [`CHANGELOG.md`](CHANGELOG.md) for
+the full v2.1.2 entry, and the **What's new in v2.1.0** section below
+for the public-API additions that landed in the prior minor.
 
 Every piece of blockchain logic that used to live in OuronetUI has
 landed here: Pact builders, signing pipeline (CodexSigningStrategy +
@@ -82,7 +83,18 @@ for test isolation, new `readTimeoutMs?: number` option on
 `PactReader` and `rawCalibratedDirtyRead`. MINOR, non-breaking —
 existing imports continue to work; the new surface is opt-in.
 
-**385 tests** pass on every commit (up from 346 baseline; +39 new
+**v2.1.2** — concurrency-race correction in `withFailover`. PATCH, no
+public API change. The retry guard now uses per-invocation captured
+base URLs (`attemptedBaseUrl` AND `attemptedPrimaryBaseUrl` captured
+at fn-entry as local consts) instead of reading the shared
+module-level `currentHost === PRIMARY_HOST` at catch-time. This makes
+the catch-block decision robust to concurrent module-state mutation
+(sibling `withFailover` flip, mid-flight `setNodeConfig`, mid-flight
+`resetNodeFailover`). Closes F-BUG-001. New module-private
+`getPrimaryBaseUrl()` helper added to `src/network/nodeFailover.ts`;
+not exported.
+
+**386 tests** pass on every commit (up from 346 baseline; +40 new
 tests across `tests/{failover-client,timeouts,failover-submit}.test.ts`
 and extensions to `tests/{network,strategy}.test.ts`). Published to
 the public npmjs registry via `.github/workflows/publish.yml` on every
@@ -287,7 +299,7 @@ for deeper documentation on the cryptographic primitive itself.
 npm install
 npm run build        # tsc -p tsconfig.build.json → dist/
 npm run typecheck    # tsc --noEmit
-npm test             # vitest run — 385 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam, network, failover-client, timeouts, failover-submit
+npm test             # vitest run — 386 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam, network, failover-client, timeouts, failover-submit
 ```
 
 To hot-reload changes into OuronetUI (which now depends on the published
