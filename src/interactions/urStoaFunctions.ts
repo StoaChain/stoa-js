@@ -6,14 +6,14 @@
  * Transfer: coin.C_UR|Transfer / Transmit / TransferAnew / TransmitAnew
  */
 
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { calculateAutoGasLimit } from "../gas";
 import { pactRead } from "../reads";
 import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE,
   KADENA_NETWORK,
-  getPactUrl,
   STOA_AUTONOMIC_OURONETGASSTATION,
 } from "../constants";
 import { universalSignTransaction, fromKeypair } from "../signing";
@@ -260,7 +260,7 @@ export async function executeNativeUrStoaTransfer(params: ExecuteNativeUrStoaPar
     return (builder as any).createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // 1. Simulate
   const simTx = buildTransaction();
@@ -444,7 +444,7 @@ export async function executeStakeUrStoa(params: StakeUrStoaParams): Promise<any
       ])
       .createTransaction();
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   const simTx = buildTransaction();
   const simulation = await dirtyRead(simTx);
@@ -490,7 +490,7 @@ export async function executeUnstakeUrStoa(params: UnstakeUrStoaParams): Promise
       ])
       .createTransaction();
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   const simTx = buildTransaction();
   const simulation = await dirtyRead(simTx);
@@ -568,7 +568,7 @@ export async function executeCollectUrStoa(params: CollectUrStoaParams): Promise
     return (builder as any).createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   const simTx = buildTransaction();
   const simulation = await dirtyRead(simTx);

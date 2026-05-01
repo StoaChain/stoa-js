@@ -2,9 +2,9 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, GAS_STATION,
   KADENA_NETWORK,
-  getPactUrl,
 } from "../constants";
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
 import { formatDecimalForPact } from "../pact";
 import { universalSignTransaction, fromKeypair } from "../signing";
@@ -198,7 +198,7 @@ export async function coilTokensGeneric(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
  
   // First do a simulation to check gas
   let transaction = buildTransaction();

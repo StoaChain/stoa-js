@@ -17,6 +17,7 @@ import {
   getCurrentNodeStatus,
   setNodeConfig,
   withFailover,
+  resetNodeFailover,
   CHAINWEB_DEFAULT_GAS_LIMIT,
 } from "../src/network";
 
@@ -213,5 +214,48 @@ describe("withFailover — primary-fallback retry", () => {
     const fn2 = vi.fn().mockRejectedValue(new Error("Failed to fetch"));
     await expect(withFailover(fn2)).rejects.toThrow("Failed to fetch");
     expect(fn2).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ══ resetNodeFailover ═════════════════════════════════════════════════════════
+describe("resetNodeFailover", () => {
+  it("returns observable state slots to initial values after mutation", () => {
+    setNodeConfig("custom", "https://x.example.com", 500_000);
+
+    resetNodeFailover();
+
+    expect(getNodeConfig().primary).toBe(NODE2);
+    expect(getNodeConfig().fallback).toBe(NODE1);
+    expect(getActiveHost()).toBe(NODE2);
+    expect(getCurrentNodeStatus().isOnPrimary).toBe(true);
+    // customGasLimit slot is observable via getNodeGasLimit("custom") (returns the
+    // customGasLimit module variable directly, NOT the NODE_GAS_LIMITS map lookup).
+    // Asserting it pins the 5th state slot reset that resetNodeFailover claims.
+    expect(getNodeGasLimit("custom")).toBe(CHAINWEB_DEFAULT_GAS_LIMIT);
+  });
+});
+
+// ══ retryTimer.unref() on Node ════════════════════════════════════════════════
+describe("retryTimer unref on Node", () => {
+  it("invokes .unref() on the setInterval handle when failover starts the retry loop", async () => {
+    const unrefSpy = vi.fn();
+    const fakeHandle = { unref: unrefSpy } as unknown as ReturnType<typeof setInterval>;
+    const setIntervalSpy = vi
+      .spyOn(globalThis, "setInterval")
+      .mockImplementation(() => fakeHandle);
+
+    try {
+      const fn = vi.fn()
+        .mockRejectedValueOnce(new Error("Failed to fetch"))
+        .mockResolvedValueOnce("ok");
+      await withFailover(fn);
+
+      expect(setIntervalSpy).toHaveBeenCalled();
+      expect(unrefSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      setIntervalSpy.mockRestore();
+      // stop any retry loop and restore initial state for subsequent tests
+      resetNodeFailover();
+    }
   });
 });

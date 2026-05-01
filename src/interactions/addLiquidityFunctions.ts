@@ -3,9 +3,9 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, GAS_STATION,
   KADENA_NETWORK,
-  getPactUrl,
 } from "../constants";
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { IOuroAccountKeypair } from "./dexFunctions";
 import { mayComeWithDeimal } from "../pact";
@@ -302,7 +302,7 @@ export async function executeAddLiquiditySingle(
         .createTransaction();
     };
 
-    const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
     
     // Simulate to estimate gas
     const simTransaction = buildTransaction(defaultGasLimit);
@@ -378,7 +378,7 @@ export async function executeAddLiquidityMultiStep1(
         .createTransaction();
     };
 
-    const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
     
     // First do a simulation to check gas
     let transaction = buildTransaction();
@@ -408,7 +408,7 @@ export async function executeAddLiquidityMultiStep1(
     const result = await submit(signedTransaction);
     
     // Wait for transaction to complete and extract pactId
-    const { listen } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { listen } = getFailoverClient(KADENA_CHAIN_ID);
     const transactionResult = await listen(result);
     
     
@@ -460,7 +460,7 @@ export async function executeAddLiquidityMultiStep2(
         .createTransaction();
     };
 
-    const { submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { submit } = getFailoverClient(KADENA_CHAIN_ID);
     
     // Build transaction with fixed gas limit (no simulation needed)
     const transaction = buildTransaction();
@@ -517,7 +517,7 @@ export async function executeAddLiquidityMultiStep3(
         .createTransaction();
     };
 
-    const { submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { submit } = getFailoverClient(KADENA_CHAIN_ID);
     
     // Build transaction with fixed gas limit (no simulation needed)
     const transaction = buildTransaction();
@@ -570,7 +570,7 @@ export async function executeAddLiquidityMultiStepComplete(
     onProgress?.(0);
     
     // Wait for step 1 to be confirmed before continuing
-    const { listen } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { listen } = getFailoverClient(KADENA_CHAIN_ID);
     await listen(step1Result);
     
     // Much longer delay to ensure transaction is fully processed and available for continuation on mainnet
@@ -764,7 +764,7 @@ export async function executeSpecialAddLiquidity(
         .createTransaction();
     };
 
-    const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
     
     // First do a simulation to check gas
     let transaction = buildTransaction();
@@ -938,7 +938,7 @@ export async function executeFuel(
         .createTransaction();
     };
 
-    const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
     
     const simTransaction = buildTransaction(defaultGasLimit);
     const simulation = await dirtyRead(simTransaction);
@@ -1010,7 +1010,7 @@ export async function executeRemoveLiquidity(
         .createTransaction();
     };
 
-    const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
     
     const simTransaction = buildTransaction(defaultGasLimit);
     const simulation = await dirtyRead(simTransaction);

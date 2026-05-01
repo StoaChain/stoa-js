@@ -5,9 +5,10 @@
 
 import {
   KADENA_NAMESPACE, KADENA_CHAIN_ID, KADENA_NETWORK,
-  getPactUrl, STOA_AUTONOMIC_OURONETGASSTATION,
+  STOA_AUTONOMIC_OURONETGASSTATION,
 } from "../constants";
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { calculateAutoGasLimit } from "../gas";
@@ -170,7 +171,7 @@ export async function executeDeployStandardAccount(
     return builder.createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // 1. Simulate with 2M (network max)
   let transaction = buildTransaction();

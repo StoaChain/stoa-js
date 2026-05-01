@@ -198,6 +198,32 @@ export function createSimulationError(
 }
 
 /**
+ * Creates a detailed timeout error with context and suggestions.
+ *
+ * Returned `SigningError` carries `code: "TIMEOUT"` so consumers grepping for
+ * the code can find this factory. Use whenever an awaited operation
+ * (read, simulation, signing, network call) exceeds its configured deadline.
+ */
+export function createTimeoutError(
+  operation: string,
+  timeoutMs: number,
+  originalError?: unknown,
+  additionalContext?: string
+): SigningError {
+  return new SigningError(
+    `Timeout after ${timeoutMs}ms during ${operation}`,
+    "TIMEOUT",
+    `Operation: ${operation}${additionalContext && additionalContext.length > 0 ? ` | ${additionalContext}` : ""}`,
+    originalError,
+    [
+      "Check network connectivity",
+      "Try again in a few seconds — node may have failed over",
+      "If persistent, increase the timeout via options",
+    ]
+  );
+}
+
+/**
  * Formats error for user display
  */
 export function formatErrorForUser(error: SigningError): string {

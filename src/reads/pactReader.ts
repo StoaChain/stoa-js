@@ -37,6 +37,8 @@ export type PactReader = (
     chainId?: string;
     tier?: string;
     skipTempWatcher?: boolean;
+    /** Per-call read timeout in ms. Forwarded to the underlying reader (rawCalibratedDirtyRead default: 15000 ms). */
+    readTimeoutMs?: number;
     [key: string]: unknown;
   },
 ) => Promise<any>;

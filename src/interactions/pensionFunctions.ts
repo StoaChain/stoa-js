@@ -3,10 +3,10 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, GAS_STATION,
   KADENA_NETWORK,
-  getPactUrl,
 } from "../constants";
 import { formatDecimalForPact } from "../pact";
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import type { IOuroAccountKeypair, IKadenaKeypair } from "./ouroFunctions";
@@ -59,7 +59,7 @@ export async function brumateWkdaToPkda(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
   let transaction = buildTransaction();
   const simulation = await dirtyRead(transaction);
 
@@ -122,7 +122,7 @@ export async function constrictLkdaToPkda(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
   let transaction = buildTransaction();
   const simulation = await dirtyRead(transaction);
 

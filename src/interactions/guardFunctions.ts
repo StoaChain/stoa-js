@@ -4,9 +4,9 @@ import {
   KADENA_NAMESPACE,
   GAS_STATION,
   KADENA_NETWORK,
-  getPactUrl,
 } from "../constants";
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { createSimulationError, logDetailedError } from "../errors";
@@ -164,7 +164,7 @@ export async function rotateGuard(params: RotateGuardParams) {
     return builder.createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   let transaction = buildTransaction();
   const simulation = await dirtyRead(transaction);

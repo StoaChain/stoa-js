@@ -29,6 +29,7 @@ import type {
 } from "../src/signing/types";
 import type { IKeyset } from "../src/guard";
 import { publicKeyFromPrivateKey } from "../src/signing/primitives";
+import { SigningError } from "../src/errors";
 
 // ─── Fixtures: real Ed25519 keypairs (from RFC 8032) ─────────────────────────
 // Using RFC 8032 test vectors so pubkey derivation is deterministic.
@@ -563,5 +564,210 @@ describe("CodexSigningStrategy.execute — Tier 2 edge cases", () => {
     });
 
     expect(result.requestKey).toBe("mock-req-key-abc123");
+  });
+});
+
+// ─── T4.1: runWithTimeout wrapping + outer-boundary AbortError → TIMEOUT ──────
+// Verifies that the dirtyRead and submit chain calls in execute() are wrapped
+// with runWithTimeout and that an AbortError that escapes the wrapper (i.e.,
+// timeout fired) is converted to a SigningError(code: "TIMEOUT") at the
+// outer-boundary catch — mirroring the Phase 2 / Phase 3 pattern. Because the
+// real default timeouts are 15s/60s (too long for a test), we simulate the
+// abort by having the mock client throw an AbortError directly; runWithTimeout
+// passes that rejection through the race and the outer catch reclassifies it.
+
+describe("CodexSigningStrategy.execute — T4.1 timeout enforcement", () => {
+  function abortError(message = "Timeout"): Error {
+    const err = new Error(message);
+    err.name = "AbortError";
+    return err;
+  }
+
+  it("converts an AbortError from dirtyRead into SigningError(TIMEOUT) tagged with operation 'dirtyRead'", async () => {
+    const resolver = mockResolver({
+      codexPubs: [PUB_A, PUB_B],
+      byPub: { [PUB_A]: KP_A, [PUB_B]: KP_B },
+    });
+    const client: PactClient = {
+      dirtyRead: async () => {
+        throw abortError("aborted on simulate");
+      },
+      submit: async () => {
+        throw new Error("submit should not be reached when simulate aborts");
+      },
+    };
+    const strategy = new CodexSigningStrategy(resolver, client);
+    const guard: IKeyset = { pred: "keys-all", keys: [PUB_B] };
+
+    let caught: any;
+    try {
+      await strategy.execute({
+        build: buildMockTx,
+        guards: [guard],
+        paymentKey: null,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(SigningError);
+    expect((caught as SigningError).code).toBe("TIMEOUT");
+    expect((caught as SigningError).message).toMatch(/dirtyRead/);
+    // Default read timeout is 15_000 ms — must appear in the error message.
+    expect((caught as SigningError).message).toMatch(/15000/);
+  });
+
+  it("converts an AbortError from submit into SigningError(TIMEOUT) tagged with operation 'submit'", async () => {
+    const resolver = mockResolver({
+      codexPubs: [PUB_A, PUB_B],
+      byPub: { [PUB_A]: KP_A, [PUB_B]: KP_B },
+    });
+    const client: PactClient = {
+      dirtyRead: async () => ({
+        result: { status: "success", data: "ok" },
+        gas: 800,
+      }),
+      submit: async () => {
+        throw abortError("aborted on submit");
+      },
+    };
+    const strategy = new CodexSigningStrategy(resolver, client);
+    const guard: IKeyset = { pred: "keys-all", keys: [PUB_B] };
+
+    let caught: any;
+    try {
+      await strategy.execute({
+        build: buildMockTx,
+        guards: [guard],
+        paymentKey: null,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(SigningError);
+    expect((caught as SigningError).code).toBe("TIMEOUT");
+    expect((caught as SigningError).message).toMatch(/submit/);
+    // Default submit timeout is 60_000 ms — must appear in the error message.
+    expect((caught as SigningError).message).toMatch(/60000/);
+  });
+
+  it("does NOT forward a signal/options arg to dirtyRead — wrapper preserves the single-arg PactClient.dirtyRead contract", async () => {
+    const resolver = mockResolver({
+      codexPubs: [PUB_A, PUB_B],
+      byPub: { [PUB_A]: KP_A, [PUB_B]: KP_B },
+    });
+    let dirtyReadArgsLength = -1;
+    const client: PactClient = {
+      dirtyRead: async function (this: any, ...args: any[]) {
+        dirtyReadArgsLength = args.length;
+        return {
+          result: { status: "success", data: "ok" },
+          gas: 800,
+        };
+      },
+      submit: async () => ({ requestKey: "mock-req", raw: {} }),
+    };
+    const strategy = new CodexSigningStrategy(resolver, client);
+    const guard: IKeyset = { pred: "keys-all", keys: [PUB_B] };
+
+    await strategy.execute({
+      build: buildMockTx,
+      guards: [guard],
+      paymentKey: null,
+    });
+
+    // The wrapper MUST NOT forward { signal } — PactClient.dirtyRead's
+    // contract takes exactly one argument (the unsigned command).
+    expect(dirtyReadArgsLength).toBe(1);
+  });
+
+  it("does NOT forward a signal/options arg to submit — wrapper preserves the single-arg PactClient.submit contract", async () => {
+    const resolver = mockResolver({
+      codexPubs: [PUB_A, PUB_B],
+      byPub: { [PUB_A]: KP_A, [PUB_B]: KP_B },
+    });
+    let submitArgsLength = -1;
+    const client: PactClient = {
+      dirtyRead: async () => ({
+        result: { status: "success", data: "ok" },
+        gas: 800,
+      }),
+      submit: async function (this: any, ...args: any[]) {
+        submitArgsLength = args.length;
+        return { requestKey: "mock-req", raw: {} };
+      },
+    };
+    const strategy = new CodexSigningStrategy(resolver, client);
+    const guard: IKeyset = { pred: "keys-all", keys: [PUB_B] };
+
+    await strategy.execute({
+      build: buildMockTx,
+      guards: [guard],
+      paymentKey: null,
+    });
+
+    // The wrapper MUST NOT forward { signal } — PactClient.submit's
+    // contract takes exactly one argument (the signed command).
+    expect(submitArgsLength).toBe(1);
+  });
+
+  it("propagates non-AbortError errors from dirtyRead unchanged (no TIMEOUT misclassification)", async () => {
+    const resolver = mockResolver({
+      codexPubs: [PUB_A, PUB_B],
+      byPub: { [PUB_A]: KP_A, [PUB_B]: KP_B },
+    });
+    const client: PactClient = {
+      dirtyRead: async () => {
+        throw new Error("network down");
+      },
+      submit: async () => ({ requestKey: "mock-req", raw: {} }),
+    };
+    const strategy = new CodexSigningStrategy(resolver, client);
+    const guard: IKeyset = { pred: "keys-all", keys: [PUB_B] };
+
+    let caught: any;
+    try {
+      await strategy.execute({
+        build: buildMockTx,
+        guards: [guard],
+        paymentKey: null,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBeInstanceOf(SigningError);
+    expect((caught as Error).message).toMatch(/network down/);
+  });
+
+  it("propagates non-AbortError errors from submit unchanged (no TIMEOUT misclassification)", async () => {
+    const resolver = mockResolver({
+      codexPubs: [PUB_A, PUB_B],
+      byPub: { [PUB_A]: KP_A, [PUB_B]: KP_B },
+    });
+    const client: PactClient = {
+      dirtyRead: async () => ({
+        result: { status: "success", data: "ok" },
+        gas: 800,
+      }),
+      submit: async () => {
+        throw new Error("rate limited");
+      },
+    };
+    const strategy = new CodexSigningStrategy(resolver, client);
+    const guard: IKeyset = { pred: "keys-all", keys: [PUB_B] };
+
+    let caught: any;
+    try {
+      await strategy.execute({
+        build: buildMockTx,
+        guards: [guard],
+        paymentKey: null,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBeInstanceOf(SigningError);
+    expect((caught as Error).message).toMatch(/rate limited/);
   });
 });

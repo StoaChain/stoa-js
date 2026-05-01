@@ -1,4 +1,5 @@
-import { Pact, createClient, ITransactionDescriptor } from "@kadena/client";
+import { Pact, ITransactionDescriptor } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { KADENA_NETWORK, getPactUrl, getSpvUrl, GAS_STATION, KADENA_NAMESPACE } from "../constants";
 import { GAS_PRICE_MIN_ANU, anuToStoa } from "../gas";
 import { pactRead } from "../reads";
@@ -213,7 +214,7 @@ export async function submitCrossChainTransfer(
   signedTransaction: any,
   sourceChain: string
 ): Promise<ITransactionDescriptor> {
-  const { submit } = createClient(getPactUrl(sourceChain));
+  const { submit } = getFailoverClient(sourceChain);
   return await submit(signedTransaction);
 }
 
@@ -225,7 +226,7 @@ export async function pollTransactionStatus(
   chainId: string
 ): Promise<TransferStatus> {
   try {
-    const { pollOne } = createClient(getPactUrl(chainId));
+    const { pollOne } = getFailoverClient(chainId);
     const result = await pollOne({ requestKey, chainId: chainId as ChainId, networkId: KADENA_NETWORK });
 
     if (!result) {
@@ -372,7 +373,7 @@ export async function submitContinuation(
   transaction: any,
   targetChain: string
 ): Promise<ITransactionDescriptor> {
-  const { submit } = createClient(getPactUrl(targetChain));
+  const { submit } = getFailoverClient(targetChain);
   return await submit(transaction);
 }
 
@@ -383,7 +384,7 @@ export async function listenForCompletion(
   requestKey: string,
   chainId: string
 ): Promise<any> {
-  const { listen } = createClient(getPactUrl(chainId));
+  const { listen } = getFailoverClient(chainId);
   return await listen({ requestKey, chainId: chainId as ChainId, networkId: KADENA_NETWORK });
 }
 

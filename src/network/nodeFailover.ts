@@ -68,6 +68,8 @@ function startRetryLoop() {
       switchToPrimary();
     }
   }, RETRY_INTERVAL_MS);
+  // prevent Node consumers from keeping the event loop alive solely for the failover health-check timer
+  retryTimer.unref?.();
 }
 
 function stopRetryLoop() {
@@ -148,6 +150,24 @@ export function setNodeConfig(
 
   // Reset to new primary
   currentHost = PRIMARY_HOST;
+}
+
+/**
+ * Reset all module-level failover state to its initial values.
+ *
+ * Stops any in-flight retry loop and restores `PRIMARY_HOST`, `FALLBACK_HOST`,
+ * `customGasLimit`, `currentHost`, and `retryTimer` to the same values they
+ * held immediately after module load.
+ *
+ * Scope: intended for test isolation only — production code should not call this.
+ */
+export function resetNodeFailover(): void {
+  stopRetryLoop();
+  PRIMARY_HOST = NODE2_HOST;
+  FALLBACK_HOST = NODE1_HOST;
+  customGasLimit = DEFAULT_GAS_LIMIT;
+  currentHost = PRIMARY_HOST;
+  retryTimer = null;
 }
 
 /** Get the block gas limit for the currently active node */

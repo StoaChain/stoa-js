@@ -3,12 +3,12 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, GAS_STATION, NATIVE_TOKEN_VAULT,
   KADENA_NETWORK,
-  getPactUrl,
 } from "../constants";
 import { formatEU } from "../pact";
 import { mayComeWithDeimal, formatDecimalForPact } from "../pact";
 import { IKeyset } from "../guard";
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { createSigningError, createSimulationError, logDetailedError } from "../errors";
 import { pactRead } from "../reads";
@@ -151,7 +151,7 @@ export async function kadenaLedger(address: string): Promise<any> {
 //     .setNetworkId(KADENA_NETWORK)
 //     .createTransaction();
 
-//   const { dirtyRead } = createClient(getPactUrl(KADENA_CHAIN_ID));
+//   const { dirtyRead } = getFailoverClient(KADENA_CHAIN_ID);
 
 //   const response = await dirtyRead(transaction);
 
@@ -863,7 +863,7 @@ export async function sublimateOuroToIgnis(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
  
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -951,7 +951,7 @@ export async function compressIgnisToOuro(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -1034,7 +1034,7 @@ export async function wrapKadena(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -1109,7 +1109,7 @@ export async function unwrapKadena(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -1235,7 +1235,7 @@ export async function transferToken(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -1374,7 +1374,7 @@ export async function movieBoosterBuy(
     return txBuilder.createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // First do a simulation to check gas and get the actual KDA amount if native
   let transaction = buildTransaction();
@@ -1525,7 +1525,7 @@ export async function firestarter(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -1686,7 +1686,7 @@ export async function curlOuroToEliteAuryn(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
  
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -1787,7 +1787,7 @@ export async function coilOuroToAuryn(
       .createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
  
   // First do a simulation to check gas
   let transaction = buildTransaction();
@@ -2014,7 +2014,7 @@ export async function rotateKadenaPaymentKey(
     return builder.createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   let transaction = buildTransaction();
   const simulation = await dirtyRead(transaction);
@@ -2243,7 +2243,7 @@ export async function executeUnwrapStoa(params: UnwrapStoaParams): Promise<any> 
     return builder.createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // 1. Simulate with 2M (network max)
   let transaction = buildTransaction();
@@ -2412,7 +2412,7 @@ export async function executeUnwrapUrStoa(params: UnwrapUrStoaParams): Promise<a
     return builder.createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   let transaction = buildTransaction();
   const simulation = await dirtyRead(transaction);

@@ -14,7 +14,9 @@
 
 import { Pact, createClient } from "@kadena/client";
 import type { ChainId } from "@kadena/types";
-import { KADENA_CHAIN_ID, KADENA_NETWORK, PACT_URL } from "../constants";
+import { KADENA_CHAIN_ID, KADENA_NETWORK } from "../constants";
+import { getActivePactUrl, withFailover, runWithTimeout } from "../network";
+import { createTimeoutError } from "../errors";
 
 /** Read-friendly simulation gas ceiling — reads don't actually spend it. */
 const READ_SIM_GAS_LIMIT = 10_000_000;
@@ -25,9 +27,9 @@ const READ_SIM_GAS_LIMIT = 10_000_000;
  * callers are expected to unwrap based on their read's shape.
  *
  * Options:
- *   pactUrl   — target endpoint. Defaults to PACT_URL (the baked constant
- *               used by OuronetUI's browser flow). Server consumers pass
- *               their own (direct node URL, no CORS proxy).
+ *   pactUrl   — target endpoint. Defaults to the active failover host's
+ *               Pact URL for the requested chain (`getActivePactUrl(chainId)`).
+ *               Server consumers pass their own (direct node URL, no CORS proxy).
  *   chainId   — chain id. Defaults to KADENA_CHAIN_ID ("0").
  */
 export async function rawCalibratedDirtyRead(
@@ -44,10 +46,13 @@ export async function rawCalibratedDirtyRead(
      */
     tier?: string;
     skipTempWatcher?: boolean;
+    /** Per-call read timeout in ms. Defaults to 15000 (15 s). */
+    readTimeoutMs?: number;
   },
 ) {
-  const pactUrl = options?.pactUrl ?? PACT_URL;
   const chainId = (options?.chainId ?? KADENA_CHAIN_ID) as ChainId;
+  const pactUrl = options?.pactUrl ?? getActivePactUrl(chainId);
+  const readTimeoutMs = options?.readTimeoutMs ?? 15_000;
 
   const transaction = Pact.builder
     .execution(pactCode)
@@ -55,8 +60,45 @@ export async function rawCalibratedDirtyRead(
     .setMeta({ chainId, gasLimit: READ_SIM_GAS_LIMIT })
     .createTransaction();
 
-  const { dirtyRead } = createClient(pactUrl);
-  const response = await dirtyRead(transaction);
-
-  return response;
+  if (options?.pactUrl) {
+    // Explicit-pactUrl path: consumer pinned a specific endpoint, so we skip
+    // failover (their URL wins) but still apply the timeout + outer-boundary
+    // TIMEOUT classification so a hung node doesn't deadlock the caller.
+    try {
+      const { dirtyRead } = createClient(pactUrl);
+      return await runWithTimeout(
+        "rawCalibratedDirtyRead",
+        (controller) => dirtyRead(transaction, { signal: controller.signal }),
+        readTimeoutMs,
+      );
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        throw createTimeoutError("rawCalibratedDirtyRead", readTimeoutMs, err);
+      }
+      throw err;
+    }
+  } else {
+    // Failover path: each attempt (primary, then fallback if needed) runs
+    // inside its own runWithTimeout call (fresh AbortController per attempt
+    // via the controller-factory shape), so a primary-side timeout abort
+    // doesn't poison the fallback retry's signal. The outer try/catch
+    // converts an AbortError that escapes withFailover (BOTH primary AND
+    // fallback timed out) into a SigningError(code: "TIMEOUT").
+    try {
+      return await withFailover(async (baseUrl) => {
+        const url = `${baseUrl}/chain/${chainId}/pact`;
+        const { dirtyRead } = createClient(url);
+        return runWithTimeout(
+          "rawCalibratedDirtyRead",
+          (controller) => dirtyRead(transaction, { signal: controller.signal }),
+          readTimeoutMs,
+        );
+      });
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        throw createTimeoutError("rawCalibratedDirtyRead", readTimeoutMs, err);
+      }
+      throw err;
+    }
+  }
 }

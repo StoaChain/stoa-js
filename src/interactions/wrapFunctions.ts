@@ -3,13 +3,13 @@
  * On-chain interactions for C_WrapStoa (ouronet-ns.TS01-C2.LQD)
  */
 
-import { Pact, createClient } from "@kadena/client";
+import { Pact } from "@kadena/client";
+import { getFailoverClient } from "../network";
 import { calculateAutoGasLimit } from "../gas";
 import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE,
   KADENA_NETWORK,
-  getPactUrl,
   STOA_AUTONOMIC_OURONETGASSTATION,
   STOA_AUTONOMIC_LIQUIDPOT,
 } from "../constants";
@@ -170,7 +170,7 @@ export async function executeWrapStoa(params: WrapStoaParams): Promise<any> {
     return builder.createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // 1. Simulate with 2M (network max)
   const simTx = buildTransaction();
@@ -279,7 +279,7 @@ export async function executeWrapUrStoa(params: WrapUrStoaParams): Promise<any> 
     return (builder as any).createTransaction();
   };
 
-  const { dirtyRead, submit } = createClient(getPactUrl(KADENA_CHAIN_ID));
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
 
   // 1. Simulate with 2M (network max)
   const simTx = buildTransaction();

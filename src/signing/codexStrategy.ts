@@ -21,6 +21,8 @@ import type { ICommand, IUnsignedCommand } from "@kadena/types";
 import { analyzeGuard, selectCapsSigningKey } from "../guard";
 import type { IKeyset } from "../guard";
 import { calculateAutoGasLimit } from "../gas";
+import { runWithTimeout } from "../network";
+import { createTimeoutError } from "../errors";
 import { fromKeypair, universalSignTransaction } from "./universalSign";
 import type {
   IKadenaKeypair,
@@ -43,6 +45,25 @@ export class CodexSigningStrategy implements SigningStrategy {
    *   D. Collect keypairs for every required signer (resolver)
    *   E. Select GAS_PAYER caps key, avoiding pure-signer overlap
    *   F. Build tx → simulate → calibrate gas → rebuild → sign → submit
+   *
+   * **Consumer-level retry contract (load-bearing):** If `execute` rejects
+   * with `SigningError { code: "TIMEOUT" }` from the submit step, the
+   * underlying chain RPC may have ALREADY reached chainweb — the abort only
+   * cancels the response read, not the server-side mempool insertion.
+   * Naively re-invoking `execute` will rebuild the transaction with a fresh
+   * `creationTime`, producing a DIFFERENT request-key hash; chainweb cannot
+   * dedup the orphan against the retry, and both transactions can land —
+   * the user pays gas twice for the same logical operation. Unlike
+   * `getFailoverClient.submit` (which captures the same signed-tx reference
+   * across primary+fallback attempts to preserve mempool dedup), this seam
+   * deliberately runs without failover (REQ-04) and therefore has NO
+   * built-in dedup safety on retry.
+   *
+   * If you need to retry after TIMEOUT, the consumer MUST first poll the
+   * mempool/listen for the orphan submission's request-key (extractable from
+   * `signed.hash` if you intercept at the lower level) and only retry once
+   * the orphan is confirmed lost. Better: use `getFailoverClient` directly
+   * for non-codex submit flows so the dedup contract handles this for you.
    */
   async execute(args: {
     build: (ctx: {
@@ -128,7 +149,25 @@ export class CodexSigningStrategy implements SigningStrategy {
     });
 
     const sim = build(buildCtx(500_000));
-    const simResult = await this.client.dirtyRead(sim);
+    // Failover is intentionally NOT applied at this seam: adding a base-URL
+    // accessor to the public PactClient interface would be a breaking change.
+    // The consumer's PactClient implementation owns its own failover. Here we
+    // enforce only a deadline — the timeout fires via Promise.race, and the
+    // AbortController is constructed but its signal is NOT forwarded because
+    // PactClient.dirtyRead does not accept a signal argument.
+    let simResult: any;
+    try {
+      simResult = await runWithTimeout(
+        "dirtyRead",
+        (_controller) => this.client.dirtyRead(sim),
+        15_000,
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw createTimeoutError("dirtyRead", 15_000, err);
+      }
+      throw err;
+    }
     if (simResult?.result?.status === "failure") {
       const msg =
         simResult.result?.error?.message ||
@@ -150,7 +189,22 @@ export class CodexSigningStrategy implements SigningStrategy {
       guardKeypairs: [...guardKeypairs, ...extraSigners],
     });
 
-    const raw = await this.client.submit(signed);
+    // Same trade-off as dirtyRead above: timeout-only enforcement at this
+    // seam, no failover. Controller is constructed by runWithTimeout but its
+    // signal is NOT forwarded — PactClient.submit does not accept a signal.
+    let raw: any;
+    try {
+      raw = await runWithTimeout(
+        "submit",
+        (_controller) => this.client.submit(signed),
+        60_000,
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw createTimeoutError("submit", 60_000, err);
+      }
+      throw err;
+    }
     const requestKey: string = (raw as any)?.requestKey ?? "";
     return { requestKey, raw };
   }

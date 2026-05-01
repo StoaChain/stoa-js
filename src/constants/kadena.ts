@@ -17,8 +17,8 @@ export const KADENA_NAMESPACE = "ouronet-ns";
 export const KADENA_BASE_URL = `https://node2.stoachain.com/chainweb/0.0/${KADENA_NETWORK}`;
 
 /**
- * Pact API endpoint for chain 0.
- * For failover support, prefer getPactUrl(chainId) which uses the active node.
+ * Pact API endpoint for chain 0. For failover-aware URLs, use `getActivePactUrl(chainId)` (or its same-subpath thin wrapper `getPactUrl(chainId)`).
+ * @deprecated Use getActivePactUrl(chainId) for failover-aware URLs
  */
 export const PACT_URL = `${KADENA_BASE_URL}/chain/${KADENA_CHAIN_ID}/pact`;
 

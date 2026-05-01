@@ -2,6 +2,80 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.1.0 — 2026-05-01
+
+**Reliability hardening release. MINOR, non-breaking.**
+
+Closes four HIGH-severity audit findings (F-CORE-002, F-CORE-003, F-CORE-004,
+F-CORE-008) by wiring automatic node failover, bounded timeouts with
+`TIMEOUT` classification, and Node event-loop hygiene through every chain
+RPC surface in the library. All public-API additions are additive — no
+existing exports change shape, no breaking changes for downstream consumers
+(`OuronetUI` and `AncientHolder HUB`).
+
+### Fixed
+
+- **F-CORE-002 — Automatic failover wired into every submit and read.** New
+  `getFailoverClient(chainId, options?)` factory in `src/network/failoverClient.ts`
+  returns `{ dirtyRead, submit, listen, pollOne }` methods that compose
+  `withFailover` + per-tier timeout into one reusable surface. All 81
+  legacy `createClient(getPactUrl(chainId))` invocations across the 11
+  interaction files (activate, addLiquidity, coil, crossChain, dex, guard,
+  kpay, ouro, pension, urStoa, wrap) now route through the factory. Primary
+  node failure on any chain call now triggers automatic fallback retry.
+- **F-CORE-003 — Default reader URL is now per-call, not module-init.**
+  `rawCalibratedDirtyRead`'s default Pact URL now resolves from
+  `getActivePactUrl(chainId)` per invocation instead of capturing the
+  static `PACT_URL` constant at module load. This propagates failover
+  coverage to all 16 already-`pactRead`-routed read sites without touching
+  any of them. The static `PACT_URL` constant is preserved (semver) but
+  marked `@deprecated` with a pointer to `getActivePactUrl(chainId)`.
+- **F-CORE-008 — Bounded timeouts on all four chain-call tiers.** New
+  `runWithTimeout(operation, fn, timeoutMs)` helper applies
+  `Promise.race` + `AbortController` + `try/finally clearTimeout`
+  defence-in-depth. Per-tier defaults: read 15 s, submit 60 s,
+  listen 180 s (~6 Kadena blocks), pollOne 30 s. Two-tier override
+  precedence: per-call > factory-time > locked default. Timeouts are
+  classified as `SigningError { code: "TIMEOUT" }` via the new
+  `createTimeoutError(operation, timeoutMs, originalError?, additionalContext?)`
+  factory. The `codexStrategy.ts` simulate-and-submit pair gets
+  timeout-only enforcement (failover stays the consumer's `PactClient`
+  responsibility — adding a base-URL accessor would be a breaking change).
+- **F-CORE-004 — State isolation and Node event-loop hygiene.**
+  `resetNodeFailover()` exported for test isolation (returns all five
+  module-level state slots to initial values). `retryTimer.unref?.()`
+  attached inside `startRetryLoop()` so Node consumers no longer pin the
+  event loop on the failover health-check timer. Browser consumers
+  (numeric setInterval handle) unaffected via the optional-call form.
+
+### Added (public surface)
+
+- `getFailoverClient(chainId, options?)` — `@stoachain/ouronet-core/network`
+- `runWithTimeout(operation, fn, timeoutMs)` — `@stoachain/ouronet-core/network`
+- `FailoverClientOptions` type — `@stoachain/ouronet-core/network`
+- `resetNodeFailover()` — `@stoachain/ouronet-core/network`
+- `createTimeoutError(operation, timeoutMs, originalError?, additionalContext?)` —
+  `@stoachain/ouronet-core/errors`
+- `readTimeoutMs?: number` field — added to the `PactReader` options bag and to
+  `rawCalibratedDirtyRead`'s options (default 15000 ms when omitted)
+
+### Stats
+
+- Files changed: ~16 (1 new module `src/network/failoverClient.ts`,
+  11 interaction files, 4 supporting files: `nodeFailover.ts`,
+  `transactionErrors.ts`, `pactReader.ts`, `rawCalibratedRead.ts`,
+  `kadena.ts`, `codexStrategy.ts`).
+- New tests: 4 files. `tests/failover-client.test.ts` (18 it-blocks),
+  `tests/timeouts.test.ts` (13 it-blocks), `tests/failover-submit.test.ts`
+  (2 it-blocks), and `tests/network.test.ts` extended (+2 it-blocks for
+  `resetNodeFailover` + `retryTimer.unref` spy). Plus `tests/strategy.test.ts`
+  extended (+6 it-blocks for the codexStrategy timeout seam).
+- Test count: ~386 passing (from 346 baseline). v1.7.0 type-regression
+  lock continues to fire.
+- 81 `createClient(getPactUrl(...))` call sites migrated to
+  `getFailoverClient(...)` across 11 interaction files (44 invocations,
+  averaging ~1.8 chain operations per createClient destructure).
+
 ## 2.0.4 — 2026-05-01
 
 **Triggers the v2.0.3 PAT-fallback workflow with the now-installed
