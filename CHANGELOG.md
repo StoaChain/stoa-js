@@ -2,6 +2,46 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.1.1 — 2026-05-01
+
+**README documentation patch. No runtime change.**
+
+The v2.1.0 release published the runtime fixes (4 closed audit findings,
+new `getFailoverClient` / `runWithTimeout` / `resetNodeFailover` /
+`createTimeoutError` / `readTimeoutMs` surface, 385 tests) but the
+README's `## Status` block was still pinned to `2.0.1` and the version
+history hadn't been updated past v2.0.1. Without this patch, the npm
+package page (https://www.npmjs.com/package/@stoachain/ouronet-core)
+showed stale documentation that didn't describe the v2.1.0 reliability
+hardening work — making the new public surface invisible to consumers
+who land on the npm listing first.
+
+### Fixed
+
+- **README `## Status` block** updated to lead with `2.1.0`, summarise
+  the reliability hardening release, and mention the 4 closed audit
+  findings (F-CORE-002 / F-CORE-003 / F-CORE-004 / F-CORE-008).
+- **Version history extended** with entries for v2.0.2, v2.0.3, v2.0.4
+  (release-pipeline hardening patches that previously had no README
+  mention) and v2.1.0 (full reliability hardening summary).
+- **Test count updated** from `346` to `385` in two places (the
+  `## Status` paragraph and the `npm test` block under
+  `## Local development`).
+- **Submodule table** rows for `./network` and `./reads` updated to
+  cite the v2.1.0+ additions (`getFailoverClient`, `runWithTimeout`,
+  `FailoverClientOptions`, `resetNodeFailover`, `readTimeoutMs?`).
+- **New section: "What's new in v2.1.0"** added between the
+  `npm install` snippet and the `## Migrating to v2.x` block, with
+  copy-paste examples covering the factory, the timeout precedence
+  contract, the lower-level `runWithTimeout` helper, and a
+  no-migration-required note for v2.0.x consumers.
+
+### Stats
+
+- Files changed: 3 (`README.md`, `package.json`, `CHANGELOG.md`).
+- No `src/` changes; no `tests/` changes.
+- Test count unchanged at 385.
+
 ## 2.1.0 — 2026-05-01
 
 **Reliability hardening release. MINOR, non-breaking.**

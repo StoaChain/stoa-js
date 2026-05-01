@@ -6,12 +6,14 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`2.0.1` on public npmjs** — full architectural-cleanup pass: wallet
-subpath no longer transitively pulls in `@kadena/client`, `pactRead`
-injection seam adopted across every internal pure-read site, and
-`KadenaWallet.getBalance()` now propagates errors instead of silently
-falling back to `"0"`. See **Migrating to v2.x** below for the consumer
-upgrade path.
+**`2.1.0` on public npmjs** — reliability hardening release. Wires
+automatic node failover, bounded timeouts, and `TIMEOUT` error
+classification through every chain RPC surface in the library. Closes
+4 HIGH-severity audit findings (F-CORE-002 / F-CORE-003 / F-CORE-004 /
+F-CORE-008). MINOR, non-breaking — all v2.0.x consumers upgrade with no
+code changes. See [`CHANGELOG.md`](CHANGELOG.md) for the full entry,
+and the **What's new in v2.1.0** section below for the new public
+surface.
 
 Every piece of blockchain logic that used to live in OuronetUI has
 landed here: Pact builders, signing pipeline (CodexSigningStrategy +
@@ -59,13 +61,104 @@ breaking changes** for consumers — see migration guide below.
 to the npm tarball, auto-creates GitHub Releases on tag push, and
 backfills Releases for v1.7.0 and v2.0.0. No runtime change.
 
-**346 tests** pass on every commit. Published to the public npmjs
-registry via `.github/workflows/publish.yml` on every `v*` tag (which
-also creates a GitHub Release).
+**v2.0.2 / v2.0.3 / v2.0.4** — release-pipeline hardening patches. No
+runtime change. v2.0.2 added `permissions: contents: write` to
+`publish.yml` for the GitHub Releases step. v2.0.3 introduced a
+`RELEASE_TOKEN` PAT fallback expression to bypass org-locked
+`GITHUB_TOKEN` write permissions. v2.0.4 triggered the workflow with
+the secret installed.
+
+**v2.1.0** — reliability hardening release. New `getFailoverClient(chainId, options?)`
+factory composes `withFailover` + per-tier timeout into one reusable
+surface; all 81 legacy `createClient(getPactUrl(chainId))` invocations
+across the 11 interaction files now route through it (primary node
+failure on any chain call now triggers automatic fallback retry).
+Bounded timeouts on every chain-call tier (read 15s, submit 60s,
+listen 180s, pollOne 30s) with `Promise.race` + `AbortController`
+defence-in-depth. New `runWithTimeout(operation, fn, timeoutMs)`
+helper, new `createTimeoutError(...)` factory returning a
+`SigningError { code: "TIMEOUT" }`, new `resetNodeFailover()` export
+for test isolation, new `readTimeoutMs?: number` option on
+`PactReader` and `rawCalibratedDirtyRead`. MINOR, non-breaking —
+existing imports continue to work; the new surface is opt-in.
+
+**385 tests** pass on every commit (up from 346 baseline; +39 new
+tests across `tests/{failover-client,timeouts,failover-submit}.test.ts`
+and extensions to `tests/{network,strategy}.test.ts`). Published to
+the public npmjs registry via `.github/workflows/publish.yml` on every
+`v*` tag (which also creates a GitHub Release).
 
 ```bash
 npm install @stoachain/ouronet-core
 ```
+
+## What's new in v2.1.0
+
+The chain-RPC surface used to be 81 ad-hoc `createClient(getPactUrl(chainId))`
+calls scattered across 11 interaction files, each pinned to whatever
+URL `getPactUrl` returned at the moment of construction and each with
+no timeout. v2.1.0 collapses that into one reusable factory:
+
+```ts
+import { getFailoverClient } from "@stoachain/ouronet-core/network";
+
+// All four standard chain operations, each wrapped in withFailover +
+// per-tier timeout. The factory's submit captures the same signed-tx
+// reference across primary + fallback attempts (REQ-01 dedup contract).
+const { dirtyRead, submit, listen, pollOne } = getFailoverClient(chainId);
+
+const txDescriptor = await submit(signedTx);          // 60s default, auto-failover
+const result        = await listen(txDescriptor);     // 180s default (~6 Kadena blocks), auto-failover
+```
+
+### Timeouts
+
+Per-tier defaults: **read 15s**, **submit 60s**, **listen 180s**
+(~6 Kadena blocks for inclusion long-polling), **pollOne 30s**.
+Two-tier override precedence — per-call wins over factory-time wins
+over locked default:
+
+```ts
+// Factory-time override
+const client = getFailoverClient(chainId, { submitTimeoutMs: 30_000 });
+
+// Per-call override
+await client.submit(signedTx, { submitTimeoutMs: 5_000 });
+```
+
+A primary-side timeout rejects with `Error.name === "AbortError"`
+inside `withFailover`, which classifier-matches the existing fallback
+contract — so a primary timeout transparently triggers the fallback
+retry. Only if **both** primary and fallback time out does the consumer
+see a `SigningError { code: "TIMEOUT" }` surfaced via the factory's
+outer-boundary catch.
+
+### Lower-level helpers
+
+For the codex signing strategy seam (where failover is intentionally
+the consumer's `PactClient` responsibility), v2.1.0 also exports a
+plain timeout helper:
+
+```ts
+import { runWithTimeout } from "@stoachain/ouronet-core/network";
+
+await runWithTimeout("operation-name", (controller) =>
+  fetch("https://...", { signal: controller.signal }), 15_000);
+// Rejects with Error.name === "AbortError" on timeout. Caller is
+// responsible for converting to SigningError { code: "TIMEOUT" }.
+```
+
+Plus `createTimeoutError(operation, timeoutMs, originalError?, additionalContext?)`
+from `@stoachain/ouronet-core/errors` for that conversion, and
+`resetNodeFailover()` from `@stoachain/ouronet-core/network` for test
+isolation.
+
+### Migration
+
+**No migration required.** All existing imports continue to work
+unchanged. The new surface is purely opt-in. Internal calls have
+already been migrated — your existing reads and submits now get
+failover and timeouts automatically.
 
 ## Migrating to v2.x
 
@@ -139,13 +232,13 @@ Each is a subpath export of the package: `import { ... } from "@stoachain/ourone
 | Path | Contains |
 |---|---|
 | `@stoachain/ouronet-core/constants` | `KADENA_NAMESPACE`, `KADENA_CHAIN_ID`, `KADENA_NETWORK`, `PACT_URL`, gas-station + liquidpot addresses, every `TOKEN_ID_*` |
-| `@stoachain/ouronet-core/network` | Node failover (node2 → node1), URL construction |
+| `@stoachain/ouronet-core/network` | Node failover (node2 → node1), URL construction; **(v2.1.0+)** `getFailoverClient(chainId, options?)` factory returning `{ dirtyRead, submit, listen, pollOne }` with `withFailover` + per-tier timeout baked in, `runWithTimeout(operation, fn, timeoutMs)` helper, `FailoverClientOptions` type, `resetNodeFailover()` for test isolation |
 | `@stoachain/ouronet-core/gas` | `calculateAutoGasLimit`, ANU/STOA math |
 | `@stoachain/ouronet-core/guard` | `analyzeGuard`, `buildCodexPubSet`, `selectCapsSigningKey`, `computeThreshold` (all predicates including `stoa-ns.stoic-predicates.*`); **(v1.6.0+)** `classifyGuardKind`, `extractKeysetFromGuard`, `analyzeSmartAccountAuthPaths` for the Smart Ouronet Account three-branch auth-path resolution (`enforce-one` over account-guard / sovereign-guard / governor) |
 | `@stoachain/ouronet-core/crypto` | V1 + V2 AES-GCM-256 encryption, `smartDecrypt`, pure `smartEncrypt(pt, pw, schemaVersion)` |
 | `@stoachain/ouronet-core/signing` | `KeyResolver` / `SigningStrategy` interfaces, `CodexSigningStrategy`, `universalSignTransaction`, signing primitives (`publicKeyFromPrivateKey`, etc.) |
 | `@stoachain/ouronet-core/codex` | `PlaintextCodex` generic type, `serializeCodex` / `deserializeCodex` (backup format `"1.2"`), `migrateSeedType` |
-| `@stoachain/ouronet-core/reads` | `rawCalibratedDirtyRead` (pure Pact read with node failover; no cache) |
+| `@stoachain/ouronet-core/reads` | `rawCalibratedDirtyRead` (pure Pact read with node failover + 15s timeout; no cache); **(v2.1.0+)** accepts a `readTimeoutMs?: number` option for per-call timeout override |
 | `@stoachain/ouronet-core/pact` | `formatDecimalForPact`, `safeCreationTime`, `filterFreePositionData`, EU locale formatters, and **14 `buildXxxPactCode` builders** for every CFM function the ecosystem ships |
 | `@stoachain/ouronet-core/interactions` | Read helpers (`getXxxInfo`, `getXxxBalance`, `getHibernatedNonces…`) + non-CFM execute helpers (`executeWrapStoa`, `executeWrapUrStoa`, `executeNativeUrStoaTransfer`); **(v2.0.0+)** `simulateTransaction(pactCode, chainId)` (signature change — see Migrating to v2.x) |
 | `@stoachain/ouronet-core/dalos` | **(v1.3.0+)** thin re-export of `@stoachain/dalos-crypto/registry` + `createOuronetAccount(registry, options)` convenience helper covering all 6 DALOS input modes. One-stop shop for browser-side key-gen; no need to install `dalos-crypto` as a separate dep. |
@@ -194,7 +287,7 @@ for deeper documentation on the cryptographic primitive itself.
 npm install
 npm run build        # tsc -p tsconfig.build.json → dist/
 npm run typecheck    # tsc --noEmit
-npm test             # vitest run — 346 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam
+npm test             # vitest run — 385 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam, network, failover-client, timeouts, failover-submit
 ```
 
 To hot-reload changes into OuronetUI (which now depends on the published
