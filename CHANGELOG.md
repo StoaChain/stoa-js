@@ -2,6 +2,32 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.0.4 — 2026-05-01
+
+**Triggers the v2.0.3 PAT-fallback workflow with the now-installed
+`RELEASE_TOKEN` repo secret. No runtime change.**
+
+The v2.0.3 workflow change (token fallback expression
+`${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}`) was correct,
+but its workflow run still failed because the user hadn't yet added
+the `RELEASE_TOKEN` secret to the repository. The secret is now in
+place. v2.0.4 is pushed solely to trigger a fresh workflow run that
+exercises the PAT-bearing branch of the fallback expression.
+
+### Fixed
+
+- **Backfill loop extended to v2.0.3.** Previous backfill ran
+  `for PRIOR_TAG in v1.7.0 v2.0.0 v2.0.1 v2.0.2` — now adds v2.0.3 so
+  the v2.0.4 workflow run creates Releases retroactively for ALL six
+  prior tags whose Release-creation step had failed in earlier runs.
+
+### Stats
+
+- Files changed: 3 (`package.json`, `CHANGELOG.md`, `.github/workflows/publish.yml`).
+- Lines added: ~15; lines removed: ~3.
+- No `src/` changes; no `tests/` changes.
+- Test count unchanged at 346.
+
 ## 2.0.3 — 2026-05-01
 
 **Final release-process hotfix. No runtime change.**
