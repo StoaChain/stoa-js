@@ -16,6 +16,8 @@
  * reads localStorage and delegates here.
  */
 
+import { WrongPasswordError, CorruptEnvelopeError } from "./errors";
+
 export interface EncryptedDataV2 {
   v: 2;
   ciphertext: string;
@@ -75,33 +77,86 @@ export async function encryptStringV2(plaintext: string, password: string): Prom
  * Decrypt a V2 envelope. Includes a V1 fallback path: if the envelope lacks
  * `v: 2`, this still decodes it using V1 params. That keeps V2-only call
  * sites (e.g. a codex-wide re-encrypt job) safe when stray V1 blobs linger.
+ *
+ * Failure classification (applies to BOTH V2 branch and V1-fallback branch):
+ *   - JSON.parse / outer atob failure        → CorruptEnvelopeError
+ *   - Non-object parsed payload              → CorruptEnvelopeError
+ *   - Missing or non-string envelope fields  → CorruptEnvelopeError
+ *   - AES-GCM auth-tag failure               → WrongPasswordError
+ *   - Anything else                          → wrapped Error with `cause`
  */
 export async function decryptStringV2(encryptedBase64: string, password: string): Promise<string> {
   const enc = new TextEncoder();
   const dec = new TextDecoder();
-  const parsed = JSON.parse(atob(encryptedBase64));
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(atob(encryptedBase64));
+  } catch (error) {
+    throw new CorruptEnvelopeError("Failed to parse encrypted envelope", { cause: error });
+  }
+
+  if (parsed === null || typeof parsed !== "object") {
+    throw new CorruptEnvelopeError("Envelope must be an object", {
+      cause: new TypeError(`parsed is ${parsed === null ? "null" : typeof parsed}`),
+    });
+  }
+
+  const envelope = parsed as { v?: unknown; ciphertext?: unknown; iv?: unknown; salt?: unknown };
 
   // V2 format
-  if (parsed.v === 2) {
+  if (envelope.v === 2) {
+    let saltBuf: ArrayBuffer;
+    let ivBuf: ArrayBuffer;
+    let ctBuf: ArrayBuffer;
+    try {
+      saltBuf = b642ab(envelope.salt as string);
+      ivBuf = b642ab(envelope.iv as string);
+      ctBuf = b642ab(envelope.ciphertext as string);
+    } catch (error) {
+      throw new CorruptEnvelopeError(
+        "V2 envelope field shape mismatch (missing or non-string ciphertext/iv/salt)",
+        { cause: error },
+      );
+    }
+
     const km = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
     const key = await crypto.subtle.deriveKey(
-      { name: "PBKDF2", salt: b642ab(parsed.salt), iterations: 600_000, hash: "SHA-512" },
+      { name: "PBKDF2", salt: saltBuf, iterations: 600_000, hash: "SHA-512" },
       km,
       { name: "AES-GCM", length: 256 },
       false,
       ["decrypt"],
     );
-    const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: b642ab(parsed.iv) },
-      key,
-      b642ab(parsed.ciphertext),
-    );
-    return dec.decode(decrypted);
+    try {
+      const decrypted = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: ivBuf },
+        key,
+        ctBuf,
+      );
+      return dec.decode(decrypted);
+    } catch (error) {
+      if ((error as { name?: string } | null)?.name === "OperationError") {
+        throw new WrongPasswordError("AES-GCM auth-tag failure", { cause: error });
+      }
+      throw new Error("Unexpected V2 decrypt failure", { cause: error });
+    }
   }
 
   // V1 fallback (10k SHA-256) — truncate IV/salt in case browser used pooled buffer
-  const ivRaw = b642ab(parsed.iv);
-  const saltRaw = b642ab(parsed.salt);
+  let ivRaw: ArrayBuffer;
+  let saltRaw: ArrayBuffer;
+  let ctBuf1: ArrayBuffer;
+  try {
+    ivRaw = b642ab(envelope.iv as string);
+    saltRaw = b642ab(envelope.salt as string);
+    ctBuf1 = b642ab(envelope.ciphertext as string);
+  } catch (error) {
+    throw new CorruptEnvelopeError(
+      "V1-fallback envelope field shape mismatch (missing or non-string ciphertext/iv/salt)",
+      { cause: error },
+    );
+  }
   const iv1 = ivRaw.byteLength > 12 ? ivRaw.slice(0, 12) : ivRaw;
   const salt1 = saltRaw.byteLength > 16 ? saltRaw.slice(0, 16) : saltRaw;
   const km = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
@@ -112,12 +167,19 @@ export async function decryptStringV2(encryptedBase64: string, password: string)
     false,
     ["decrypt"],
   );
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv1 },
-    key,
-    b642ab(parsed.ciphertext),
-  );
-  return dec.decode(decrypted);
+  try {
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv1 },
+      key,
+      ctBuf1,
+    );
+    return dec.decode(decrypted);
+  } catch (error) {
+    if ((error as { name?: string } | null)?.name === "OperationError") {
+      throw new WrongPasswordError("AES-GCM auth-tag failure", { cause: error });
+    }
+    throw new Error("Unexpected V1-fallback decrypt failure", { cause: error });
+  }
 }
 
 /** True iff the envelope is V2 (has `v: 2` after base64-JSON decode). */
@@ -169,20 +231,26 @@ export async function smartEncrypt(
 }
 
 /**
- * Decrypts either format transparently. Tries V1 primitives first (they're
- * cheaper — 10k vs 600k iterations), then the V1-fallback branch inside
- * decryptStringV2. This is the single entry point every "decrypt on login"
- * or "decrypt on recovery" call site should use.
+ * Decrypts either format transparently using deterministic shape-based
+ * dispatch via `isEncryptedV2`: V2 envelopes go straight to `decryptStringV2`,
+ * everything else routes to the V1 primitive. There is no second-attempt
+ * fallback — a wrong password on a V1 envelope runs exactly one PBKDF2-SHA256
+ * 10k KDF and throws, never triggering a V2 600k retry.
+ *
+ * Closes a ~1.5s timing differential between V1-success and V1-then-V2-fail
+ * paths (the previous try/catch chain ran V1 KDF, then V2 KDF on failure,
+ * leaking envelope-format / password-correctness state to a wall-clock
+ * observer). This is the single entry point every "decrypt on login" or
+ * "decrypt on recovery" call site should use.
+ *
+ * Errors from the chosen branch (`WrongPasswordError`, `CorruptEnvelopeError`,
+ * etc.) propagate directly to the caller — no try/catch wrapping here.
  */
 export async function smartDecrypt(encrypted: string, password: string): Promise<string> {
-  if (isEncryptedV2(encrypted)) return decryptStringV2(encrypted, password);
-  // Try V1 original first
-  try {
-    const { decryptString } = await import("./v1");
-    return await decryptString(encrypted, password);
-  } catch {
-    // Fallback to V2 decoder (also handles V1 format)
+  if (isEncryptedV2(encrypted)) {
     return decryptStringV2(encrypted, password);
   }
+  const { decryptString } = await import("./v1");
+  return decryptString(encrypted, password);
 }
 

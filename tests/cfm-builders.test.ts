@@ -285,6 +285,37 @@ describe("buildFirestarterPactCode", () => {
   });
 });
 
+// ─── Defensive amount validation (regression guards) ───────────────────────
+// Builders that take a decimal-typed `amount` route the raw string through
+// `formatDecimalForPact`, which throws "Invalid decimal format" for any
+// input that doesn't match /^\d+\.?\d*$/. These guards lock that contract
+// in from the builder's perspective so a future "performance" refactor
+// can't silently bypass the format check and let "abc" reach the chain
+// (where it would surface as a confusing JSON-decode error rather than a
+// caller-side TypeError). Two representative builders are covered — one
+// from the TS01-C1.DPTF family (Transfer) and one from the TS01-C2.ATS
+// family (Coil) — to catch the most likely bypass routes.
+
+describe("cfm-builders — defensive amount validation (REQ-12)", () => {
+  it("buildTransferPactCode throws on a non-numeric amount", () => {
+    expect(() =>
+      buildTransferPactCode({
+        patron: PATRON, tokenId: TOKEN, sender: SENDER,
+        receiver: RECEIVER, amount: "abc", method: false,
+      }),
+    ).toThrow(/Invalid decimal format/);
+  });
+
+  it("buildCoilPactCode throws on a non-numeric amount", () => {
+    expect(() =>
+      buildCoilPactCode({
+        patron: PATRON, coiler: RESIDENT, atsId: ATS_A,
+        rewardTokenId: RT, amount: "abc",
+      }),
+    ).toThrow(/Invalid decimal format/);
+  });
+});
+
 // ─── Cross-cutting: every builder emits a non-empty string that starts
 // with "(ouronet-ns." and ends with ")". This catches someone forgetting
 // the parens or the namespace prefix entirely.

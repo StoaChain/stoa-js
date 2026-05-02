@@ -143,6 +143,19 @@ describe("deserializeCodex", () => {
   it("throws on null input", () => {
     expect(() => deserializeCodex("null")).toThrow(/not an object/i);
   });
+
+  it("preserves unknown extra fields through the parse cast (forward-compat pin)", () => {
+    // Hand-crafted JSON with an unknown extra field. We bypass serializeCodex
+    // because it strips unknowns at the buildCodexExport layer; the forward-
+    // compat guarantee lives in deserializeCodex's `parsed as CodexExportV1_2`
+    // cast, which leaves the parsed object's own keys intact at runtime.
+    // If a future refactor swaps the cast for a field-by-field rebuild this
+    // test fails, signalling a breaking change for downstream consumers that
+    // rely on reading newer-shape v1.2 exports through older core versions.
+    const json = '{"version":"1.2","kadenaWallets":[],"ouronetWallets":[],"addressBook":[],"uiSettings":{},"futureFieldX":"x"}';
+    const parsed = deserializeCodex(json);
+    expect((parsed as any).futureFieldX).toBe("x");
+  });
 });
 
 // ─── Round-trip ───────────────────────────────────────────────────────────────

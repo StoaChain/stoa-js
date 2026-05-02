@@ -25,6 +25,7 @@ import {
   smartEncrypt,
   isEncryptedV2,
   isCodexUpgraded,
+  WrongPasswordError,
 } from "../src/crypto";
 
 const PASSWORD = "correct-horse-battery-staple";
@@ -110,6 +111,32 @@ describe("V1 → V2 upgrade pipeline (the critical path)", () => {
   it("wrong password on a V2 blob throws — must not silently succeed", async () => {
     const v2Blob = await encryptStringV2(PLAINTEXT, PASSWORD);
     await expect(smartDecrypt(v2Blob, "wrong-password")).rejects.toThrow();
+  });
+
+  it("corrupted V1 blob through smartDecrypt does not silently fall through to V2 KDF — throws WrongPasswordError on auth-tag fail", async () => {
+    // Tampering the ciphertext byte breaks AES-GCM authentication. smartDecrypt
+    // routes V1 envelopes to the V1 decoder and must NOT retry with V2 KDF
+    // params on failure (that would leak a ~1.5s timing differential and
+    // deliver a stale "wrong password" verdict). Per the AES-GCM ambiguity
+    // contract, tampered-ciphertext-with-correct-password and wrong-password
+    // are indistinguishable to the auth-tag check — both surface as
+    // WrongPasswordError, never CorruptEnvelopeError.
+    const v1Blob = await encryptString(PLAINTEXT, PASSWORD);
+    const parsed = JSON.parse(atob(v1Blob)) as {
+      ciphertext: string;
+      iv: string;
+      salt: string;
+    };
+    const ct = parsed.ciphertext;
+    parsed.ciphertext = ct.slice(0, 5) + (ct[5] === "A" ? "B" : "A") + ct.slice(6);
+    const corruptedV1 = btoa(JSON.stringify(parsed));
+
+    expect(isEncryptedV2(corruptedV1)).toBe(false);
+
+    await expect(smartDecrypt(corruptedV1, PASSWORD)).rejects.toThrow();
+    await expect(smartDecrypt(corruptedV1, PASSWORD)).rejects.toBeInstanceOf(
+      WrongPasswordError,
+    );
   });
 });
 

@@ -13,6 +13,8 @@
  * a WebCrypto implementation).
  */
 
+import { WrongPasswordError, CorruptEnvelopeError } from "./errors";
+
 export interface EncryptedData {
   ciphertext: string; // base64 encoded
   iv: string;         // base64 encoded
@@ -65,65 +67,92 @@ export async function encryptString(
 
     return btoa(JSON.stringify(encryptedData));
   } catch (error) {
-    console.error("Encryption error:", error);
-    throw new Error("Failed to encrypt data");
+    throw new Error("Failed to encrypt data", { cause: error });
   }
 }
 
-/** Decrypt a V1 envelope. Throws on wrong password or corrupted data. */
+/**
+ * Decrypt a V1 envelope.
+ *
+ * Failure classification:
+ *   - JSON.parse / outer atob failure → CorruptEnvelopeError
+ *   - Non-object parsed payload → CorruptEnvelopeError
+ *   - Missing or non-string envelope fields (inner base64 decode fails) →
+ *     CorruptEnvelopeError
+ *   - AES-GCM auth-tag failure (wrong password or tampered ciphertext) →
+ *     WrongPasswordError
+ *   - Anything else → plain wrapped Error with `cause`
+ */
 export async function decryptString(
   encryptedBase64String: string,
   password: string,
 ): Promise<string> {
+  let parsed: unknown;
   try {
-    const jsonString = atob(encryptedBase64String);
-    const encryptedData: EncryptedData = JSON.parse(jsonString);
-    const { ciphertext, iv, salt } = encryptedData;
+    parsed = JSON.parse(atob(encryptedBase64String));
+  } catch (error) {
+    throw new CorruptEnvelopeError("Failed to parse V1 envelope", { cause: error });
+  }
 
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
+  if (parsed === null || typeof parsed !== "object") {
+    throw new CorruptEnvelopeError("V1 envelope must be an object", {
+      cause: new TypeError(`parsed is ${parsed === null ? "null" : typeof parsed}`),
+    });
+  }
 
-    const ciphertextArray = base64ToArrayBuffer(ciphertext);
-    // IV must be exactly 12 bytes, salt exactly 16 bytes — truncate if
-    // a legacy browser over-allocated the pooled buffer.
-    const ivRaw = base64ToArrayBuffer(iv);
-    const saltRaw = base64ToArrayBuffer(salt);
-    const ivArray = ivRaw.byteLength > 12 ? ivRaw.slice(0, 12) : ivRaw;
-    const saltArray = saltRaw.byteLength > 16 ? saltRaw.slice(0, 16) : saltRaw;
+  const { ciphertext, iv, salt } = parsed as Partial<EncryptedData>;
 
-    const keyMaterial = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(password),
-      { name: "PBKDF2" },
-      false,
-      ["deriveKey"],
-    );
+  let saltBuf: ArrayBuffer;
+  let ivBuf: ArrayBuffer;
+  let ctBuf: ArrayBuffer;
+  try {
+    saltBuf = base64ToArrayBuffer(salt as string);
+    ivBuf = base64ToArrayBuffer(iv as string);
+    ctBuf = base64ToArrayBuffer(ciphertext as string);
+  } catch (error) {
+    throw new CorruptEnvelopeError("V1 envelope field shape mismatch", { cause: error });
+  }
 
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: "PBKDF2",
-        salt: saltArray,
-        iterations: 10000,
-        hash: "SHA-256",
-      },
-      keyMaterial,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["decrypt"],
-    );
+  // IV must be exactly 12 bytes, salt exactly 16 bytes — truncate if
+  // a legacy browser over-allocated the pooled buffer.
+  const ivArray = ivBuf.byteLength > 12 ? ivBuf.slice(0, 12) : ivBuf;
+  const saltArray = saltBuf.byteLength > 16 ? saltBuf.slice(0, 16) : saltBuf;
 
+  const encoder = new TextEncoder();
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"],
+  );
+
+  const key = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: saltArray,
+      iterations: 10000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"],
+  );
+
+  try {
     const decrypted = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: ivArray },
       key,
-      ciphertextArray,
+      ctBuf,
     );
-
-    return decoder.decode(decrypted);
+    return new TextDecoder().decode(decrypted);
   } catch (error) {
-    console.error("Decryption error:", error);
-    throw new Error(
-      "Failed to decrypt data. Invalid password or corrupted data.",
-    );
+    if ((error as { name?: string } | null)?.name === "OperationError") {
+      throw new WrongPasswordError("AES-GCM auth-tag failure", { cause: error });
+    }
+    throw new Error("Unexpected V1 decrypt failure", { cause: error });
   }
 }
 

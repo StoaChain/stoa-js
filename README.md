@@ -6,15 +6,17 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`2.1.2` on public npmjs** — concurrency-race correction in
-`withFailover`. No public API change. Closes audit finding F-BUG-001
-(`withFailover` retry guard now uses per-invocation captured base URLs
-instead of shared module-level state, so concurrent chain calls during
-a primary-node failover all retry on the fallback as documented). The
-v2.1.0 reliability hardening surface is intact. PATCH-level fix; v2.1.x
-consumers upgrade transparently. See [`CHANGELOG.md`](CHANGELOG.md) for
-the full v2.1.2 entry, and the **What's new in v2.1.0** section below
-for the public-API additions that landed in the prior minor.
+**`2.2.0` on public npmjs** — MINOR additive release. Crypto subpath
+gains a typed error taxonomy (3 new error classes) and a `smartDecrypt`
+timing-leak fix. Test surface grows by ≥29 cases across 4 new test
+files and 5 extensions, covering 4 previously-untested critical
+surfaces. Closes audit findings F-CORE-009, F-CORE-011, F-CORE-012.
+F-CORE-010 reviewed and explicitly rejected (chain-side validation
+duplicates). v2.1.x consumers upgrade transparently — `instanceof
+Error` and existing `error.message` access still work; new typed-class
+discrimination is opt-in. See [`CHANGELOG.md`](CHANGELOG.md) for the
+full v2.2.0 entry, and the **What's new in v2.2.0** section below for
+the public-API additions.
 
 Every piece of blockchain logic that used to live in OuronetUI has
 landed here: Pact builders, signing pipeline (CodexSigningStrategy +
@@ -94,9 +96,40 @@ the catch-block decision robust to concurrent module-state mutation
 `getPrimaryBaseUrl()` helper added to `src/network/nodeFailover.ts`;
 not exported.
 
-**386 tests** pass on every commit (up from 346 baseline; +40 new
-tests across `tests/{failover-client,timeouts,failover-submit}.test.ts`
-and extensions to `tests/{network,strategy}.test.ts`). Published to
+**v2.2.0** — crypto error-taxonomy + test-coverage hardening release.
+MINOR, additive. The `./crypto` subpath gains three typed error
+classes — `WrongPasswordError`, `CorruptEnvelopeError`,
+`UnsupportedFormatError` — that discriminate decryption failure modes
+(closes F-CORE-009). `smartDecrypt` switches to single-path dispatch
+via the existing `isEncryptedV2` shape predicate, eliminating the
+~1.5s wall-time differential a wrong-password V1 input previously
+exhibited (timing-leak fix); the V1 catch path no longer logs to
+`console.error` and propagates the original failure via ES2022
+`Error.cause`. Existing `instanceof Error` checks and `error.message`
+access continue to work — the new typed-class discrimination is
+opt-in. Test coverage expands across 4 previously-untested critical
+surfaces (closes F-CORE-011, F-CORE-012): four new test files cover
+the `pactReader` injection seam (`tests/pact-reader.test.ts`),
+`KadenaWalletBuilder` mnemonic dispatch with vendor-vector pinning for
+all three seed types (`tests/wallet-builder.test.ts`), every
+documented branch of `createSigningError` + `createSimulationError`
+(`tests/transaction-errors.test.ts`), and the codex seed-type
+migration round-trip (`tests/seed-type-migration.test.ts`). Five
+existing test files gain extensions: `tests/encryption.test.ts`,
+`tests/encryption-upgrade.test.ts`, `tests/codex-codec.test.ts`,
+`tests/cfm-builders.test.ts`, `tests/pact-format.test.ts`. F-CORE-010
+(a proposed `pactString` charset/blocklist helper) was reviewed and
+explicitly **rejected** — chain-side Pact validation already enforces
+identifier rules, so a client-side blocklist would duplicate
+authoritative server-side checks and risk silent drift if Pact's
+grammar evolves. The decision is logged in `CHANGELOG.md` under a
+`### Rejected (decisions log)` section.
+
+**458 tests** pass on every commit (up from 386 v2.1.2 baseline;
++72 new tests across
+`tests/{pact-reader,wallet-builder,transaction-errors,seed-type-migration}.test.ts`
+and extensions to
+`tests/{encryption,encryption-upgrade,codex-codec,cfm-builders,pact-format}.test.ts`). Published to
 the public npmjs registry via `.github/workflows/publish.yml` on every
 `v*` tag (which also creates a GitHub Release).
 
@@ -171,6 +204,41 @@ isolation.
 unchanged. The new surface is purely opt-in. Internal calls have
 already been migrated — your existing reads and submits now get
 failover and timeouts automatically.
+
+## What's new in v2.2.0
+
+The `./crypto` subpath previously surfaced every decryption failure as
+a generic `Error` — wrong password, structurally damaged envelope, and
+unsupported schema version all collapsed to a string-message check.
+v2.2.0 adds three typed error classes that discriminate the failure
+modes, plus a single-path `smartDecrypt` dispatch that closes a
+wall-time timing differential observed on V1 wrong-password inputs:
+
+```ts
+import {
+  smartDecrypt,
+  WrongPasswordError,
+  CorruptEnvelopeError,
+} from "@stoachain/ouronet-core/crypto";
+
+try {
+  const plaintext = await smartDecrypt(blob, password);
+} catch (err) {
+  if (err instanceof WrongPasswordError) {
+    // most common case — show "wrong password" UI
+  } else if (err instanceof CorruptEnvelopeError) {
+    // blob is structurally damaged — recovery / re-import path
+  } else {
+    // unexpected (UnsupportedFormatError, or anything else) — log and
+    // surface to user as a generic decrypt failure
+    throw err;
+  }
+}
+```
+
+Existing consumers that only check `instanceof Error` or read
+`error.message` continue to work unchanged — the typed classes extend
+`Error`, so the new discrimination is purely opt-in.
 
 ## Migrating to v2.x
 
@@ -247,7 +315,7 @@ Each is a subpath export of the package: `import { ... } from "@stoachain/ourone
 | `@stoachain/ouronet-core/network` | Node failover (node2 → node1), URL construction; **(v2.1.0+)** `getFailoverClient(chainId, options?)` factory returning `{ dirtyRead, submit, listen, pollOne }` with `withFailover` + per-tier timeout baked in, `runWithTimeout(operation, fn, timeoutMs)` helper, `FailoverClientOptions` type, `resetNodeFailover()` for test isolation |
 | `@stoachain/ouronet-core/gas` | `calculateAutoGasLimit`, ANU/STOA math |
 | `@stoachain/ouronet-core/guard` | `analyzeGuard`, `buildCodexPubSet`, `selectCapsSigningKey`, `computeThreshold` (all predicates including `stoa-ns.stoic-predicates.*`); **(v1.6.0+)** `classifyGuardKind`, `extractKeysetFromGuard`, `analyzeSmartAccountAuthPaths` for the Smart Ouronet Account three-branch auth-path resolution (`enforce-one` over account-guard / sovereign-guard / governor) |
-| `@stoachain/ouronet-core/crypto` | V1 + V2 AES-GCM-256 encryption, `smartDecrypt`, pure `smartEncrypt(pt, pw, schemaVersion)` |
+| `@stoachain/ouronet-core/crypto` | V1 + V2 AES-GCM-256 encryption, `smartDecrypt`, pure `smartEncrypt(pt, pw, schemaVersion)`; **(v2.2.0+)** typed error classes `WrongPasswordError`, `CorruptEnvelopeError`, `UnsupportedFormatError` discriminate decryption failure modes; `smartDecrypt` single-path dispatch eliminates v1-then-v2 timing-leak |
 | `@stoachain/ouronet-core/signing` | `KeyResolver` / `SigningStrategy` interfaces, `CodexSigningStrategy`, `universalSignTransaction`, signing primitives (`publicKeyFromPrivateKey`, etc.) |
 | `@stoachain/ouronet-core/codex` | `PlaintextCodex` generic type, `serializeCodex` / `deserializeCodex` (backup format `"1.2"`), `migrateSeedType` |
 | `@stoachain/ouronet-core/reads` | `rawCalibratedDirtyRead` (pure Pact read with node failover + 15s timeout; no cache); **(v2.1.0+)** accepts a `readTimeoutMs?: number` option for per-call timeout override |
@@ -299,7 +367,7 @@ for deeper documentation on the cryptographic primitive itself.
 npm install
 npm run build        # tsc -p tsconfig.build.json → dist/
 npm run typecheck    # tsc --noEmit
-npm test             # vitest run — 386 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam, network, failover-client, timeouts, failover-submit
+npm test             # vitest run — 458 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam, network, failover-client, timeouts, failover-submit, pact-reader, wallet-builder, transaction-errors, seed-type-migration, crypto-errors, crypto-v2-classification, package-version
 ```
 
 To hot-reload changes into OuronetUI (which now depends on the published

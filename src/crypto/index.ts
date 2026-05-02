@@ -15,6 +15,11 @@
  *   `smartDecrypt(blob, pw)` — auto-detects by shape. The single best
  *     entry point for "decrypt whatever the user gave me".
  *   `isEncryptedV2`, `allEncryptedV2`, `isCodexUpgraded` — predicates.
+ *   `WrongPasswordError`, `CorruptEnvelopeError`, `UnsupportedFormatError` —
+ *     typed error classes raised by the decrypt paths (v2.2.0+). Consumers
+ *     can `catch (e) { if (e instanceof WrongPasswordError) ... }` to
+ *     discriminate failure modes; `instanceof Error` still holds for
+ *     un-upgraded consumers.
  *
  * All pure. Works in browser + Node.js + any WebCrypto environment.
  * OuronetUI's `src/lib/smart-encrypt-browser.ts` is the ~5-line wrapper
@@ -39,3 +44,6 @@ export {
   type EncryptedDataV1,
   type EncryptedDataV2,
 } from "./v2";
+
+export { WrongPasswordError, CorruptEnvelopeError, UnsupportedFormatError } from "./errors";
+

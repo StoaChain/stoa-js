@@ -14,7 +14,7 @@
  * (the localStorage read lives in OuronetUI's `smart-encrypt-browser.ts`).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { encryptString, decryptString } from "../src/crypto/v1";
 import {
   encryptStringV2,
@@ -25,6 +25,7 @@ import {
   allEncryptedV2,
   isCodexUpgraded,
 } from "../src/crypto/v2";
+import { WrongPasswordError, CorruptEnvelopeError } from "../src/crypto";
 
 const PASSWORD = "correct-horse-battery-staple";
 const WRONG_PASSWORD = "wrong-horse-battery-staple";
@@ -266,5 +267,92 @@ describe("smartEncrypt — writes V1 or V2 based on the supplied schemaVersion s
   it("writes V2 when schemaVersion is higher than 1 (forward-compat)", async () => {
     const enc = await smartEncrypt(PLAINTEXT, PASSWORD, "99");
     expect(isEncryptedV2(enc)).toBe(true);
+  });
+});
+
+describe("smartDecrypt + Phase 1 contracts (REQ-09 + REQ-04 behavioral)", () => {
+  it("structurally-malformed envelope (V2 missing ciphertext) throws CorruptEnvelopeError", async () => {
+    // Valid base64-JSON envelope claiming V2 but missing the ciphertext field.
+    // smartDecrypt routes to decryptStringV2 (envelope.v === 2), which calls
+    // b642ab(envelope.ciphertext as string) → atob(undefined) → throws → wrapped
+    // as CorruptEnvelopeError. Note: a v-flipped V1-shaped envelope would
+    // route to V1 and succeed-then-WrongPassword on auth-tag fail (V1 is a
+    // structural subset of V2), so a missing field is the only deliverable
+    // CorruptEnvelopeError signal here.
+    const badEnvelope = btoa(JSON.stringify({ v: 2, iv: "AA==", salt: "AA==" }));
+    await expect(smartDecrypt(badEnvelope, PASSWORD)).rejects.toThrow(CorruptEnvelopeError);
+    let caught: unknown;
+    try {
+      await smartDecrypt(badEnvelope, PASSWORD);
+    } catch (e) {
+      caught = e;
+    }
+    expect((caught as Error).name).toBe("CorruptEnvelopeError");
+  });
+
+  it("smartEncrypt selects V1/V2 across the documented schemaVersion inputs", async () => {
+    const v1Out = await smartEncrypt(PLAINTEXT, PASSWORD, "0");
+    expect(isEncryptedV2(v1Out)).toBe(false);
+
+    const v2Out = await smartEncrypt(PLAINTEXT, PASSWORD, "1");
+    expect(isEncryptedV2(v2Out)).toBe(true);
+
+    const nullOut = await smartEncrypt(PLAINTEXT, PASSWORD, null);
+    expect(isEncryptedV2(nullOut)).toBe(false);
+  });
+
+  it("wrong password on a V1 envelope throws WrongPasswordError (typed)", async () => {
+    const encV1 = await encryptString(PLAINTEXT, PASSWORD);
+    await expect(smartDecrypt(encV1, WRONG_PASSWORD)).rejects.toThrow(WrongPasswordError);
+    let caught: unknown;
+    try {
+      await smartDecrypt(encV1, WRONG_PASSWORD);
+    } catch (e) {
+      caught = e;
+    }
+    expect((caught as Error).name).toBe("WrongPasswordError");
+  });
+
+  it("V1 decrypt failure produces no console output (no console.error/warn/log)", async () => {
+    const encV1 = await encryptString(PLAINTEXT, PASSWORD);
+    const parsed = parseEnvelope(encV1);
+    const ct = parsed.ciphertext as string;
+    parsed.ciphertext = ct.slice(0, 5) + (ct[5] === "A" ? "B" : "A") + ct.slice(6);
+    const corrupted = btoa(JSON.stringify(parsed));
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      await expect(decryptString(corrupted, PASSWORD)).rejects.toThrow();
+      expect(errSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
+    } finally {
+      errSpy.mockRestore();
+      warnSpy.mockRestore();
+      logSpy.mockRestore();
+    }
+  });
+
+  it("V1 encryptString failure exposes underlying cause via Error.cause", async () => {
+    const sentinel = new Error("simulated AES-GCM encrypt failure");
+    const encryptSpy = vi
+      .spyOn(crypto.subtle, "encrypt")
+      .mockRejectedValue(sentinel);
+
+    let caught: unknown;
+    try {
+      await encryptString(PLAINTEXT, PASSWORD);
+    } catch (e) {
+      caught = e;
+    } finally {
+      encryptSpy.mockRestore();
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe("Failed to encrypt data");
+    expect((caught as Error).cause).toBe(sentinel);
   });
 });

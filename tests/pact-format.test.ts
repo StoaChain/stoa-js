@@ -93,6 +93,33 @@ describe("formatDecimalForPact", () => {
       expect(formatDecimalForPact("\t100\n")).toBe("100.0");
     });
   });
+
+  // Pin the four documented edge-case behaviors of the regex `/^\d+\.?\d*$/`.
+  // Each it-block locks one observable contract that consumers (UI + HUB) rely on:
+  // any future change to the regex MUST update these assertions deliberately.
+  describe("documented edge cases — regex contract pinning", () => {
+    it("rejects scientific notation 'e' suffix — Pact lexer has no exponent form", () => {
+      expect(() => formatDecimalForPact("1e10")).toThrow("Invalid decimal format");
+    });
+
+    it("preserves leading zeros — '007.5' passes regex and returns unchanged", () => {
+      // Regex `/^\d+\.?\d*$/` matches any digit run; no leading-zero stripping.
+      // Pact's lexer accepts "007.5" as a decimal; consumer-side normalization
+      // is the caller's responsibility, not this helper's.
+      expect(formatDecimalForPact("007.5")).toBe("007.5");
+    });
+
+    it("rejects EU decimal separator ',' — only '.' is the fractional marker", () => {
+      expect(() => formatDecimalForPact("1,5")).toThrow("Invalid decimal format");
+    });
+
+    it("preserves trailing zeros under maxDecimals — '1.500' returned verbatim", () => {
+      // Three trailing zeros, well under the 24-decimal default cap, so the
+      // truncate branch is skipped and `trimmed` is returned as-is. Trailing
+      // zeros carry precision intent on-chain; do not silently strip them.
+      expect(formatDecimalForPact("1.500")).toBe("1.500");
+    });
+  });
 });
 
 // ══ mayComeWithDeimal ════════════════════════════════════════════════════════

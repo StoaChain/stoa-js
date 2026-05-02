@@ -2,6 +2,91 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.2.0 — 2026-05-02
+
+**Additive crypto error taxonomy and previously-untested critical-surface coverage. MINOR, non-breaking.**
+
+Closes three audit findings (F-CORE-009, F-CORE-011, F-CORE-012) by introducing three new typed error classes on the `./crypto` subpath, fixing a wrong-password timing leak in `smartDecrypt`, and landing four new test files plus five test-file extensions across previously-untested critical surfaces. A fourth audit finding (F-CORE-010 — pact-code injection escaping) was reviewed during spec discovery and intentionally rejected; rationale captured below. All public-API additions are additive — no existing exports change shape, no breaking changes for downstream consumers (`OuronetUI` and `AncientHolder HUB`).
+
+### Added (public surface)
+
+- `WrongPasswordError` — `@stoachain/ouronet-core/crypto`. Thrown by
+  `decryptString`, `decryptStringV2`, and `smartDecrypt` when AES-GCM
+  authentication-tag verification fails. Per the AES-GCM spec, a
+  correct-password-with-tampered-ciphertext attempt is
+  cryptographically indistinguishable from a wrong-password attempt
+  and routes to this same class.
+- `CorruptEnvelopeError` — `@stoachain/ouronet-core/crypto`. Thrown on
+  envelope-parsing failures: `JSON.parse` failure, outer `atob`
+  base64-decode failure, missing required envelope fields, and
+  parsed-value-not-an-object. Distinguishes structural corruption from
+  authentication failure.
+- `UnsupportedFormatError` — `@stoachain/ouronet-core/crypto`. Additive
+  reservation for future format extensions; no current call site
+  throws this. Exported now so consumers can pin a `catch` clause once
+  without a future minor-bump break.
+
+### Fixed
+
+- **F-CORE-009 — Crypto error taxonomy + `smartDecrypt` timing-leak
+  fix.** Three typed error classes (`WrongPasswordError`,
+  `CorruptEnvelopeError`, `UnsupportedFormatError`) replace the V1/V2
+  catch-all string messages. `smartDecrypt` now uses a single
+  deterministic shape-based branch (`isEncryptedV2`) instead of a
+  try-V2-then-fallback-to-V1 sequence — this eliminates the ~1.5 s
+  wall-time differential previously observable on a wrong-password V1
+  envelope (which would burn the V2 PBKDF2 work-factor before falling
+  through). Console-error calls in the V1 catch sites are removed; the
+  thrown errors carry the underlying cause via the ES2022
+  `Error.cause` property so consumers retain debug telemetry without
+  the side-channel `console.error` noise.
+- **F-CORE-011 — Test coverage for previously-untested critical
+  surfaces.** Four new test files: `tests/pact-reader.test.ts`
+  (covers the `setPactReader` injection seam and the default
+  `rawCalibratedDirtyRead` fallback), `tests/wallet-builder.test.ts`
+  (covers `KadenaWalletBuilder` mnemonic dispatch across all three
+  seed types, vendor-vector-pinned), `tests/transaction-errors.test.ts`
+  (covers every documented branch of `createSigningError` and
+  `createSimulationError`), and `tests/seed-type-migration.test.ts`
+  (covers the codex seed-type migration round-trip).
+- **F-CORE-012 — Boundary-edge-case test extensions.** Five existing
+  test files extended with edge-case it-blocks at the boundaries
+  flagged by the audit pass.
+
+### Rejected (decisions log)
+
+- **F-CORE-010 — Pact-code injection escaping.** Reviewed during spec
+  discovery (2026-05-02) and intentionally NOT implemented. Rationale:
+  chain-side Pact compilation/simulation already validates account
+  format, token-ID format, and DALOS charset at submission time.
+  Mirroring those validations in the library would (a) duplicate logic
+  that already lives at the canonical enforcement boundary, (b) drift
+  from chain reality whenever DALOS extends its accepted character
+  set, and (c) impose ongoing maintenance burden for a
+  defense-in-depth that is theoretical only — no concrete attack
+  vector was identified that the chain wouldn't already reject. A
+  narrower blocklist variant (escape only known-bad characters) was
+  also considered and rejected on the same theoretical-only argument.
+  The audit-spec source remains under `bundles/high-additive/` with a
+  "rejected" note appended for traceability.
+
+### Stats
+
+- Files changed: NEW — `src/crypto/errors.ts`,
+  `tests/pact-reader.test.ts`, `tests/wallet-builder.test.ts`,
+  `tests/transaction-errors.test.ts`,
+  `tests/seed-type-migration.test.ts`, plus this changelog entry and
+  `README.md` updates. MODIFIED — `src/crypto/v1.ts`, `src/crypto/v2.ts`,
+  `src/crypto/index.ts`, five existing test files (boundary-edge-case
+  extensions), and `package.json` (version bump).
+- Test count: **458** passing (up from `386` at v2.1.2; +72 new in v2.2.0).
+- No public-API removals. The three new error classes are additive;
+  existing exports are unchanged.
+- The `smartDecrypt` timing-leak fix is the only behavioural change a
+  consumer can observe — wrong-password V1 attempts now return on the
+  same ~PBKDF2-V1 wall-time path as before, but the prior
+  try-V2-first leak that burned the V2 work-factor is gone.
+
 ## 2.1.2 — 2026-05-01
 
 **Concurrency-race correction in `withFailover`. No public API change.**
