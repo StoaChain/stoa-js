@@ -11,6 +11,20 @@ coverage/
 # Local secrets (token store for git push automation)
 .secrets/
 
+# Bee session artifacts (per-session, not part of any ship)
+.bee/.session-start
+.bee/.autonomous-run-active
+.bee/.autonomous-team-spawned
+.bee/.autonomous-team-claimed
+.bee/SESSION-CONTEXT.md
+.bee/COMPACT-CONTEXT.md
+.bee/pause-handoff.md
+.bee/metrics/
+.bee/pollinate-credentials/
+
+# Claude Code per-checkout state
+.claude/
+
 # Editor + OS
 .vscode/*
 !.vscode/extensions.json

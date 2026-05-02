@@ -53,5 +53,23 @@
       "team_token_cost_total": 0,
       "subagent_runs_avoided": 0
     }
+  },
+  "lifecycle": {
+    "repo_type": "npm-package",
+    "publishes_to_npm": true,
+    "version_source": "package_json",
+    "npm_dir": ".",
+    "npm_registry": "https://registry.npmjs.org",
+    "use_provenance": true,
+    "github_packages_mirror": false,
+    "tag_pattern": "v{version}",
+    "release_title_pattern": "v{version}",
+    "tag_message_source": "changelog",
+    "changelog_path": "CHANGELOG.md",
+    "backfill_on_publish": true,
+    "ci_workflow_filename": "publish.yml",
+    "ci_workflow_skip": false,
+    "wait_for_ci_seconds": 600,
+    "branch_protection": "fast-forward"
   }
 }

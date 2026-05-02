@@ -16,8 +16,8 @@
 ## Phases
 | # | Name | Status | Plan | Plan Review | Executed | Reviewed | Tested | Committed |
 |---|------|--------|------|-------------|----------|----------|--------|-----------|
-| 1 | Crypto error taxonomy + smartDecrypt timing-leak fix | REVIEWED | Yes | Yes (3) | Yes | Yes (2) | | |
-| 2 | Test coverage for critical untested surfaces + v2.2.0 release | REVIEWED | Yes | Yes (3) | Yes | Yes (2) | | |
+| 1 | Crypto error taxonomy + smartDecrypt timing-leak fix | COMMITTED | Yes | Yes (3) | Yes | Yes (2) | Skipped (atomic-ship; covered by Phase 2 tests + T1.5 verification gate) | 0f06fa8 |
+| 2 | Test coverage for critical untested surfaces + v2.2.0 release | COMMITTED | Yes | Yes (3) | Yes | Yes (2) | Skipped (test phase — own assertions are the test scenarios) | 0f06fa8 |
 
 <!-- Valid Phase Status values:
   PENDING       — Phase exists but planning has not started.
@@ -107,6 +107,21 @@
 - **[Ship COMPLETE]:** Phase 1 + Phase 2 both REVIEWED. v2.2.0 atomic-ship state on disk: package.json bumped, CHANGELOG prepended with rejection-documented entry, README updated with all 5 sections + workflow-gate parity, 458/459 tests passing (sole failure is locked Windows locale), 23 modified/new test+source files, all placeholders patched. Ready for /bee:commit + tag + push.
 
 ## Last Action
+- Command: /bee:pollinate
+- Timestamp: 2026-05-02T17:30:00Z
+- Result: Pollinate bootstrap COMPLETE (first run on this repo). Stage A auto-detect resolved repo as npm-package (StoaChain/OuronetCore, @stoachain/ouronet-core v2.2.0). Stage B confirmed by user. Stage C health checks 5/5 PASS. Stage D wrote .bee/config.json lifecycle block + .bee/pollinate-credentials/pollinate-credentials.md + .gitignore session-artifact rules. PAT verified (user: AncientHodler-Demiurg, scopes: repo+workflow+write:packages). RELEASE_TOKEN + NPMPUSHER repo secrets present. Next: chore(pollinate) bootstrap housekeeping commit, then publish pipeline (push main, tag v2.2.0 at 0f06fa8, monitor publish.yml workflow, verify npm + create GitHub Release with REST fallback if workflow's gh-CLI auto-Release step fails per known org-policy issue).
+
+## Previous Last Action
+- Command: /bee:pause
+- Timestamp: 2026-05-02T17:00:00Z
+- Result: Work paused. Handoff saved to .bee/pause-handoff.md. v2.2.0 atomic ship COMMITTED as 0f06fa8 (locally only — NOT yet pushed/tagged/published). Both phases COMMITTED. Next: push origin main → tag v2.2.0 → push tag → poll npm website → /bee:archive-spec.
+
+## Previous Last Action
+- Command: /bee:commit
+- Timestamp: 2026-05-02T16:45:00Z
+- Result: v2.2.0 atomic ship COMMITTED as 0f06fa8. 28 files changed (+2768/-90). Both Phase 1 + Phase 2 marked COMMITTED in single commit per atomic-ship contract.
+
+## Previous Last Action
 - Command: /bee:ship
 - Timestamp: 2026-05-02T16:30:00Z
 - Result: Ship COMPLETE. Phase 1 + Phase 2 both REVIEWED. v2.2.0 atomic-ship state on disk. 458/459 tests passing, all gates green, all placeholders patched (N=458, M=72), workflow-gate parity verified. Final implementation review skipped with rationale (per-phase + cross-plan reviews adequate; matches v2.1.2 precedent). Auto-mode markers cleaned. Ready for /bee:commit.
