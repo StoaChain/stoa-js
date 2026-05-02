@@ -375,48 +375,6 @@ describe("CodexSigningStrategy.execute — Tier 2 edge cases", () => {
     expect(pubCCalls.length).toBe(0);
   });
 
-  it("submits a tx with missing sig slot when a guard pub has no resolvedForeignKey (chain-level rejection, not strategy-level throw)", async () => {
-    // Scenario: guard has a foreign key but user hasn't pasted it. strategy
-    // doesn't police guard-satisfaction — it builds + signs with whatever
-    // keys it has + submits. The on-chain reject is what the user ultimately
-    // sees. This test documents that behaviour so we know the strategy isn't
-    // doing a belt-and-suspenders pre-check that we might accidentally remove.
-    const client = mockPactClient();
-    const resolver = mockResolver({
-      codexPubs: [PUB_A],
-      byPub: { [PUB_A]: KP_A },
-    });
-    const strategy = new CodexSigningStrategy(resolver, client);
-    const foreignGuard: IKeyset = { pred: "keys-all", keys: [PUB_C] };
-
-    const result = await strategy.execute({
-      build: ({ gasLimit, capsKeyPub }) => {
-        let builder = Pact.builder
-          .execution("(+ 1 1)")
-          .setMeta({ senderAccount: "gs", chainId: "0", gasLimit, creationTime: 1700000000, gasPrice: 0.000001, ttl: 600 })
-          .setNetworkId("testnet04")
-          .addSigner(capsKeyPub);
-        builder = (builder as any).addSigner(PUB_C);
-        return (builder as any).createTransaction();
-      },
-      guards: [foreignGuard],
-      paymentKey: null,
-    });
-
-    // Tx submits (mock client is permissive). But inspect the submitted tx —
-    // PUB_C's signer slot must be UNSIGNED (no .sig).
-    const submitted: IUnsignedCommand = client.lastSubmit;
-    const sigs = submitted.sigs as any[];
-    // PUB_C's slot in .sigs should have no .sig (empty object or undefined)
-    const parsedCmd = JSON.parse(submitted.cmd);
-    const pubCIndex = parsedCmd.signers.findIndex((s: any) => s.pubKey === PUB_C);
-    expect(pubCIndex).toBeGreaterThanOrEqual(0);
-    expect(sigs[pubCIndex]?.sig).toBeFalsy();
-    // PUB_A (caps) was signed normally
-    const pubAIndex = parsedCmd.signers.findIndex((s: any) => s.pubKey === PUB_A);
-    expect(sigs[pubAIndex]?.sig).toBeTruthy();
-  });
-
   it("resolver.requestForeignKey gets called for missing pubs + its error propagates", async () => {
     // Variant: when the resolver DOES implement requestForeignKey, the
     // strategy must call it for any missing-signer pub. An error from
@@ -564,6 +522,61 @@ describe("CodexSigningStrategy.execute — Tier 2 edge cases", () => {
     });
 
     expect(result.requestKey).toBe("mock-req-key-abc123");
+  });
+});
+
+// ─── Foreign-key resolver pre-flight (REQ-03 / F-CORE-014) ───────────────────
+// When a transaction's guards require a foreign-key signer AND the configured
+// resolver omits `requestForeignKey`, the strategy fails fast at the entry
+// point of execute — before any chain I/O — with a precise, named error.
+
+describe("CodexSigningStrategy.execute — foreign-key resolver pre-flight (REQ-03)", () => {
+  it("throws a precise pre-flight error when guards require a foreign key AND resolver omits requestForeignKey", async () => {
+    const client = mockPactClient();
+    // Resolver that OMITS requestForeignKey entirely.
+    const resolver: KeyResolver & { log: string[] } = {
+      log: [],
+      listCodexPubs: () => new Set([PUB_A]),
+      getKeyPairByPublicKey: async (pub: string) => {
+        if (pub === PUB_A) return KP_A;
+        throw new Error(`mock: no keypair for ${pub}`);
+      },
+      // requestForeignKey intentionally not declared.
+    };
+    const strategy = new CodexSigningStrategy(resolver, client);
+    // Guard requires PUB_C — foreign (not in codex, not pre-resolved).
+    const foreignGuard: IKeyset = { pred: "keys-all", keys: [PUB_C] };
+
+    const promise = strategy.execute({
+      build: buildMockTx,
+      guards: [foreignGuard],
+      paymentKey: null,
+    });
+
+    await expect(promise).rejects.toThrow(/requestForeignKey/);
+    // Capture the error to assert structural details.
+    let caught: unknown;
+    try {
+      await strategy.execute({
+        build: buildMockTx,
+        guards: [foreignGuard],
+        paymentKey: null,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    // Log-grep parity prefix.
+    expect(message).toContain("[CodexSigningStrategy]");
+    // Must name the missing method.
+    expect(message).toContain("requestForeignKey");
+    // Debugging hint: first 8 chars of the offending pub.
+    expect(message).toContain(PUB_C.slice(0, 8));
+    // No-I/O guarantee: the misconfigured resolver path must NOT have called
+    // dirtyRead or submit on the client.
+    expect(client.log).not.toContain("dirtyRead");
+    expect(client.log).not.toContain("submit");
   });
 });
 

@@ -3,6 +3,7 @@ import {
 } from "../constants";
 import { formatDecimalForPact } from "../pact";
 import { pactRead } from "../reads";
+import { getLogger } from "../observability";
 
 /**
  * Parse transfer preview data to extract relevant information
@@ -51,7 +52,7 @@ export async function getTransferPreview(
 
     return { result: response.result.data };
   } catch (error) {
-    console.error("Error getting transfer preview:", error);
+    getLogger().error("Error getting transfer preview:", error);
     return null;
   }
 }
@@ -78,7 +79,7 @@ export async function getCoilPreviewInfo(
 
     return { result: response.result.data };
   } catch (error) {
-    console.error("Error getting coil preview:", error);
+    getLogger().error("Error getting coil preview:", error);
     return null;
   }
 }
@@ -108,7 +109,7 @@ export async function getCurlPreviewInfo(
 
     return { result: response.result.data };
   } catch (error) {
-    console.error("Error getting curl preview:", error);
+    getLogger().error("Error getting curl preview:", error);
     return null;
   }
 }
@@ -137,7 +138,7 @@ export async function getBrumatePreviewInfo(
 
     return { result: response.result.data };
   } catch (error) {
-    console.error("Error getting brumate preview:", error);
+    getLogger().error("Error getting brumate preview:", error);
     return null;
   }
 }
@@ -165,7 +166,7 @@ export async function getConstrictPreviewInfo(
 
     return { result: response.result.data };
   } catch (error) {
-    console.error("Error getting constrict preview:", error);
+    getLogger().error("Error getting constrict preview:", error);
     return null;
   }
 }
@@ -185,7 +186,7 @@ export async function getSublimateInfo(client: string, target: string, amount: n
     }
     return null;
   } catch (error) {
-    console.error("Error getting sublimate info:", error);
+    getLogger().error("Error getting sublimate info:", error);
     return null;
   }
 }
@@ -203,7 +204,7 @@ export async function getFirestarterInfo(firestarter: string): Promise<any> {
     }
     return null;
   } catch (error) {
-    console.error("Error getting firestarter info:", error);
+    getLogger().error("Error getting firestarter info:", error);
     return null;
   }
 }
@@ -228,7 +229,7 @@ export async function getTransferInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error getting transfer info:", error);
+    getLogger().error("Error getting transfer info:", error);
     return null;
   }
 }
@@ -249,7 +250,7 @@ export async function getRecoveryPrimordial(
 
     return (response.result as any).data ?? null;
   } catch (error) {
-    console.error("Error getting recovery primordial:", error);
+    getLogger().error("Error getting recovery primordial:", error);
     return null;
   }
 }
@@ -270,7 +271,7 @@ export async function getColdRecoveryInfo(
     if (!response || !response.result || response.result.status === "failure") return null;
     return (response.result as any).data ?? null;
   } catch (error) {
-    console.error("Error getting cold recovery info:", error);
+    getLogger().error("Error getting cold recovery info:", error);
     return null;
   }
 }
@@ -291,7 +292,7 @@ export async function getDirectRecoveryInfo(
     if (!response || !response.result || response.result.status === "failure") return null;
     return (response.result as any).data ?? null;
   } catch (error) {
-    console.error("Error getting direct recovery info:", error);
+    getLogger().error("Error getting direct recovery info:", error);
     return null;
   }
 }
@@ -314,7 +315,7 @@ export async function getMaxRecoveryAmount(
     if (typeof raw === "object" && raw.decimal !== undefined) return String(raw.decimal);
     return String(raw);
   } catch (error) {
-    console.error("Error getting max recovery amount:", error);
+    getLogger().error("Error getting max recovery amount:", error);
     return null;
   }
 }
@@ -407,7 +408,7 @@ export async function getHibernatedNoncesDisplay(
     // Normalize all Pact primitive wrappers ({int:N}, {decimal:"..."}, {time:"..."})
     return (data as Record<string, unknown>[]).map(normalizeNonce);
   } catch (error) {
-    console.error("Error getting hibernated nonces:", error);
+    getLogger().error("Error getting hibernated nonces:", error);
     return null;
   }
 }
@@ -428,7 +429,7 @@ export async function getAwakeInfo(
     if (!response || !response.result || response.result.status === "failure") return null;
     return (response.result as any).data ?? null;
   } catch (error) {
-    console.error("Error getting awake info:", error);
+    getLogger().error("Error getting awake info:", error);
     return null;
   }
 }
@@ -450,7 +451,7 @@ export async function getSlumberInfo(
     if (!response || !response.result || response.result.status === "failure") return null;
     return (response.result as any).data ?? null;
   } catch (error) {
-    console.error("Error getting slumber info:", error);
+    getLogger().error("Error getting slumber info:", error);
     return null;
   }
 }
@@ -496,7 +497,7 @@ export async function getInfoAddLiquidity(
     if (!response?.result || response.result.status === "failure") return null;
     return response.result.data;
   } catch (error) {
-    console.error("getInfoAddLiquidity error:", error);
+    getLogger().error("getInfoAddLiquidity error:", error);
     return null;
   }
 }
@@ -521,7 +522,7 @@ export async function getInfoFuel(
     if (!response?.result || response.result.status === "failure") return null;
     return response.result.data;
   } catch (error) {
-    console.error("getInfoFuel error:", error);
+    getLogger().error("getInfoFuel error:", error);
     return null;
   }
 }
@@ -547,7 +548,7 @@ export async function getInfoSinglePoolSwap(
     if (!response?.result || response.result.status === "failure") return null;
     return response.result.data;
   } catch (error) {
-    console.error("getInfoSinglePoolSwap error:", error);
+    getLogger().error("getInfoSinglePoolSwap error:", error);
     return null;
   }
 }
@@ -575,7 +576,7 @@ export async function getInfoMultiPoolSwap(
     if (!response?.result || response.result.status === "failure") return null;
     return response.result.data;
   } catch (error) {
-    console.error("getInfoMultiPoolSwap error:", error);
+    getLogger().error("getInfoMultiPoolSwap error:", error);
     return null;
   }
 }
@@ -597,12 +598,12 @@ export async function getInfoRemoveLiquidity(
     console.log("[INFO_RemoveLiquidity] pactCode:", pactCode);
     console.log("[INFO_RemoveLiquidity] response:", JSON.stringify(response?.result, null, 2));
     if (!response?.result || response.result.status === "failure") {
-      console.warn("[INFO_RemoveLiquidity] FAILED:", (response?.result as any)?.error?.message);
+      getLogger().warn("[INFO_RemoveLiquidity] FAILED:", (response?.result as any)?.error?.message);
       return null;
     }
     return response.result.data;
   } catch (error) {
-    console.error("getInfoRemoveLiquidity error:", error);
+    getLogger().error("getInfoRemoveLiquidity error:", error);
     return null;
   }
 }

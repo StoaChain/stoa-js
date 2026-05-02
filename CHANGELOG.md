@@ -2,6 +2,152 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 2.3.0 — 2026-05-02
+
+**Additive medium-and-low audit closures release. MINOR, non-breaking.**
+
+Closes 13 audit findings — 7 MEDIUM tier (F-CORE-013, F-CORE-014, F-CORE-015, F-CORE-016a, F-CORE-016b, F-CORE-016c, F-CORE-017) and 6 LOW tier (F-CORE-018a, F-CORE-018b, F-CORE-019, F-CORE-020, F-CORE-021, F-CORE-022) — from the 2026-04-30 audit cycle. Introduces 2 new public surfaces: (1) a typed `UnknownPredicateError` class re-exported from the `./guard` subpath, and (2) a NEW `./observability` subpath with `Logger` type + `setLogger` mutator + `getLogger` accessor mirroring the existing `setPactReader` injection-seam pattern at `src/reads/pactReader.ts`. All changes are additive — no public exports removed, no return types widened, existing `instanceof Error` checks and existing analysis-flag access continue to work; the new typed-class discrimination and logger-seam injection are purely opt-in.
+
+### Added (public surface)
+
+- `UnknownPredicateError` — `@stoachain/ouronet-core/guard`. Thrown by
+  `computeThreshold` when it encounters an unrecognized predicate. The
+  general-purpose `analyzeGuard` catches it and folds it into a
+  `predicateRecognized: false` bit on the returned analysis (replaces
+  the previous silent `console.warn` diagnostic).
+- NEW `./observability` subpath — `@stoachain/ouronet-core/observability`.
+  Exports `Logger` type (`{ warn(msg, ...args), error(msg, ...args) }`),
+  `setLogger(logger: Logger): void` (throws `TypeError` with message
+  exactly `setLogger requires a non-null Logger` on null/undefined
+  input), `getLogger(): Logger` (returns the currently-configured
+  logger; default routes `warn` to `console.warn` and `error` to
+  `console.error`). Mirrors the existing `setPactReader` seam at
+  `src/reads/pactReader.ts:33-71`.
+- Optional `firstSignableButUnsatisfied: number` field on
+  `SmartAccountAuthPathsAnalysis` (`@stoachain/ouronet-core/guard`) —
+  names the index of the first signable-but-unsatisfied path;
+  `undefined` if none. Additive, opt-in.
+
+### Fixed
+
+**M1 (MEDIUM tier — 7 findings):**
+
+- **F-CORE-013 — Codex shape validation.** `deserializeCodex` at
+  `src/codex/codec.ts:75-93` gains runtime shape checks after the
+  version check. Validates that `kadenaWallets`, `ouronetWallets`,
+  `addressBook` are arrays and `uiSettings` is an object.
+  Domain-prefixed errors NAME the offending field but never echo its
+  value (preserves the secrets-stay-out-of-telemetry boundary).
+  Forward-compat preserved: extra unknown top-level fields survive the
+  deserialize round-trip exactly as before (v1.2 envelope contract
+  unchanged).
+- **F-CORE-014 — Foreign-key resolver pre-flight.**
+  `CodexSigningStrategy` at `src/signing/codexStrategy.ts:180-182`
+  gains a pre-flight check: when a transaction requires a foreign-key
+  signer AND `this.resolver.requestForeignKey` is undefined, throws a
+  precise error before reaching `universalSignTransaction`. JSDoc on
+  `KeyResolver.requestForeignKey` at `src/signing/types.ts:62-69` is
+  clarified to state the optional-at-the-interface-but-required-at-
+  execute-time-when-needed contract. Server resolvers that omit
+  `requestForeignKey` AND receive a foreign-key transaction now get a
+  clear error instead of an opaque deep-stack failure.
+- **F-CORE-015 — `safeCreationTime` DRY refactor.** Removed 11
+  byte-identical inline `function safeCreationTime` declarations
+  across `src/interactions/*Functions.ts` (activate, addLiquidity,
+  coil, crossChain, dex, guard, kpay, ouro, pension, urStoa, wrap).
+  All 11 files now import the canonical declaration from
+  `src/pact/format.ts:138-140` (single source of truth). Mechanical
+  refactor with byte-identical behavior.
+- **F-CORE-016a — Tightened `classifyGuardKind`.** Requires the FULL
+  minimal shape per kind: capability needs `cgName` + `cgArgs` +
+  `cgPactId`; user needs `fun` + `args`; keyset needs `pred` +
+  `keys`; keyset-ref accepts either casing of the ref field.
+  Under-specified guard shapes that previously silently mis-classified
+  now classify as `unknown` and are surfaced to the caller.
+- **F-CORE-016b — Keyset-reference casing normalization.** New
+  `normalizeKeysetRef` helper applied at the `resolveGuard` boundary
+  (`src/guard/smartAccountAuth.ts:118-126`) so internal code only sees
+  the camelCase form. Maps the lowercase chain-native `keysetref` →
+  camelCase `keysetRef` at the chain-IO boundary.
+- **F-CORE-016c — `SmartAccountAuthPathsAnalysis` 4 reachable states.**
+  JSDoc at `src/guard/smartAccountAuth.ts:209-240` enumerates the 4
+  reachable states: `firstSatisfied >= 0`; `firstSatisfied === -1 &&
+  anyKeyBased === true`; `firstSatisfied === -1 && anyKeyBased ===
+  false && anyKnownKind`; all-unknown. Optional
+  `firstSignableButUnsatisfied: number` field added to the analysis
+  surface.
+- **F-CORE-017 — `UnknownPredicateError` typed class +
+  `predicateRecognized` flag.** `computeThreshold` at
+  `src/guard/guardUtils.ts:76-79` throws the new typed
+  `UnknownPredicateError` (additive public class re-exported from
+  `./guard`). `analyzeGuard` catches the class and folds it into a
+  structured `predicateRecognized: false` bit on the returned
+  analysis. The previous silent `console.warn` is removed.
+
+**M2 (LOW tier — 6 findings):**
+
+- **F-CORE-018a — README header version table refresh.**
+  `Z:/OuronetCore/README.md` header version table updated from its
+  v1.3.0 / v1.4.0 baseline to current v2.2.0 reality, cross-
+  referencing `CHANGELOG.md` for per-version detail.
+- **F-CORE-018b — CONTEXT.md interactions section refresh.**
+  `Z:/OuronetCore/.bee/CONTEXT.md` interactions section updated to
+  describe v1.4 (`AccountSelectorData` `public-key` / `sovereign` /
+  `governor` fields), v1.5 (`Leto` / `Artemis` / `Apollo` re-exports
+  + `createGen1Primitive` factory + `AddressPrefixPair` type), v1.6
+  (Smart Ouronet Account auth-path resolution primitives +
+  `buildRotateSovereignPactCode`).
+- **F-CORE-019 — Catch-block consistency in `ouroFunctions.ts`.** All
+  7 affected catch sites in `src/interactions/ouroFunctions.ts` now
+  route via `getLogger().error(...)` from `../observability`.
+  Convention is documented in a code comment near the affected
+  handlers.
+- **F-CORE-020 — Tier semantics JSDoc.** `src/reads/pactReader.ts`
+  and `src/reads/rawCalibratedRead.ts:40-46` JSDoc enumerates the
+  canonical tier mapping (T1=balance, T2=preview, T3=metadata,
+  T7=very-static, matching OuronetUI's reader). Documents that the
+  default reader accepts and ignores the `tier` argument and
+  cross-references `setPactReader` for cache-aware consumers.
+- **F-CORE-021 — Drop dead try/catch in `getLPTypeInfo`.** Outer
+  try/catch wrapping `getLPTypeInfo`'s `Promise.all` was dead code
+  (two never-rejecting promises cannot themselves reject) and is
+  removed (Option A LOCKED — the "comment as belt-and-braces"
+  alternative was explicitly rejected). Future regressions in inner
+  catches surface as real test failures rather than silent masking.
+- **F-CORE-022 — Central logger seam at `./observability`.** New
+  two-file source layout `src/observability/{index.ts,logger.ts}`
+  exposes `Logger` / `setLogger` / `getLogger` mirroring the
+  `setPactReader` pattern. Default routes to `console.warn` /
+  `console.error`. `package.json` exports map gains the new
+  `./observability` subpath. Every `console.warn` and `console.error`
+  in `src/` is rerouted through the seam — verifiable by
+  `grep -nE "console\.(warn|error)" src/` returning ZERO matches
+  outside the seam itself.
+
+### Stats
+
+- Files changed: NEW — `src/observability/index.ts`,
+  `src/observability/logger.ts`, `tests/observability-logger.test.ts`,
+  `tests/phase5-catch-routing.test.ts`. MODIFIED — `src/codex/codec.ts`,
+  `src/signing/codexStrategy.ts`, `src/signing/types.ts`, 11×
+  `src/interactions/*Functions.ts` (Phase 1 `safeCreationTime` DRY),
+  `src/guard/smartAccountAuth.ts`, `src/guard/guardUtils.ts`,
+  `src/guard/index.ts`, `src/reads/pactReader.ts`,
+  `src/reads/rawCalibratedRead.ts`, `src/network/nodeFailover.ts`,
+  `src/errors/transactionErrors.ts`, `src/interactions/ouroFunctions.ts`
+  (Phase 5 catch-routing + Phase 6 sweep),
+  `src/interactions/addLiquidityFunctions.ts` (Phase 5 dead-catch
+  drop + Phase 6 sweep), `Z:/OuronetCore/README.md`,
+  `Z:/OuronetCore/.bee/CONTEXT.md`, `package.json`, `CHANGELOG.md`.
+- Test count: **500** passing (up from `458` v2.2.0 baseline; +42
+  new in v2.3.0).
+- No public-API removals. The 2 new public surfaces
+  (`UnknownPredicateError` class on `./guard`; `Logger` type +
+  `setLogger` + `getLogger` on the new `./observability` subpath) are
+  additive; no existing exports change shape; no return types
+  widened; no breaking changes for downstream consumers (`OuronetUI`,
+  `AncientHolder HUB`).
+
 ## 2.2.0 — 2026-05-02
 
 **Additive crypto error taxonomy and previously-untested critical-surface coverage. MINOR, non-breaking.**

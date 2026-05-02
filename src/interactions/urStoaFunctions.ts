@@ -17,17 +17,11 @@ import {
   STOA_AUTONOMIC_OURONETGASSTATION,
 } from "../constants";
 import { universalSignTransaction, fromKeypair } from "../signing";
+import { safeCreationTime } from "../pact";
 import type { IKadenaKeypair } from "./ouroFunctions";
 import { createSimulationError, logDetailedError } from "../errors";
+import { getLogger } from "../observability";
 import { ed25519 } from "@noble/curves/ed25519";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
 
 
 // ── Signature verification ──────────────────────────────────────────────────
@@ -81,7 +75,7 @@ export async function getUrStoaBalance(account: string): Promise<number> {
     }
     return 0;
   } catch (error) {
-    console.error("Error fetching UrStoa balance:", error);
+    getLogger().error("Error fetching UrStoa balance:", error);
     return 0;
   }
 }
@@ -167,7 +161,7 @@ export async function getUrStoaGuard(account: string): Promise<UrStoaGuardResult
     }
     return empty;
   } catch (error) {
-    console.error("Error fetching UrStoa guard:", error);
+    getLogger().error("Error fetching UrStoa guard:", error);
     return empty;
   }
 }
@@ -310,7 +304,7 @@ export async function executeNativeUrStoaTransfer(params: ExecuteNativeUrStoaPar
     if (sig?.sig) {
       const valid = verifyEd25519Sig(signed.hash, sig.sig, signerPubs[i]);
       if (!valid) {
-        console.warn(
+        getLogger().warn(
           `[UrStoa] Invalid signature at position ${i} for key ${signerPubs[i]} — will rebuild without it.`,
         );
         invalidIdxs.push(i);

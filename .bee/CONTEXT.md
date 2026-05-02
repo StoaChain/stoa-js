@@ -1,6 +1,8 @@
 # Project Context
 
 > Combined summary. See individual files for details: STACK.md, ARCHITECTURE.md, CONVENTIONS.md, CONCERNS.md.
+>
+> **Snapshot note:** the sections below (especially the v1.4-v1.6 interactions deltas) are a manual snapshot captured during the M2 audit-closure refresh. If `/bee:refresh-context` is invoked after subsequent code changes, it may redo this content wholesale — treat the manual content as authoritative until that point.
 
 ## Stack
 - TypeScript ^5.7.2 strict, ES module, Node `>=20`; `tsc -p tsconfig.build.json` -> `dist/` is the only thing shipped (`package.json:71`, `tsconfig.json`)
@@ -13,9 +15,10 @@
 - **Subpath-export model** is mandatory: consumers import from `@stoachain/ouronet-core/<subpath>`; the `interactions/*` glob export bypasses the symbol-overlap problem in the 13 `*Functions.ts` files (`package.json:61-64`, `src/interactions/index.ts`)
 - **Pluggable seams instead of DI**: `setPactReader(fn)` / `pactRead(...)` (`src/reads/pactReader.ts`) and `KeyResolver` + `PactClient` interfaces consumed by `CodexSigningStrategy` (`src/signing/types.ts`, `src/signing/codexStrategy.ts`)
 - **Node failover is module-level mutable global state** -- `currentHost`, `PRIMARY_HOST`, `FALLBACK_HOST` in `src/network/nodeFailover.ts`; everything HTTP routes through `getActivePactUrl(chainId)` after the v1.6.1 cleanup
-- **Three-branch Smart Account auth (Σ. prefix)** -- `analyzeSmartAccountAuthPaths` returns a 3-tuple over (account guard / sovereign / governor) but `CodexSigningStrategy` itself stays AND-of-keysets; consumer picks the branch (`src/guard/smartAccountAuth.ts`)
+- **Three-branch Smart Account auth (Σ. prefix)** -- `analyzeSmartAccountAuthPaths` returns a 3-tuple over (account guard / sovereign / governor) but `CodexSigningStrategy` itself stays AND-of-keysets; consumer picks the branch (`src/guard/smartAccountAuth.ts`). v1.6 introduced the full primitive set: `classifyGuardKind`, `extractKeysetFromGuard`, `analyzeSmartAccountAuthPaths` (`src/guard/smartAccountAuth.ts`) and the first auth-path-aware CFM builder `buildRotateSovereignPactCode` (`src/pact/cfmBuilders.ts`).
 - **Codex format frozen at `"1.2"`** -- `src/codex/codec.ts:8-13`; future formats add `CodexExportV2`, never bump the V1 string
-- **`createDefaultRegistry()` registers DALOS Genesis only** -- `Leto`/`Artemis`/`Apollo`/`createGen1Primitive` are re-exported from `./dalos` but require explicit `registry.register(...)` opt-in
+- **`createDefaultRegistry()` registers DALOS Genesis only** -- v1.5 added `Leto`/`Artemis`/`Apollo` historical-curve re-exports, the `createGen1Primitive` factory, and the `AddressPrefixPair` type through the `./dalos` subpath; all four require explicit `registry.register(...)` opt-in (Ouronet itself stays Genesis-only)
+- **`AccountSelectorData` shape (v1.4)** -- the type used by Smart Ouronet Account display gained `public-key`, `sovereign`, and `governor` fields so consumers can render the three-branch auth UI for Σ. prefix accounts (`src/interactions/ouroFunctions.ts`); standard Ѻ. accounts still use the original subset
 
 ## Conventions
 - File naming: camelCase modules, PascalCase only for class-as-module (`KadenaWallet.ts`); every file under `src/interactions/` ends with `Functions.ts`

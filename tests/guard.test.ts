@@ -17,6 +17,7 @@ import {
   classifyPaymentKey,
   tryDerivePublicKey,
   selectCapsSigningKey,
+  UnknownPredicateError,
 } from "../src/guard";
 
 // ══ computeThreshold ══════════════════════════════════════════════════════════
@@ -112,11 +113,40 @@ describe("computeThreshold", () => {
       expect(computeThreshold("stoa-ns.stoic-predicates.keys-3", 0)).toBe(0);
     });
 
-    it("unknown predicate falls back to keys-all (conservative)", () => {
-      // Warn is expected but not part of the assertion
-      expect(computeThreshold("some-unknown-predicate", 5)).toBe(5);
-      expect(computeThreshold("", 3)).toBe(3);
+    it("throws UnknownPredicateError on unrecognized predicate", () => {
+      expect(() => computeThreshold("some-unknown-predicate", 5)).toThrow(UnknownPredicateError);
+      expect(() => computeThreshold("", 3)).toThrow(UnknownPredicateError);
     });
+  });
+});
+
+// ══ UnknownPredicateError ════════════════════════════════════════════════════
+describe("UnknownPredicateError", () => {
+  it("is instanceof Error and instanceof UnknownPredicateError", () => {
+    let caught: unknown = null;
+    try {
+      computeThreshold("some-unknown-predicate", 5);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught instanceof Error).toBe(true);
+    expect(caught instanceof UnknownPredicateError).toBe(true);
+    expect((caught as Error).name).toBe("UnknownPredicateError");
+    expect((caught as Error).message).toContain("some-unknown-predicate");
+  });
+
+  it("is re-exported from the @stoachain/ouronet-core/guard barrel", () => {
+    expect(typeof UnknownPredicateError).toBe("function");
+    const e = new UnknownPredicateError("test");
+    expect(e.name).toBe("UnknownPredicateError");
+    expect(e instanceof Error).toBe(true);
+  });
+
+  it("supports the standard ES2022 Error.cause options pattern", () => {
+    const cause = new Error("inner");
+    const e = new UnknownPredicateError("outer", { cause });
+    expect(e.cause).toBe(cause);
   });
 });
 
@@ -134,6 +164,20 @@ describe("predicateLabel", () => {
     expect(predicateLabel("keys-2", 3)).toBe("keys-2 (2 of 3)");
     expect(predicateLabel("stoa-ns.stoic-predicates.keys-3-of-5", 5))
       .toBe("keys-3-of-5 (3 of 5)");
+  });
+
+  it("returns an unknown-predicate fallback label without throwing", () => {
+    const label = predicateLabel("some-unknown-predicate", 5);
+    expect(() => predicateLabel("some-unknown-predicate", 5)).not.toThrow();
+    expect(label).toContain("unknown predicate");
+    expect(label).toContain("of 5");
+  });
+
+  it("strips the namespace prefix in the unknown-predicate fallback", () => {
+    const label = predicateLabel("foo-ns.bar.baz-pred", 7);
+    expect(label).toContain("baz-pred");
+    expect(label).toContain("unknown predicate");
+    expect(label).toContain("of 7");
   });
 });
 
@@ -290,6 +334,34 @@ describe("analyzeGuard", () => {
       expect(r.threshold).toBe(3);
       expect(r.signable).toBe(0);
       expect(r.neededMore).toBe(3);
+    });
+  });
+
+  describe("predicateRecognized fold (unknown predicate handling)", () => {
+    it("sets predicateRecognized: false on unknown predicate AND falls back to keys-all", () => {
+      const r = analyzeGuard(
+        { keys: [PUB1, PUB2, PUB3], pred: "some-unknown-predicate" },
+        new Set([PUB1]),
+      );
+      expect(r.predicateRecognized).toBe(false);
+      expect(r.threshold).toBe(3);
+      expect(r.satisfied).toBe(false);
+      expect(r.signable).toBe(1);
+      expect(r.neededMore).toBe(2);
+    });
+
+    it("sets predicateRecognized: true on recognized predicate (regression check)", () => {
+      const r = analyzeGuard(
+        { keys: [PUB1, PUB2], pred: "keys-any" },
+        new Set([PUB1]),
+      );
+      expect(r.predicateRecognized).toBe(true);
+      expect(r.satisfied).toBe(true);
+    });
+
+    it("sets predicateRecognized: true on the empty-keyset early-return path", () => {
+      const r = analyzeGuard(null, new Set([PUB1]));
+      expect(r.predicateRecognized).toBe(true);
     });
   });
 });

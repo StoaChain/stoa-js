@@ -3,6 +3,8 @@
  * Provides detailed error context for signing and transaction failures
  */
 
+import { getLogger } from "../observability";
+
 export interface TransactionError extends Error {
   code: string;
   context: string;
@@ -248,10 +250,10 @@ export function formatErrorForUser(error: SigningError): string {
  */
 export function logDetailedError(error: SigningError): void {
   console.group(`🚨 ${error.name}: ${error.code}`);
-  console.error("Message:", error.message);
-  console.error("Context:", error.context);
+  getLogger().error("Message:", error.message);
+  getLogger().error("Context:", error.context);
   if (error.originalError) {
-    console.error("Original Error:", error.originalError);
+    getLogger().error("Original Error:", error.originalError);
   }
   if (error.suggestions) {
     console.info("Suggestions:", error.suggestions);

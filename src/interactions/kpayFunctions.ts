@@ -8,16 +8,10 @@ import { Pact } from "@kadena/client";
 import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
+import { safeCreationTime } from "../pact";
 import type { IKadenaKeypair } from "../signing";
 export type { IKadenaKeypair } from "../signing";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
+import { getLogger } from "../observability";
 
 
 // Interface definitions for keypair types
@@ -42,7 +36,7 @@ export async function getKpayData(account: string): Promise<any> {
 
     return response.result.data as any;
   } catch (error) {
-    console.error("Error getting KPay data:", error);
+    getLogger().error("Error getting KPay data:", error);
     return null;
   }
 }
@@ -68,7 +62,7 @@ export async function getKpayAmountCosts(
 
     return response.result.data as any;
   } catch (error) {
-    console.error("Error getting KPay amount costs:", error);
+    getLogger().error("Error getting KPay amount costs:", error);
     return null;
   }
 }
@@ -96,7 +90,7 @@ export async function getKpayAcquireCapabilities(
 
     return response.result.data as any;
   } catch (error) {
-    console.error("Error getting KPay acquire capabilities:", error);
+    getLogger().error("Error getting KPay acquire capabilities:", error);
     return null;
   }
 }
@@ -136,7 +130,7 @@ function parseCapabilityString(capString: string): { name: string; args: any[] }
       args: [from, to, { decimal: amount }]
     };
   } catch (error) {
-    console.error("Error parsing capability string:", error);
+    getLogger().error("Error parsing capability string:", error);
     return null;
   }
 }
@@ -225,7 +219,7 @@ export async function kpayBuy(
             const addedCap = withCapability(cap.name, ...cap.args);
             capabilities.push(addedCap);
           } catch (error) {
-            console.error(`Failed to add capability: ${cap.name}`, error);
+            getLogger().error(`Failed to add capability: ${cap.name}`, error);
           }
         }
         

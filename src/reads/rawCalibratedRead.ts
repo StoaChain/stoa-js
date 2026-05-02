@@ -43,6 +43,13 @@ export async function rawCalibratedDirtyRead(
      * carried tier tracking). The raw read has no cache, so the tier is
      * meaningless here — the option exists so the migration doesn't touch
      * 20+ call sites needlessly.
+     *
+     * Canonical tier mapping (interpreted by cache-aware consumers wired via
+     * `setPactReader`; ignored by this raw reader):
+     *   T1 — balance reads (high churn, very short TTL).
+     *   T2 — preview reads (short TTL).
+     *   T3 — metadata reads (medium TTL).
+     *   T7 — very-static reads (long TTL).
      */
     tier?: string;
     skipTempWatcher?: boolean;

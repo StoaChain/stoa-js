@@ -8,18 +8,10 @@ import { Pact } from "@kadena/client";
 import { getFailoverClient } from "../network";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { IOuroAccountKeypair } from "./dexFunctions";
-import { mayComeWithDeimal } from "../pact";
+import { mayComeWithDeimal, safeCreationTime } from "../pact";
 import { pactRead } from "../reads";
 import type { IKadenaKeypair } from "../signing";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
-
+import { getLogger } from "../observability";
 
 // ===========================
 // ADD LIQUIDITY FUNCTIONS
@@ -107,7 +99,7 @@ export async function generateLiquidityData(
     return response.result.data as LiquidityData;
     
   } catch (error) {
-    console.error("Generate liquidity data failed:", error);
+    getLogger().error("Generate liquidity data failed:", error);
     throw error instanceof Error ? error : new Error("Unknown error occurred");
   }
 }
@@ -216,45 +208,40 @@ export async function calculateBalancedLiquidity(
  * Check if pool supports special LP types
  */
 export async function getLPTypeInfo(swpair: string): Promise<LPTypeInfo> {
-  try {
-    const [frozenCheck, sleepingCheck] = await Promise.all([
-      // Check for Frozen LP support
-      (async () => {
-        try {
-          const response = await pactRead(
-            `(${KADENA_NAMESPACE}.SWP.UR_IzFrozenLP "${swpair}")`,
-            { tier: "T7" },
-          );
+  const [frozenCheck, sleepingCheck] = await Promise.all([
+    // Check for Frozen LP support
+    (async () => {
+      try {
+        const response = await pactRead(
+          `(${KADENA_NAMESPACE}.SWP.UR_IzFrozenLP "${swpair}")`,
+          { tier: "T7" },
+        );
 
-          return response?.result?.status === "success" ? response.result.data === true : false;
-        } catch {
-          return false;
-        }
-      })(),
+        return response?.result?.status === "success" ? response.result.data === true : false;
+      } catch {
+        return false;
+      }
+    })(),
 
-      // Check for Sleeping LP support
-      (async () => {
-        try {
-          const response = await pactRead(
-            `(${KADENA_NAMESPACE}.SWP.UR_IzSleepingLP "${swpair}")`,
-            { tier: "T7" },
-          );
+    // Check for Sleeping LP support
+    (async () => {
+      try {
+        const response = await pactRead(
+          `(${KADENA_NAMESPACE}.SWP.UR_IzSleepingLP "${swpair}")`,
+          { tier: "T7" },
+        );
 
-          return response?.result?.status === "success" ? response.result.data === true : false;
-        } catch {
-          return false;
-        }
-      })()
-    ]);
+        return response?.result?.status === "success" ? response.result.data === true : false;
+      } catch {
+        return false;
+      }
+    })()
+  ]);
 
-    return {
-      hasFrozenLP: frozenCheck,
-      hasSleepingLP: sleepingCheck
-    };
-    
-  } catch (error) {
-    return { hasFrozenLP: false, hasSleepingLP: false };
-  }
+  return {
+    hasFrozenLP: frozenCheck,
+    hasSleepingLP: sleepingCheck
+  };
 }
 
 /**
@@ -478,7 +465,7 @@ export async function executeAddLiquidityMultiStep2(
     return result;
     
   } catch (error) {
-    console.error("Multi-Step Add Liquidity Step 2 Error:", error);
+    getLogger().error("Multi-Step Add Liquidity Step 2 Error:", error);
     throw error instanceof Error ? error : new Error("Unknown error occurred");
   }
 }
@@ -689,7 +676,7 @@ export async function executeAddLiquidity(
   try {
     return await executeAddLiquiditySingle(params);
   } catch (error) {
-    console.error("Add Liquidity Error:", error);
+    getLogger().error("Add Liquidity Error:", error);
     throw error instanceof Error ? error : new Error("Add liquidity execution failed");
   }
 }
@@ -798,7 +785,7 @@ export async function executeSpecialAddLiquidity(
     return result;
     
   } catch (error) {
-    console.error(`Add ${specialParams.type} Liquidity Error:`, error);
+    getLogger().error(`Add ${specialParams.type} Liquidity Error:`, error);
     throw error instanceof Error ? error : new Error("Special add liquidity execution failed");
   }
 }
@@ -824,7 +811,7 @@ export async function getBalancedLiquidity(
       if (typeof v === "object" && v?.decimal) return String(v.decimal);
       return String(v);
     });
-  } catch (e) { console.error("getBalancedLiquidity error:", e); return null; }
+  } catch (e) { getLogger().error("getBalancedLiquidity error:", e); return null; }
 }
 
 /**
@@ -845,7 +832,7 @@ export async function getSortLiquidity(
       balanced: parseArr(data?.balanced ?? []),
       asymmetric: parseArr(data?.asymmetric ?? []),
     };
-  } catch (e) { console.error("getSortLiquidity error:", e); return null; }
+  } catch (e) { getLogger().error("getSortLiquidity error:", e); return null; }
 }
 
 /**
@@ -860,7 +847,7 @@ export async function getLiquidityData(
     const res = await pactRead(pactCode, { tier: "T2" });
     if (!res?.result || res.result.status === "failure") return null;
     return res.result.data;
-  } catch (e) { console.error("getLiquidityData error:", e); return null; }
+  } catch (e) { getLogger().error("getLiquidityData error:", e); return null; }
 }
 
 /**

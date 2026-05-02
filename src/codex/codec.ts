@@ -67,10 +67,16 @@ export function serializeCodex<
  *   - invalid JSON
  *   - missing `"version"` field (malformed)
  *   - version mismatch (not `"1.2"`)
+ *   - shape mismatch (kadenaWallets, ouronetWallets, addressBook not arrays; uiSettings not an object)
  *
  * The version check exists to fail-fast rather than silently mis-decoding
  * a future V2 export format. Callers that want best-effort partial reads
  * can catch the throw and fall through to a recovery path.
+ *
+ * Shape-validation errors NAME the offending field but never echo its
+ * value — a codex envelope can carry encrypted secrets and account
+ * addresses, and surfacing those into telemetry/logs would breach the
+ * codec's information-disclosure boundary.
  */
 export function deserializeCodex<
   KS = unknown,
@@ -88,6 +94,22 @@ export function deserializeCodex<
     throw new Error(
       `deserializeCodex: unsupported version ${String(parsed.version)} — expected "1.2"`,
     );
+  }
+  if (!Array.isArray(parsed.kadenaWallets)) {
+    throw new Error("deserializeCodex: kadenaWallets must be an array");
+  }
+  if (!Array.isArray(parsed.ouronetWallets)) {
+    throw new Error("deserializeCodex: ouronetWallets must be an array");
+  }
+  if (!Array.isArray(parsed.addressBook)) {
+    throw new Error("deserializeCodex: addressBook must be an array");
+  }
+  if (
+    typeof parsed.uiSettings !== "object" ||
+    parsed.uiSettings === null ||
+    Array.isArray(parsed.uiSettings)
+  ) {
+    throw new Error("deserializeCodex: uiSettings must be an object");
   }
   return parsed as CodexExportV1_2<KS, OA, AB, UI>;
 }

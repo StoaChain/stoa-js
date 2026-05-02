@@ -62,9 +62,18 @@ export interface KeyResolver {
   /**
    * Optional: resolve a signer pubkey that isn't in the Codex by prompting
    * the user (or equivalent) for a raw 64-char private key. Browser
-   * implementations call the ForeignKeySignModal here. Server
-   * implementations should either throw or consult a pre-configured
-   * allow-list.
+   * implementations call the ForeignKeySignModal here.
+   *
+   * **Contract (runtime):** Optional in the interface; required at execute
+   * time the moment any guard requires a foreign-key signer. Server
+   * resolvers should either implement-and-throw (e.g. consult an
+   * allow-list and throw on misses) or omit the method entirely. When the
+   * method is omitted AND a transaction reaches `CodexSigningStrategy.
+   * execute` with a foreign-key signer, the strategy fails fast on first
+   * foreign-key need with a precise pre-flight error before any I/O
+   * (REQ-03 / F-CORE-014). When the method is implemented, the strategy
+   * forwards missing-key requests to it via `universalSignTransaction`'s
+   * `onMissingKey` callback.
    */
   requestForeignKey?(publicKey: string): Promise<string>;
 }

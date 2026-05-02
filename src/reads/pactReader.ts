@@ -35,6 +35,21 @@ export type PactReader = (
   options?: {
     pactUrl?: string;
     chainId?: string;
+    /**
+     * Cache-tier hint. Canonical mapping (matches OuronetUI's
+     * `pact-query-cache` reader semantics):
+     *
+     *   T1 — balance reads. High churn, very short TTL.
+     *   T2 — preview reads (e.g. `INFO_*` simulations). Short TTL.
+     *   T3 — metadata reads (e.g. token metadata, pair info). Medium TTL.
+     *   T7 — very-static reads (e.g. policy registry). Long TTL.
+     *
+     * The default reader (`rawCalibratedDirtyRead`) IGNORES `tier` — it has
+     * no cache and treats every call as a fresh dirty-read. Only consumers
+     * that wire a cache-aware reader via `setPactReader` (OuronetUI's
+     * cache layer) act on the tier value. Server consumers (HUB) typically
+     * leave the default reader installed and ignore this field entirely.
+     */
     tier?: string;
     skipTempWatcher?: boolean;
     /** Per-call read timeout in ms. Forwarded to the underlying reader (rawCalibratedDirtyRead default: 15000 ms). */

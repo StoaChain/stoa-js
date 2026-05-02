@@ -158,6 +158,120 @@ describe("deserializeCodex", () => {
   });
 });
 
+// ─── deserializeCodex shape validation (REQ-02 / F-CORE-013) ─────────────────
+// Runtime shape checks fire AFTER the version match and BEFORE the typed cast.
+// Errors NAME the offending field but never echo its value — the codex
+// envelope can carry encrypted secrets and account addresses, so surfacing
+// them into telemetry/logs would breach the codec's information-disclosure
+// boundary.
+
+describe("deserializeCodex shape validation (REQ-02)", () => {
+  it("throws when kadenaWallets is not an array", () => {
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: "not-an-array",
+      ouronetWallets: [],
+      addressBook: [],
+      uiSettings: {},
+    });
+    expect(() => deserializeCodex(json)).toThrow(/kadenaWallets must be an array/);
+  });
+
+  it("throws when ouronetWallets is not an array", () => {
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: [],
+      ouronetWallets: { obj: true },
+      addressBook: [],
+      uiSettings: {},
+    });
+    expect(() => deserializeCodex(json)).toThrow(/ouronetWallets must be an array/);
+  });
+
+  it("throws when addressBook is not an array", () => {
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: [],
+      ouronetWallets: [],
+      addressBook: 42,
+      uiSettings: {},
+    });
+    expect(() => deserializeCodex(json)).toThrow(/addressBook must be an array/);
+  });
+
+  it("throws when uiSettings is not an object (string variant)", () => {
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: [],
+      ouronetWallets: [],
+      addressBook: [],
+      uiSettings: "not-an-object",
+    });
+    expect(() => deserializeCodex(json)).toThrow(/uiSettings must be an object/);
+  });
+
+  it("throws when uiSettings is null (null is not a valid object for the codex envelope)", () => {
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: [],
+      ouronetWallets: [],
+      addressBook: [],
+      uiSettings: null,
+    });
+    expect(() => deserializeCodex(json)).toThrow(/uiSettings must be an object/);
+  });
+
+  it("throws when uiSettings is an array (array is not a plain object)", () => {
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: [],
+      ouronetWallets: [],
+      addressBook: [],
+      uiSettings: [],
+    });
+    expect(() => deserializeCodex(json)).toThrow(/uiSettings must be an object/);
+  });
+
+  it("throws on the FIRST malformed field in declaration order (kadenaWallets wins over uiSettings)", () => {
+    // Both kadenaWallets and uiSettings are malformed. Validation order is
+    // deterministic and matches the declaration order of CodexExportV1_2,
+    // so kadenaWallets fails first and its error wins.
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: "x",
+      ouronetWallets: [],
+      addressBook: [],
+      uiSettings: "x",
+    });
+    expect(() => deserializeCodex(json)).toThrow(/kadenaWallets must be an array/);
+    expect(() => deserializeCodex(json)).not.toThrow(/uiSettings/);
+  });
+
+  it("does NOT echo the bad field's value into the error message (no info disclosure)", () => {
+    // Security boundary: the bad field's value can be a secret-looking string
+    // (e.g. encrypted blob, account address). The error message must NAME the
+    // offending field without echoing its contents into logs/telemetry.
+    const json = JSON.stringify({
+      version: "1.2",
+      kadenaWallets: "SECRET-LOOKING-VALUE-12345",
+      ouronetWallets: [],
+      addressBook: [],
+      uiSettings: {},
+    });
+    let caught: unknown;
+    try {
+      deserializeCodex(json);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toMatch(/kadenaWallets must be an array/);
+    expect(message).not.toContain("SECRET-LOOKING-VALUE-12345");
+    expect(message).not.toContain("12345");
+  });
+});
+
 // ─── Round-trip ───────────────────────────────────────────────────────────────
 
 describe("round-trip serialize → deserialize", () => {

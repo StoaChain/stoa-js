@@ -4,14 +4,16 @@ import {
   KADENA_NAMESPACE, GAS_STATION, NATIVE_TOKEN_VAULT,
   KADENA_NETWORK,
 } from "../constants";
-import { formatEU } from "../pact";
+import { formatEU, safeCreationTime } from "../pact";
 import { mayComeWithDeimal, formatDecimalForPact } from "../pact";
 import { IKeyset } from "../guard";
+import { normalizeKeysetRef } from "../guard/smartAccountAuth";
 import { Pact } from "@kadena/client";
 import { getFailoverClient } from "../network";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { createSigningError, createSimulationError, logDetailedError } from "../errors";
 import { pactRead } from "../reads";
+import { getLogger } from "../observability";
 
 export interface AccountSelectorData {
   "iz-activated": boolean;
@@ -63,7 +65,7 @@ export async function getAccountSelectorData(accounts: string[], options?: { ski
   const response = await pactRead(pactCode, { tier: "T5", skipTempWatcher: options?.skipTempWatcher });
   
   if (!response?.result || (response.result as any).status === "failure") {
-    console.error("AccountSelectorMapper failed:", response);
+    getLogger().error("AccountSelectorMapper failed:", response);
     return [];
   }
   
@@ -84,7 +86,7 @@ export async function getStoaAccountSelectorData(accounts: string[]): Promise<St
   const response = await pactRead(pactCode, { tier: "T5" });
   
   if (!response?.result || (response.result as any).status === "failure") {
-    console.error("StoaAccountSelectorMapper failed:", response);
+    getLogger().error("StoaAccountSelectorMapper failed:", response);
     return [];
   }
   
@@ -103,20 +105,11 @@ export async function getAccountOverview(account: string): Promise<AccountOvervi
   const response = await pactRead(pactCode, { tier: "T7" });
 
   if (!response?.result || (response.result as any).status === "failure") {
-    console.error("AccountOverview failed:", response);
+    getLogger().error("AccountOverview failed:", response);
     return null;
   }
 
   return (response.result as any)?.data as AccountOverviewData ?? null;
-}
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors
- * caused by minor clock drift between client and blockchain nodes.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
 }
 
 // import { kadenaSignWithKeyPair } from "@kadena/hd-wallet";
@@ -187,9 +180,16 @@ export const readKeyset = async (namespace: string, keysetName: string) => {
 /**
  * Resolve a guard value — if it's a keyset ref, fetch the actual keyset.
  * Handles both direct keyset objects and {keysetref: {ns, ksn}} references.
+ *
+ * Normalises the chain-native lowercase `keysetref` field to camelCase
+ * `keysetRef` at this boundary via `normalizeKeysetRef`, so internal code
+ * that follows downstream of `resolveGuard` only ever sees the camelCase
+ * form. The lowercase field is preserved for backwards-compat with
+ * existing reads.
  */
 export async function resolveGuard(guardData: any): Promise<any> {
   if (!guardData || guardData === false) return null;
+  guardData = normalizeKeysetRef(guardData);
   if (guardData.keysetref) {
     const ks = await readKeyset(guardData.keysetref.ns, guardData.keysetref.ksn);
     if (ks) ks.keysetRef = `${guardData.keysetref.ns}.${guardData.keysetref.ksn}`;
@@ -1162,7 +1162,7 @@ export async function getSublimatPreview(
       fee: 0,
     };
   } catch (error) {
-    console.error("Error getting sublimate preview:", error);
+    getLogger().error("Error getting sublimate preview:", error);
     return null;
   }
 }
@@ -1191,7 +1191,7 @@ export async function getCompressPreview(
       fee: 0,
     };
   } catch (error) {
-    console.error("Error getting compress preview:", error);
+    getLogger().error("Error getting compress preview:", error);
     return null;
   }
 }
@@ -1307,7 +1307,7 @@ export async function getTotalMBCost(sparks: number): Promise<string | null> {
 
     return (response.result.data as any);
   } catch (error) {
-    console.error("Error getting total MB cost:", error);
+    getLogger().error("Error getting total MB cost:", error);
     return null;
   }
 }
@@ -1459,7 +1459,7 @@ export async function getMaxBuyMovieBooster(
     const data = response.result.data as any;
     return data?.int || 0;
   } catch (error) {
-    console.error("Error getting max buy for movie booster:", error);
+    getLogger().error("Error getting max buy for movie booster:", error);
     return 0;
   }
 }
@@ -1475,7 +1475,7 @@ export async function getSparksBalance(account: string): Promise<any> {
 
     return response.result.data as any;
   } catch (error) {
-    console.error("Error getting sparks balance:", error);
+    getLogger().error("Error getting sparks balance:", error);
     return null;
   }
 } 
@@ -1638,7 +1638,7 @@ export async function getCoilPreview(
       postText: data?.[`post-text`] || [],
     };
   } catch (error) {
-    console.error("Error getting coil preview:", error);
+    getLogger().error("Error getting coil preview:", error);
     return null;
   }
 }
@@ -1834,6 +1834,7 @@ export async function coilOuroToAuryn(
 import { TOKEN_ID_IGNIS } from "../constants";
 export const IGNIS_TOKEN_ID = TOKEN_ID_IGNIS;
 
+// All catch blocks below route via getLogger().error(...) from ../observability (F-CORE-019, v2.3.0)
 export async function getIgnisBalance(account: string): Promise<string> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.DPTF.UR_AccountSupply "${IGNIS_TOKEN_ID}" "${account}")`;
@@ -1843,7 +1844,8 @@ export async function getIgnisBalance(account: string): Promise<string> {
       return String(mayComeWithDeimal((response.result as any).data));
     }
     return "0";
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getIgnisBalance:", error);
     return "0";
   }
 }
@@ -1861,7 +1863,8 @@ export async function getAccountTokenSupply(tokenId: string, account: string): P
       return String(mayComeWithDeimal((response.result as any).data));
     }
     return "0";
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getAccountTokenSupply:", error);
     return "0";
   }
 }
@@ -1878,7 +1881,8 @@ export async function getOuroDispoCapacity(account: string): Promise<string> {
       return String(mayComeWithDeimal((response.result as any).data));
     }
     return "0";
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getOuroDispoCapacity:", error);
     return "0";
   }
 }
@@ -1895,7 +1899,8 @@ export async function getVirtualOuro(account: string): Promise<string> {
       return String(mayComeWithDeimal((response.result as any).data));
     }
     return "0";
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getVirtualOuro:", error);
     return "0";
   }
 }
@@ -1917,7 +1922,7 @@ export async function getRotateKadenaInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error getting RotateKadena info:", error);
+    getLogger().error("Error getting RotateKadena info:", error);
     return null;
   }
 }
@@ -2070,7 +2075,7 @@ export async function getUnwrapStoaTarget(unwrapper: string): Promise<string | n
     }
     return null;
   } catch (error) {
-    console.error("Error resolving UnwrapStoa target:", error);
+    getLogger().error("Error resolving UnwrapStoa target:", error);
     return null;
   }
 }
@@ -2089,7 +2094,7 @@ export async function checkCoinAccountExists(address: string): Promise<boolean |
     if (typeof data === "number" || (data && typeof data === "object" && "decimal" in data)) return true;
     return false;
   } catch (error) {
-    console.error("Error checking coin account:", error);
+    getLogger().error("Error checking coin account:", error);
     return null;
   }
 }
@@ -2153,7 +2158,7 @@ export async function getUnwrapStoaInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error getting UnwrapStoa info:", error);
+    getLogger().error("Error getting UnwrapStoa info:", error);
     return null;
   }
 }
@@ -2307,7 +2312,7 @@ export async function checkUrStoaAccountExists(address: string): Promise<boolean
     if (data === false) return false;
     return null;
   } catch (error) {
-    console.error("Error checking UrStoa account:", error);
+    getLogger().error("Error checking UrStoa account:", error);
     return null;
   }
 }
@@ -2330,7 +2335,7 @@ export async function getUnwrapUrStoaInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error getting UnwrapUrStoa info:", error);
+    getLogger().error("Error getting UnwrapUrStoa info:", error);
     return null;
   }
 }

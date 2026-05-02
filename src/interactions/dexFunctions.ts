@@ -8,17 +8,10 @@ import { getFailoverClient } from "../network";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { calculateAutoGasLimit } from "../gas";
 import { pactRead } from "../reads";
+import { safeCreationTime } from "../pact";
 import type { IKadenaKeypair } from "../signing";
 export type { IKadenaKeypair } from "../signing";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
-
+import { getLogger } from "../observability";
 
 // Re-export add liquidity functions
 export * from "./addLiquidityFunctions";
@@ -903,7 +896,7 @@ export async function executeSingleSwapWithSlippage(
     return result;
     
   } catch (error) {
-    console.error("Single Swap WITH Slippage Error:", error);
+    getLogger().error("Single Swap WITH Slippage Error:", error);
     throw error instanceof Error ? error : new Error("Unknown error occurred");
   }
 }
@@ -1649,7 +1642,7 @@ export async function getSwpairManagementPoolSettings(swpair: string): Promise<a
 
     return response.result.data;
   } catch (err) {
-    console.error("URC_0014 failed:", err);
+    getLogger().error("URC_0014 failed:", err);
     return null;
   }
 }
@@ -1675,7 +1668,7 @@ export async function getSwpairManagementFeeSettings(swpair: string): Promise<an
 
     return response.result.data;
   } catch (err) {
-    console.error("URC_0015 failed:", err);
+    getLogger().error("URC_0015 failed:", err);
     return null;
   }
 }
@@ -1694,7 +1687,7 @@ export async function getUsagePrice(usageType: string): Promise<number | null> {
     }
     return null;
   } catch (err) {
-    console.error(`UR_UsagePrice(${usageType}) failed:`, err);
+    getLogger().error(`UR_UsagePrice(${usageType}) failed:`, err);
     return null;
   }
 }
@@ -1720,7 +1713,7 @@ export async function getBranding(entityId: string, pending: boolean): Promise<a
 
     return response.result.data;
   } catch (err) {
-    console.error(`BRD.UR_Branding(${entityId}, ${pending}) failed:`, err);
+    getLogger().error(`BRD.UR_Branding(${entityId}, ${pending}) failed:`, err);
     return null;
   }
 }
@@ -1761,7 +1754,7 @@ export async function getTrueFungibleHeader(
     if (!data || typeof data !== "object") return null;
     return data as TrueFungibleHeaderData;
   } catch (err) {
-    console.error("URC_0016_TruefungibleHeader failed:", err);
+    getLogger().error("URC_0016_TruefungibleHeader failed:", err);
     return null;
   }
 }
@@ -1804,7 +1797,7 @@ export async function getTrueFungibleEntries(
       return item as TrueFungibleEntryData;
     });
   } catch (err) {
-    console.error("URC_0008a_TrueFungibleEntryMapper failed:", err);
+    getLogger().error("URC_0008a_TrueFungibleEntryMapper failed:", err);
     return tokenIds.map(() => null);
   }
 }
@@ -1833,7 +1826,7 @@ export async function getNativeLPEntries(
       return item as TrueFungibleLPEntry;
     });
   } catch (err) {
-    console.error("URC_0008b_TrueFungibleNativeLPMapper failed:", err);
+    getLogger().error("URC_0008b_TrueFungibleNativeLPMapper failed:", err);
     return lpIds.map(() => null);
   }
 }
@@ -1862,7 +1855,7 @@ export async function getFrozenLPEntries(
       return item as TrueFungibleLPEntry;
     });
   } catch (err) {
-    console.error("URC_0008b_TrueFungibleFrozenLPMapper failed:", err);
+    getLogger().error("URC_0008b_TrueFungibleFrozenLPMapper failed:", err);
     return lpIds.map(() => null);
   }
 }
@@ -1975,7 +1968,7 @@ export async function getTrueFungibleButtonState(
     if (!data || typeof data !== "object") return null;
     return data as TrueFungibleButtonState;
   } catch (err) {
-    console.error("URC_0017_TruefungibleButton failed:", err);
+    getLogger().error("URC_0017_TruefungibleButton failed:", err);
     return null;
   }
 }
@@ -2021,7 +2014,7 @@ export async function getOrtoFungibleHeader(
     if (!data || typeof data !== "object") return null;
     return data as OrtoFungibleHeaderData;
   } catch (err) {
-    console.error("URC_0018_OrtofungibleHeader failed:", err);
+    getLogger().error("URC_0018_OrtofungibleHeader failed:", err);
     return null;
   }
 }
@@ -2112,7 +2105,7 @@ export async function getOrtoFungibleEntries(
       return item as OrtoFungibleEntryData;
     });
   } catch (err) {
-    console.error("URC_0009a_OrtoFungibleEntryMapper failed:", err);
+    getLogger().error("URC_0009a_OrtoFungibleEntryMapper failed:", err);
     return tokenIds.map(() => null);
   }
 }
@@ -2140,7 +2133,7 @@ export async function getOrtoFungibleSleepingLPEntries(
       return item as OrtoFungibleEntryData;
     });
   } catch (err) {
-    console.error("URC_0009b_OrtoFungibleSleepingLPMapper failed:", err);
+    getLogger().error("URC_0009b_OrtoFungibleSleepingLPMapper failed:", err);
     return lpIds.map(() => null);
   }
 }
@@ -2169,7 +2162,7 @@ export async function getOrtoFungibleNoncesSupplies(
       return String(item);
     });
   } catch (err) {
-    console.error("DPOF.UR_NoncesSupplies failed:", err);
+    getLogger().error("DPOF.UR_NoncesSupplies failed:", err);
     return nonces.map(() => "0");
   }
 }
@@ -2198,7 +2191,7 @@ export async function getOrtoFungibleNoncesMetaDatas(
       return item;
     });
   } catch (err) {
-    console.error("DPOF.UR_NoncesMetaDatas failed:", err);
+    getLogger().error("DPOF.UR_NoncesMetaDatas failed:", err);
     return nonces.map(() => null);
   }
 }
@@ -2251,7 +2244,7 @@ export async function getOrtofungibleButtonState(
     if (!data || typeof data !== "object") return null;
     return data as OrtofungibleButtonState;
   } catch (err) {
-    console.error("URC_0019_OrtofungibleButton failed:", err);
+    getLogger().error("URC_0019_OrtofungibleButton failed:", err);
     return null;
   }
 }
@@ -2269,7 +2262,7 @@ export async function getHibernatingNonceData(
     if (!data || typeof data !== "object") return null;
     return data as HibernatingNonceData;
   } catch (err) {
-    console.error("URC_0020_HibernatingNonceData failed:", err);
+    getLogger().error("URC_0020_HibernatingNonceData failed:", err);
     return null;
   }
 }
@@ -2302,7 +2295,7 @@ export async function getCollectablesHeader(
     if (!data || typeof data !== "object") return null;
     return data as CollectablesHeaderData;
   } catch (err) {
-    console.error("URC_0021_CollectablesHeader failed:", err);
+    getLogger().error("URC_0021_CollectablesHeader failed:", err);
     return null;
   }
 }
@@ -2334,7 +2327,7 @@ export async function getSemifungibleEntries(
     if (!Array.isArray(data)) return dpdcIds.map(() => null);
     return data as CollectableEntryData[];
   } catch (err) {
-    console.error("URC_0022a_SemifungibleEntryMapper failed:", err);
+    getLogger().error("URC_0022a_SemifungibleEntryMapper failed:", err);
     return dpdcIds.map(() => null);
   }
 }
@@ -2352,7 +2345,7 @@ export async function getNonfungibleEntries(
     if (!Array.isArray(data)) return dpdcIds.map(() => null);
     return data as CollectableEntryData[];
   } catch (err) {
-    console.error("URC_0022a_NonfungibleEntryMapper failed:", err);
+    getLogger().error("URC_0022a_NonfungibleEntryMapper failed:", err);
     return dpdcIds.map(() => null);
   }
 }
@@ -2445,7 +2438,7 @@ export async function getCollectableNonceData(
     if (Array.isArray(data)) return data.map(parseNonceData);
     return [];
   } catch (e) {
-    console.error("URC_0023 fetch error:", e);
+    getLogger().error("URC_0023 fetch error:", e);
     return [];
   }
 }
@@ -2466,7 +2459,7 @@ export async function getCollectableNonceSupply(
     }
     return 0;
   } catch (e) {
-    console.error("UR_NonceSupply fetch error:", e);
+    getLogger().error("UR_NonceSupply fetch error:", e);
     return 0;
   }
 }
@@ -2498,7 +2491,7 @@ export async function getAccountNoncesSupplies(
       return parseFloat(String(n)) || 0;
     });
   } catch (err) {
-    console.error("DPDC.UR_AccountNoncesSupplies failed:", err);
+    getLogger().error("DPDC.UR_AccountNoncesSupplies failed:", err);
     return nonces.map(() => 0);
   }
 }
@@ -2539,7 +2532,7 @@ export async function getCollectableSets(
     if (!Array.isArray(data)) return [];
     return data as SetDefinition[];
   } catch (err) {
-    console.error("URC_0024_SetReader failed:", err);
+    getLogger().error("URC_0024_SetReader failed:", err);
     return [];
   }
 }
@@ -2570,7 +2563,7 @@ export async function filterNoncesByClass(
       return parseInt(String(n), 10) || 0;
     }).filter((n: number) => n > 0);
   } catch (err) {
-    console.error("URC_0025_FilterNoncesByClass failed:", err);
+    getLogger().error("URC_0025_FilterNoncesByClass failed:", err);
     return [];
   }
 }
@@ -2605,7 +2598,7 @@ export async function filterNoncesByClasses(
       }).filter((n: number) => n > 0);
     });
   } catch (err) {
-    console.error("URC_0025a_FilterNoncesByClasses failed:", err);
+    getLogger().error("URC_0025a_FilterNoncesByClasses failed:", err);
     return nonceClasses.map(() => []);
   }
 }
@@ -2640,7 +2633,7 @@ export async function getCollectablesButtonState(
     if (!data || typeof data !== "object") return null;
     return data as CollectablesButtonState;
   } catch (err) {
-    console.error("URC_0026_CollectablesButtons failed:", err);
+    getLogger().error("URC_0026_CollectablesButtons failed:", err);
     return null;
   }
 }

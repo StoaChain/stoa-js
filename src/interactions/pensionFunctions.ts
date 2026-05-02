@@ -4,21 +4,12 @@ import {
   KADENA_NAMESPACE, GAS_STATION,
   KADENA_NETWORK,
 } from "../constants";
-import { formatDecimalForPact } from "../pact";
+import { formatDecimalForPact, safeCreationTime } from "../pact";
 import { Pact } from "@kadena/client";
 import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import type { IOuroAccountKeypair, IKadenaKeypair } from "./ouroFunctions";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
-
 
 // Brumate WSTOA to H|GSTOA (Hibernated Pension Kadena)
 // (namespace.TS01-C2.ATS|C_Brumate patron:string brumate-account:string "SilverStoaPillar-O136CBn22ncY" "GoldenStoaPillar-O136CBn22ncY" "WSTOA-8Nh-JO8JO4F5" amount:decimal lock-days:integer)

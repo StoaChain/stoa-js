@@ -6,20 +6,12 @@ import {
 import { Pact } from "@kadena/client";
 import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
-import { formatDecimalForPact } from "../pact";
+import { formatDecimalForPact, safeCreationTime } from "../pact";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import type { IKadenaKeypair } from "../signing";
 export type { IKadenaKeypair } from "../signing";
 import type { IOuroAccountKeypair } from "./ouroFunctions";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
-
+import { getLogger } from "../observability";
 
 // Generic coiling configuration
 interface CoilConfig {
@@ -149,7 +141,7 @@ export async function getCoilPreviewGeneric(
     
     return result;
   } catch (error: any) {
-    console.error("Error getting coil preview:", error);
+    getLogger().error("Error getting coil preview:", error);
     throw error;
   }
 }

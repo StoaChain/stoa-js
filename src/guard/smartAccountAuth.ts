@@ -76,6 +76,20 @@ export type GuardKind =
  * Pure shape discriminator. Does not throw, does not mutate, does
  * not fetch. Maps any value to one of the five `GuardKind`s.
  *
+ * Each kind requires its FULL minimal shape: `capability` requires
+ * `cgName` (string) AND `cgArgs` (defined) AND `cgPactId` (defined,
+ * may be `null` per Pact convention); `user` requires `fun` (string)
+ * AND `args` (defined); `keyset` requires `pred` (string) AND `keys`
+ * (array); `keyset-ref` accepts EITHER casing of the ref field
+ * (`keysetref` lowercase chain-native or `keysetRef` camelCase) for
+ * defense-in-depth — the `normalizeKeysetRef` boundary helper is
+ * applied at the chain-IO entry point so internal code only ever
+ * sees the camelCase form.
+ *
+ * Under-specified payloads classify as `unknown` instead of silently
+ * mis-classifying — callers branch on the surfaced kind to refer the
+ * user to an Execute Code escape hatch when the analyzer cannot help.
+ *
  * Discrimination order matters — we check the most specific shape
  * first so a guard that happens to carry both `pred` and `cgName`
  * (impossible in practice but defensive) gets the more-specific
@@ -85,12 +99,30 @@ export function classifyGuardKind(g: unknown): GuardKind {
   if (g === null || g === undefined) return "unknown";
   if (typeof g !== "object" || Array.isArray(g)) return "unknown";
   const o = g as Record<string, unknown>;
-  if ("cgName" in o && typeof o.cgName === "string") return "capability";
-  if ("fun" in o && typeof o.fun === "string" && "args" in o) return "user";
   if (
-    "keysetref" in o &&
-    typeof o.keysetref === "object" &&
-    o.keysetref !== null
+    "cgName" in o &&
+    typeof o.cgName === "string" &&
+    "cgArgs" in o &&
+    o.cgArgs !== undefined &&
+    "cgPactId" in o
+  ) {
+    return "capability";
+  }
+  if (
+    "fun" in o &&
+    typeof o.fun === "string" &&
+    "args" in o &&
+    o.args !== undefined
+  ) {
+    return "user";
+  }
+  if (
+    ("keysetref" in o &&
+      typeof o.keysetref === "object" &&
+      o.keysetref !== null) ||
+    ("keysetRef" in o &&
+      typeof o.keysetRef === "object" &&
+      o.keysetRef !== null)
   ) {
     return "keyset-ref";
   }
@@ -103,6 +135,36 @@ export function classifyGuardKind(g: unknown): GuardKind {
     return "keyset";
   }
   return "unknown";
+}
+
+/**
+ * Boundary helper for the `keysetref` / `keysetRef` casing split.
+ *
+ * The Kadena chain emits the ref-object form with the lowercase field
+ * name `keysetref`; the rest of the guard module standardises on the
+ * camelCase `keysetRef` form. Apply this helper at the
+ * `resolveGuard` boundary in `interactions/ouroFunctions.ts` so
+ * internal code only ever sees the camelCase form.
+ *
+ * Pure / non-mutating: returns a NEW object with `keysetRef` mirroring
+ * `keysetref` when only the lowercase form is present. The original
+ * lowercase `keysetref` field is preserved on the returned object so
+ * existing reads (e.g. `guardData.keysetref.ns`) continue to work as
+ * defense-in-depth. Any other input — null, undefined, primitives,
+ * arrays, or objects that already carry `keysetRef` — is returned
+ * unchanged.
+ *
+ * `classifyGuardKind`'s `keyset-ref` branch keeps dual-casing
+ * acceptance for defense-in-depth in case a caller bypasses this
+ * boundary helper.
+ */
+export function normalizeKeysetRef(g: unknown): unknown {
+  if (g === null || g === undefined) return g;
+  if (typeof g !== "object" || Array.isArray(g)) return g;
+  const o = g as Record<string, unknown>;
+  if ("keysetRef" in o) return g;
+  if (!("keysetref" in o)) return g;
+  return { ...o, keysetRef: o.keysetref };
 }
 
 /**
@@ -155,8 +217,8 @@ export interface SmartAccountAuthBranch {
  *
  * `branches` is always exactly three entries in canonical order
  * (guard / sovereign / governor) so the UI can render them with a
- * stable layout. The two derived flags express the most common
- * questions a CFM modal asks:
+ * stable layout. The derived flags express the most common questions
+ * a CFM modal asks:
  *
  *   - `anyKeyBased` — at least one branch is signable. If false, the
  *     ZBOM cannot satisfy this transaction; the UI should refer the
@@ -167,6 +229,32 @@ export interface SmartAccountAuthBranch {
  *     fully satisfied by the codex (+ optional manual keys). Useful
  *     as a default selection for the UI's auth-path picker. -1 when
  *     no branch is currently satisfied.
+ *
+ *   - `firstSignableButUnsatisfied` — index of the first branch where
+ *     `keyBased === true` AND `analysis.satisfied === false`.
+ *     Supports the "you would be able to sign if you held key X" UX
+ *     without a recompute. -1 when no such branch exists.
+ *
+ * Reachable states (the four cases the caller branches on):
+ *
+ *   A. `firstSatisfied >= 0` — a satisfiable path exists. The
+ *      consumer can sign the transaction immediately by selecting
+ *      the indicated branch. UI: highlight branch[firstSatisfied].
+ *
+ *   B. `firstSatisfied === -1 && anyKeyBased === true` — no
+ *      satisfiable path, but at least one key-based path exists.
+ *      The consumer should pick a key-based branch and prompt the
+ *      user for the missing key (use `firstSignableButUnsatisfied`
+ *      as the default selection).
+ *
+ *   C. `firstSatisfied === -1 && anyKeyBased === false && at least
+ *      one branch.kind !== "unknown"` — no signable path, but at
+ *      least one path is of a known kind. The consumer should refer
+ *      the user to Execute Code or an equivalent ad-hoc capability
+ *      acquisition flow.
+ *
+ *   D. all three `branches[i].kind === "unknown"` — the analyzer
+ *      cannot help. The consumer should surface a clear error.
  */
 export interface SmartAccountAuthPaths {
   readonly branches: readonly [
@@ -176,6 +264,14 @@ export interface SmartAccountAuthPaths {
   ];
   readonly anyKeyBased: boolean;
   readonly firstSatisfied: number; // 0 | 1 | 2 | -1
+  /**
+   * Index of the first branch where `keyBased === true` AND
+   * `analysis.satisfied === false`. `-1` when no such branch exists.
+   * Optional on the interface so consumers compiled against the
+   * v1.6.0 surface remain type-compatible; the producer always
+   * populates the field.
+   */
+  readonly firstSignableButUnsatisfied?: number; // 0 | 1 | 2 | -1
 }
 
 /**
@@ -236,5 +332,14 @@ export function analyzeSmartAccountAuthPaths(
     }
   }
 
-  return { branches, anyKeyBased, firstSatisfied };
+  let firstSignableButUnsatisfied = -1;
+  for (let i = 0; i < branches.length; i++) {
+    const b = branches[i];
+    if (b.keyBased && b.analysis && !b.analysis.satisfied) {
+      firstSignableButUnsatisfied = i;
+      break;
+    }
+  }
+
+  return { branches, anyKeyBased, firstSatisfied, firstSignableButUnsatisfied };
 }

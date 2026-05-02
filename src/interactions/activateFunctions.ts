@@ -13,16 +13,10 @@ import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { calculateAutoGasLimit } from "../gas";
 import { createSimulationError, logDetailedError } from "../errors";
+import { getLogger } from "../observability";
+import { safeCreationTime } from "../pact";
 import type { IKadenaKeypair } from "../signing";
 export type { IKadenaKeypair } from "../signing";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
 
 export interface DeployStandardAccountInfo {
   ignis: {
@@ -90,7 +84,7 @@ export async function getDeployStandardAccountInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error fetching DeployStandardAccount info:", error);
+    getLogger().error("Error fetching DeployStandardAccount info:", error);
     return null;
   }
 }

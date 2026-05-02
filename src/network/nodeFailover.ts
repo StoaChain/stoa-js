@@ -8,6 +8,8 @@
  * Retry primary every 30s when on fallback.
  */
 
+import { getLogger } from "../observability";
+
 const KADENA_NETWORK = "stoa";
 
 const NODE2_HOST = "https://node2.stoachain.com";
@@ -48,7 +50,7 @@ async function isHealthy(host: string): Promise<boolean> {
 /** Switch to fallback and start retry loop */
 function switchToFallback() {
   if (currentHost === FALLBACK_HOST) return;
-  console.warn("[node-failover] Primary node down, switching to fallback:", FALLBACK_HOST);
+  getLogger().warn("[node-failover] Primary node down, switching to fallback:", FALLBACK_HOST);
   currentHost = FALLBACK_HOST;
   startRetryLoop();
 }

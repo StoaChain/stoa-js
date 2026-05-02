@@ -85,7 +85,33 @@ export class CodexSigningStrategy implements SigningStrategy {
     } = args;
 
     // ── B. Codex pub set ─────────────────────────────────────────────
+    // Lifted ahead of the canonical "B" position to power the pre-flight
+    // below. The pre-flight needs codex-set membership data; calling
+    // `listCodexPubs()` once here and reusing it downstream avoids a
+    // duplicate resolver hop.
     const codexPubs = await this.resolver.listCodexPubs();
+
+    // ── B'. Foreign-key resolver pre-flight (REQ-03 / F-CORE-014) ────
+    // If the resolver omits `requestForeignKey`, any guard pub that is
+    // neither in the codex set nor pre-resolved via `resolvedForeignKeys`
+    // would otherwise reach `universalSignTransaction` with no way to be
+    // resolved. Fail fast at the entry point — before any chain I/O —
+    // with a precise, named error so the consumer can wire the resolver
+    // method (or pre-resolve the key) rather than chase a deep-stack
+    // failure later in the pipeline.
+    if (this.resolver.requestForeignKey === undefined) {
+      for (const guard of guards) {
+        for (const pub of guard.keys) {
+          if (codexPubs.has(pub)) continue;
+          if (Object.prototype.hasOwnProperty.call(resolvedForeignKeys, pub)) {
+            continue;
+          }
+          throw new Error(
+            `[CodexSigningStrategy] Configured resolver does not implement requestForeignKey, but at least one guard requires a foreign-key signer (pub ${pub.slice(0, 8)}...). Implement KeyResolver.requestForeignKey on the resolver, or pre-resolve the key via resolvedForeignKeys.`,
+          );
+        }
+      }
+    }
 
     // ── C + D. Analyze each guard and collect pure-signer keypairs ───
     const guardKeypairs: IKadenaKeypair[] = [];

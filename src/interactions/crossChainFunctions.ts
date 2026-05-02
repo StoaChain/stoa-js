@@ -3,16 +3,8 @@ import { getFailoverClient } from "../network";
 import { KADENA_NETWORK, getPactUrl, getSpvUrl, GAS_STATION, KADENA_NAMESPACE } from "../constants";
 import { GAS_PRICE_MIN_ANU, anuToStoa } from "../gas";
 import { pactRead } from "../reads";
+import { safeCreationTime } from "../pact";
 import { ChainId } from "@kadena/types";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
-
 
 /**
  * Get KDA balance for an account on a specific chain.

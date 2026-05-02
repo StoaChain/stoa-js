@@ -10,16 +10,9 @@ import { getFailoverClient } from "../network";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { createSimulationError, logDetailedError } from "../errors";
+import { safeCreationTime } from "../pact";
 import type { IKadenaKeypair } from "../signing";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
-
+import { getLogger } from "../observability";
 
 export interface IDescribedKeyset {
   keys: string[];
@@ -57,7 +50,7 @@ export async function getRotateGuardInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error getting RotateGuard info:", error);
+    getLogger().error("Error getting RotateGuard info:", error);
     return null;
   }
 }

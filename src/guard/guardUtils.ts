@@ -26,6 +26,34 @@ export interface IKeyset {
   keysetRef?: string;
 }
 
+/**
+ * Thrown by {@link computeThreshold} when it encounters a predicate string
+ * that is not in any of the recognised tables (`keys-all` / `keys-any` /
+ * `keys-2`, the stoic fixed/M-of-N/percentage tables, or the
+ * `all-but-one`/`all-but-two` tolerance predicates).
+ *
+ * {@link analyzeGuard} catches this typed class and folds the condition
+ * into the structured `predicateRecognized: false` field on the returned
+ * {@link GuardAnalysis}, falling back to keys-all semantics so callers
+ * who do not branch on the bit continue to get conservative behavior.
+ *
+ * Re-exported from `@stoachain/ouronet-core/guard` as part of the v2.3.0
+ * additive public surface — supersedes the previous silent
+ * console-only warning diagnostic.
+ *
+ * Follows the standard ES2022 `Error.cause` pattern via the optional
+ * `ErrorOptions` parameter; `target: "ES2020"` with `lib: ["ES2023"]`
+ * provides the `ErrorOptions` interface transitively. `this.name` is
+ * set explicitly so error-name-based branching survives bundler
+ * minification of the class identifier.
+ */
+export class UnknownPredicateError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "UnknownPredicateError";
+  }
+}
+
 // ── Predicate tables ───────────────────────────────────────────────────────────
 
 const STOIC_FIXED: Record<string, number> = {
@@ -52,6 +80,14 @@ const STOIC_PCT: Record<string, number> = {
 /**
  * Compute the minimum number of signatures required to satisfy a predicate
  * given a keyset of `keyCount` keys.
+ *
+ * @throws {UnknownPredicateError} when `pred` is not recognised as any of
+ *   the standard (`keys-all`/`keys-any`/`keys-2`), stoic fixed, stoic
+ *   M-of-N, stoic percentage, or stoic tolerance predicates. {@link
+ *   analyzeGuard} catches this typed class and folds it into the
+ *   `predicateRecognized: false` field on the returned analysis;
+ *   {@link predicateLabel} catches it and returns a clear unknown-
+ *   predicate label so the UI helper remains non-throwing.
  */
 export function computeThreshold(pred: string, keyCount: number): number {
   if (keyCount === 0) return 0;
@@ -74,14 +110,31 @@ export function computeThreshold(pred: string, keyCount: number): number {
   if (pred === "stoa-ns.stoic-predicates.all-but-one") return Math.max(1, keyCount - 1);
   if (pred === "stoa-ns.stoic-predicates.all-but-two") return Math.max(1, keyCount - 2);
 
-  // Unknown predicate — conservative fallback: require all
-  console.warn(`[guardUtils] Unknown predicate: "${pred}" — defaulting to keys-all`);
-  return keyCount;
+  throw new UnknownPredicateError(
+    `computeThreshold: unrecognized predicate "${pred}"`,
+  );
 }
 
-/** Human-readable label for a predicate + keyset size */
+/**
+ * Human-readable label for a predicate + keyset size.
+ *
+ * Wraps {@link computeThreshold} in a try/catch so the helper remains
+ * non-throwing for UI callers — when `pred` is unrecognised the label
+ * format becomes `<short> (unknown predicate, of <keyCount>)`, mirroring
+ * the existing `<short> (<threshold> of <keyCount>)` shape with the
+ * threshold replaced by the literal phrase "unknown predicate".
+ */
 export function predicateLabel(pred: string, keyCount: number): string {
-  const threshold = computeThreshold(pred, keyCount);
+  let threshold: number;
+  try {
+    threshold = computeThreshold(pred, keyCount);
+  } catch (e) {
+    if (e instanceof UnknownPredicateError) {
+      const shortFallback = pred.split(".").pop() ?? pred;
+      return `${shortFallback} (unknown predicate, of ${keyCount})`;
+    }
+    throw e;
+  }
   const short = pred.split(".").pop() ?? pred;
   if (pred === "keys-any") return `keys-any (1 of ${keyCount})`;
   if (pred === "keys-all") return `keys-all (${keyCount} of ${keyCount})`;
@@ -96,6 +149,17 @@ export interface GuardAnalysis {
   pred: string;
   /** Minimum signatures needed */
   threshold: number;
+  /**
+   * `false` when the predicate string was not recognised by
+   * {@link computeThreshold} (it threw {@link UnknownPredicateError}); the
+   * analysis falls back to keys-all semantics in that case so callers who
+   * do not branch on this bit continue to get conservative behavior.
+   * Callers that DO branch on the bit can present a clear error rather
+   * than silently signing under unfamiliar semantics. Supersedes the
+   * previous unobservable console-only warning diagnostic in
+   * {@link computeThreshold}.
+   */
+  predicateRecognized: boolean;
   /** Keys immediately signable from Codex */
   codexKeys: string[];
   /** Keys NOT found in Codex and not yet manually resolved */
@@ -124,12 +188,25 @@ export function analyzeGuard(
   if (!guard?.keys?.length) {
     return {
       keys: [], pred: "keys-all", threshold: 0,
+      predicateRecognized: true,
       codexKeys: [], foreignKeys: [], resolvedForeignKeys: [],
       signable: 0, satisfied: true, neededMore: 0, predLabel: "—",
     };
   }
 
-  const threshold = computeThreshold(guard.pred, guard.keys.length);
+  let threshold: number;
+  let predicateRecognized = true;
+  try {
+    threshold = computeThreshold(guard.pred, guard.keys.length);
+  } catch (e) {
+    if (e instanceof UnknownPredicateError) {
+      predicateRecognized = false;
+      threshold = guard.keys.length; // keys-all fallback (mirrors pre-throw behavior)
+    } else {
+      throw e;
+    }
+  }
+
   const codexKeys: string[]   = [];
   const foreignKeys: string[] = [];
 
@@ -146,6 +223,7 @@ export function analyzeGuard(
     keys: guard.keys,
     pred: guard.pred,
     threshold,
+    predicateRecognized,
     codexKeys,
     foreignKeys,
     resolvedForeignKeys,

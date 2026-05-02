@@ -13,20 +13,12 @@ import {
   STOA_AUTONOMIC_OURONETGASSTATION,
   STOA_AUTONOMIC_LIQUIDPOT,
 } from "../constants";
-import { formatDecimalForPact } from "../pact";
+import { formatDecimalForPact, safeCreationTime } from "../pact";
 import { pactRead } from "../reads";
 import { universalSignTransaction, fromKeypair } from "../signing";
 import { createSimulationError, logDetailedError } from "../errors";
+import { getLogger } from "../observability";
 import type { IKadenaKeypair } from "../signing";
-
-/**
- * Safe creation time for Pact transactions.
- * Subtracts 30 seconds from current time to prevent "creation time too far in the future" errors.
- */
-function safeCreationTime(): number {
-  return Math.floor(Date.now() / 1000) - 30;
-}
-
 
 // ─── INFO ─────────────────────────────────────────────────────────────────────
 /**
@@ -47,7 +39,7 @@ export async function getWrapStoaInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error getting WrapStoa info:", error);
+    getLogger().error("Error getting WrapStoa info:", error);
     return null;
   }
 }
@@ -65,7 +57,7 @@ export async function getWrapperPaymentKey(wrapper: string): Promise<string | nu
     }
     return null;
   } catch (error) {
-    console.error("Error resolving wrapper payment key:", error);
+    getLogger().error("Error resolving wrapper payment key:", error);
     return null;
   }
 }
@@ -86,7 +78,7 @@ export async function getPaymentKeyBalance(paymentKeyAddress: string): Promise<n
     }
     return null;
   } catch (error) {
-    console.error("Error fetching payment key balance:", error);
+    getLogger().error("Error fetching payment key balance:", error);
     return null;
   }
 }
@@ -225,7 +217,7 @@ export async function getWrapUrStoaInfo(
     }
     return null;
   } catch (error) {
-    console.error("Error getting WrapUrStoa info:", error);
+    getLogger().error("Error getting WrapUrStoa info:", error);
     return null;
   }
 }
