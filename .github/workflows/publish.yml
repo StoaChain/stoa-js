@@ -73,6 +73,60 @@ jobs:
           fi
           echo "Tag $TAG_VERSION matches package.json — proceeding"
 
+      # ------------------------------------------------------------------
+      # README + CHANGELOG version-parity gate (bulletproof against stale docs)
+      # ------------------------------------------------------------------
+      # Reason: the v2.1.0 → v2.1.1 cycle and the v2.1.2 cycle both surfaced
+      # README staleness — README ## Status block lagging behind the version
+      # being shipped. The npm package page shows the README as primary
+      # consumer-facing documentation, so a stale Status block on a fresh
+      # publish leaves consumers reading documentation that contradicts the
+      # version they just installed. v2.1.1 was a dedicated catch-up patch
+      # for exactly this drift class.
+      #
+      # This step is the structural fix: before `npm publish` runs, fail
+      # the workflow if README.md or CHANGELOG.md don't reference the
+      # version being shipped. Stale-README ships become physically
+      # impossible — the publish never happens.
+      - name: Verify README + CHANGELOG mention the publish version
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "Validating that README.md and CHANGELOG.md reference v${TAG_VERSION}..."
+
+          # Check 1: README.md's ## Status block must reference the version.
+          # The convention (visible in v2.1.0+ history) is the Status block's
+          # opening paragraph leads with backtick-quoted version.
+          if ! grep -qE "\`${TAG_VERSION}\`[[:space:]]+on public npmjs" README.md; then
+            echo "::error::README.md ## Status block does not lead with version ${TAG_VERSION}"
+            echo "::error::Expected: a line containing \`${TAG_VERSION}\` on public npmjs"
+            echo "::error::Bump the README ## Status block before tagging the next release."
+            grep -nE 'on public npmjs' README.md || echo "(no Status-block match found at all)"
+            exit 1
+          fi
+          echo "✓ README.md ## Status block references ${TAG_VERSION}"
+
+          # Check 2: README.md version history must contain a v${TAG_VERSION}
+          # paragraph (e.g., "**v2.1.2** — ..."). This is the per-version
+          # entry consumers read for what changed.
+          if ! grep -qE "^\*\*v${TAG_VERSION}\*\*[[:space:]]" README.md; then
+            echo "::error::README.md version history is missing a **v${TAG_VERSION}** paragraph"
+            echo "::error::Add a v${TAG_VERSION} entry to the version history section before tagging."
+            exit 1
+          fi
+          echo "✓ README.md version history contains **v${TAG_VERSION}** entry"
+
+          # Check 3: CHANGELOG.md's first heading must be the version.
+          FIRST_HEADING=$(grep -m1 '^## ' CHANGELOG.md)
+          if ! echo "$FIRST_HEADING" | grep -qE "^## ${TAG_VERSION}[[:space:]]"; then
+            echo "::error::CHANGELOG.md's first ## heading does not match version ${TAG_VERSION}"
+            echo "::error::First heading found: ${FIRST_HEADING}"
+            echo "::error::Expected first heading: ## ${TAG_VERSION} — YYYY-MM-DD"
+            exit 1
+          fi
+          echo "✓ CHANGELOG.md leads with: ${FIRST_HEADING}"
+
+          echo "All documentation gates passed for v${TAG_VERSION} — proceeding to publish."
+
       - name: Verify npm auth
         run: |
           echo "Checking npm whoami..."
