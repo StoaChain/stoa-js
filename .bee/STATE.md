@@ -16,13 +16,13 @@
 ## Phases
 | # | Name | Status | Plan | Plan Review | Executed | Reviewed | Tested | Committed |
 |---|------|--------|------|-------------|----------|----------|--------|-----------|
-| 1 | safeCreationTime DRY refactor | REVIEWED | Yes | Yes (1) | Yes | Skipped (mechanical refactor; conductor-handled inline; grep-verified) | | |
-| 2 | Codex shape validation + foreign-key resolver pre-flight | REVIEWED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: RED-GREEN documented, 56/56 tests pass, typecheck clean) | | |
-| 3 | Guard hardening + UnknownPredicateError | REVIEWED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: 6/6 grep invariants verified, 106/106 tests pass, +22 new tests, zero locked-decision deviations) | | |
-| 4 | Documentation refresh | REVIEWED | Yes | Yes (1) | Yes | Skipped (docs-only; verification grep all PASS) | | |
-| 5 | Catch-block cleanup (logger-routed) | REVIEWED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: T5.4 gate PASS — 4 silent catches converted with error-binding, 3 console.error catches replaced byte-identically, dead outer try/catch on getLPTypeInfo dropped, 2/2 spy tests pass, typecheck clean) | | |
-| 6 | Tier semantics JSDoc + central logger seam | REVIEWED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: T6.7 verification gate PASS — grep clean, 498/498 tests excl. locked locale exception, build clean, 4 dist files, runtime ESM works, Logger type exported, 84 call sites swept across 12 files) | | |
-| 7 | Release artifacts + verification gate | REVIEWED | Yes | Yes (1) | Yes | Skipped (T7.4 verification gate IS the comprehensive final review: 3/3 workflow-gate parity, typecheck/build clean, 500 tests reported [499 on Windows runner per locked locale exception], 4 dist/observability/* files, runtime ESM `function function`, all grep invariants PASS, all placeholders patched, working tree commit-ready) | | |
+| 1 | safeCreationTime DRY refactor | COMMITTED | Yes | Yes (1) | Yes | Skipped (mechanical refactor; conductor-handled inline; grep-verified) | | ee5589d |
+| 2 | Codex shape validation + foreign-key resolver pre-flight | COMMITTED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: RED-GREEN documented, 56/56 tests pass, typecheck clean) | | ee5589d |
+| 3 | Guard hardening + UnknownPredicateError | COMMITTED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: 6/6 grep invariants verified, 106/106 tests pass, +22 new tests, zero locked-decision deviations) | | ee5589d |
+| 4 | Documentation refresh | COMMITTED | Yes | Yes (1) | Yes | Skipped (docs-only; verification grep all PASS) | | ee5589d |
+| 5 | Catch-block cleanup (logger-routed) | COMMITTED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: T5.4 gate PASS — 4 silent catches converted with error-binding, 3 console.error catches replaced byte-identically, dead outer try/catch on getLPTypeInfo dropped, 2/2 spy tests pass, typecheck clean) | | ee5589d |
+| 6 | Tier semantics JSDoc + central logger seam | COMMITTED | Yes | Yes (1) | Yes | Skipped (implementer self-verification: T6.7 verification gate PASS — grep clean, 498/498 tests excl. locked locale exception, build clean, 4 dist files, runtime ESM works, Logger type exported, 84 call sites swept across 12 files) | | ee5589d |
+| 7 | Release artifacts + verification gate | COMMITTED | Yes | Yes (1) | Yes | Skipped (T7.4 verification gate IS the comprehensive final review: 3/3 workflow-gate parity, typecheck/build clean, 500 tests reported [499 on Windows runner per locked locale exception], 4 dist/observability/* files, runtime ESM `function function`, all grep invariants PASS, all placeholders patched, working tree commit-ready) | | ee5589d |
 
 <!-- Valid Phase Status values:
   PENDING       — Phase exists but planning has not started.
@@ -142,6 +142,11 @@
 - **[Ship COMPLETE — v2.3.0 atomic-ship state]:** All 7 phases REVIEWED. v2.3.0 atomic-ship state on disk: package.json bumped, CHANGELOG prepended, README leads with 2.3.0 + version history + 3 submodule annotations + What's new section, 500/500 tests passing (en-US/Linux baseline; 499/500 on Windows due to locked locale exception), 53 files modified across all 7 phases, 4 NEW files (src/observability/{index,logger}.ts + 2 new test files), all placeholders patched, all workflow-gate parity verified. Ready for /bee:commit + tag + push.
 
 ## Last Action
+- Command: /bee:commit
+- Timestamp: 2026-05-03T01:30:00Z
+- Result: v2.3.0 atomic-ship COMMITTED as `ee5589d` on `main`. 74 files changed (+4206/-326). 22 file moves correctly detected as renames (R) — content history preserved for archive/unify housekeeping. All 7 phases marked COMMITTED. v2.3.0 ready for /bee:pollinate (push + tag v2.3.0 + npm publish + GitHub Release).
+
+## Previous Last Action
 - Command: /bee:ship
 - Timestamp: 2026-05-03T01:15:00Z
 - Result: Ship COMPLETE. v2.3.0 atomic-ship state on disk. 7 phases REVIEWED (1-4 by prior plan-all; 5/6/7 by /bee:ship resume with combined-wave implementers). Final implementation review skipped with rationale (matches v2.2.0/v2.1.2/v2.1.0 precedent — T7.4 verification gate IS the comprehensive cross-phase review). Ready for /bee:commit.
