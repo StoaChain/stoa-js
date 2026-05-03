@@ -6,26 +6,31 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`2.3.0` on public npmjs** — MINOR additive release. Closes 13 audit
-findings (7 MEDIUM tier + 6 LOW tier from the 2026-04-30 audit cycle)
-and introduces 2 new public surfaces: (1) a typed
-`UnknownPredicateError` class re-exported from the `./guard` subpath,
-and (2) a NEW `./observability` subpath with `Logger` type +
-`setLogger` mutator + `getLogger` accessor mirroring the existing
-`setPactReader` injection-seam pattern at `src/reads/pactReader.ts`.
-Other landings include the `safeCreationTime` DRY refactor (11
-inline copies removed), codex shape validation in `deserializeCodex`,
-foreign-key resolver pre-flight in `CodexSigningStrategy`, guard
-hardening (4-state `SmartAccountAuthPathsAnalysis` JSDoc + optional
-`firstSignableButUnsatisfied` field), and a catch-block consistency
-sweep that routes every `console.warn` / `console.error` in `src/`
-through the new logger seam. See [`CHANGELOG.md`](CHANGELOG.md) for
-the full v2.3.0 entry, and the **What's new in v2.3.0** section below
-for the public-API additions and copy-paste examples. v2.2.x
-consumers upgrade transparently — `instanceof Error`, existing
-analysis-flag access, and existing `error.message` access still work;
-the new typed-class discrimination and logger-seam injection are
-purely opt-in.
+**`3.0.0` on public npmjs** — **BREAKING** major release closing M3
+from the 2026-04-30 audit cycle (F-CORE-007 fabricated-fallback
+removal + comprehensive HIGH-risk catalog sweep). This is the FIRST
+major bump since **v2.0.0** (2026-05-01) — downstream consumers
+(OuronetUI, AncientHolder HUB) MUST update call sites to handle
+`null` returns. **16 fabricated-fallback widenings** land across 4
+interaction files: 15 functions widen from `Promise<T>` to
+`Promise<T | null>` so that consumers see RPC failures instead of
+fabricated chain values (`1.0` USD prices, `"0"` balances, sentinel
+`"N/A"` strings, fake `false` existence flags), plus 1 mixed-shape
+addition for `validateLiquidity` (preserves `valid: boolean` while
+adding optional `error?: string` to distinguish RPC failure from
+validation rejection). In lockstep, **14 NON-BREAKING logger-routing
+additions** across 5 files complete the silent-catch-elimination
+sweep started in v2.3.0 — every previously-silent diagnostic catch
+in `src/interactions/*` now routes through the
+`@stoachain/ouronet-core/observability` `getLogger().error()` seam.
+NO public-API removals (NFR-03): all 16 modified functions retain
+their names and parameter signatures; only return types widen. See
+[`CHANGELOG.md`](CHANGELOG.md) for the full v3.0.0 entry, and the
+**Migrating to v3.x** H2 section below for per-cluster `Before:` /
+`After:` migration patterns (Option B null-pattern locked decision
+per Q3..Q11 of the requirements). The optional **What's new in
+v3.0.0** section ships a copy-paste example for adapting to nullable
+returns.
 
 Every piece of blockchain logic that used to live in OuronetUI has
 landed here: Pact builders, signing pipeline (CodexSigningStrategy +
@@ -33,7 +38,7 @@ universalSignTransaction), encryption (V1 + V2 + smartDecrypt), guard
 analysis, gas calibration, codex codec, seed-type migration. OuronetUI
 is now a pure consumer.
 
-As of the current **v2.2.0** shipping line (originally introduced in
+As of the current **v3.0.0** shipping line (originally introduced in
 **v1.3.0**), OuronetCore integrates
 **[`@stoachain/dalos-crypto@^1.2.0`](https://www.npmjs.com/package/@stoachain/dalos-crypto)**
 via the `./dalos` subpath — consumers mint Ouronet accounts locally
@@ -176,14 +181,54 @@ public surfaces ship in lockstep: `UnknownPredicateError` on
 `./guard` and the `./observability` subpath. All changes additive;
 no existing exports change shape.
 
-**500 tests** pass on every commit (up from 458 v2.2.0 baseline;
-+42 new tests across the v2.3.0 audit-closure surfaces — codex-codec
-shape validation, foreign-key resolver pre-flight, guard
-classification + keyset-ref normalization + 4-state analysis +
-UnknownPredicateError, observability seam contract, catch-block
-routing). Published to the public npmjs registry via
-`.github/workflows/publish.yml` on every `v*` tag (which also creates
-a GitHub Release).
+**v3.0.0** — fabricated-fallbacks-removal release. **BREAKING.**
+Closes M3 from the 2026-04-30 audit cycle (lead finding F-CORE-007
+HIGH plus the comprehensive ~24-site catalog sweep). First major
+bump since v2.0.0. **Phase 1 — critical pricing functions (4
+BREAKING widenings):** `getStoaPriceUSD`, `getTokenDecimals`,
+`getPoolTotalFee`, `getDPTFMinMove` all widen from `Promise<number>`
+to `Promise<number | null>`; the previous `1.0` / `0` / `8`
+fabrication sentinels are replaced with `null`, and
+`Number.isFinite()` guards catch `NaN` from malformed chain data
+(e.g. `parseInt("abc", 10)` or `parseFloat(String(undefined))`).
+**Phase 2 — catalog sweep + bonus extras + magic-strings (12
+BREAKING widenings):** the 4-function string-balance cluster
+(`getIgnisBalance`, `getAccountTokenSupply`, `getOuroDispoCapacity`,
+`getVirtualOuro`) widens uniformly to `Promise<string | null>`;
+`LPTypeInfo` field types widen to `boolean | null` per inner flag
+(Approach A — function return type unchanged; chain-failure-status
+returns `false`, catch returns `null`, success returns `true`); the
+urStoa trio (`getUrStoaBalance`, `getUrStoaGuard`,
+`checkCoinAccountExists`) widens to nullable returns and
+`getUrStoaGuard` drops its sentinel `empty` shape; `validateLiquidity`
+gains an optional `error?: string` field on its mixed shape (preserves
+`valid: boolean` — consumers route a populated `error` to the
+network-failure banner and a `valid: false` with no `error` to the
+validation-failure message); `getMaxBuyMovieBooster` widens to
+`Promise<number | null>`; magic-string sentinels disappear from
+`getSWPSpawnLimit` and `getSWPInactiveLimit` (now `Promise<string |
+null>` — consumers swap `=== "N/A"` for `=== null`). **Phase 3 —
+logger parity (14 NON-BREAKING):** `getLogger().error("Error in
+<funcName>:", error)` routing lands in 14 previously-silent catches
+across 5 files (`dexFunctions.ts`, `ouroFunctions.ts`,
+`activateFunctions.ts`, `infoOneFunctions.ts`, and the
+`urStoaFunctions.ts` private helpers `verifyEd25519Sig` +
+`describeKeyset`) — completes the silent-catch elimination sweep
+started in v2.3.0. NO public-API removals (NFR-03): all 16 modified
+functions keep their names + parameter signatures; only return types
+widen. See the new **Migrating to v3.x** H2 section below for
+per-cluster `Before:` / `After:` migration patterns and the locked
+Option B / Approach A / mixed-shape / 3-state-preservation /
+magic-string-removal decisions (Q3..Q11) embedded verbatim.
+
+**558 tests** pass on every commit (up from 500 v2.3.0 baseline;
++58 new tests across the v3.0.0 fabricated-fallbacks-removal
+surfaces — interactions-pricing widenings, interactions-balance-
+cluster widenings + LPTypeInfo field widening + urStoa trio +
+validateLiquidity mixed shape + magic-string elimination,
+interactions-logger-parity routing). Published to the public npmjs
+registry via `.github/workflows/publish.yml` on every `v*` tag
+(which also creates a GitHub Release).
 
 ```bash
 npm install @stoachain/ouronet-core
@@ -356,6 +401,310 @@ continue to work unchanged — the typed-class discrimination from
 `./guard` and the logger-seam injection from `./observability` are
 both purely opt-in.
 
+## What's new in v3.0.0
+
+The v3.0.0 fabricated-fallbacks-removal release closes M3 from the
+2026-04-30 audit cycle (lead finding F-CORE-007 HIGH plus the
+~24-site catalog sweep). The headline change is uniform: every
+`src/interactions/*` read helper that previously fabricated a chain
+value on RPC failure (`1.0` USD prices, `"0"` balances, sentinel
+`"N/A"` strings, fake `false` existence flags) now returns `null`
+on failure so consumers can distinguish "RPC failed" from "chain
+returned this real value." Sixteen functions widen their return
+types in lockstep; consumers add `if (result === null) { ... }`
+branches at call sites:
+
+```ts
+import { getStoaPriceUSD } from "@stoachain/ouronet-core/interactions/ouroFunctions";
+
+// v3.0.0 — null on RPC failure / chain failure / non-finite parse,
+// real number on success.
+const price = await getStoaPriceUSD();
+
+if (price === null) {
+  // RPC failed or chain returned malformed data — show an error
+  // banner instead of computing positions against a fabricated 1.0.
+  showRPCErrorBanner("Could not fetch STOA/USD price");
+  return;
+}
+
+// price is a real Number.isFinite(...) value — safe to use.
+renderPriceLabel(`$${price.toFixed(4)}`);
+```
+
+`getLPTypeInfo` keeps its function-level return type but widens its
+inner field types so consumers can render mixed UI per flag (Frozen
+LP succeeded, Sleeping LP RPC-failed):
+
+```ts
+import { getLPTypeInfo } from "@stoachain/ouronet-core/interactions/addLiquidityFunctions";
+
+const info = await getLPTypeInfo(swpair); // { hasFrozenLP, hasSleepingLP }
+
+// Three states per flag now: true (chain confirmed exists),
+// false (chain confirmed absent OR chain failure-status), null (catch).
+if (info.hasFrozenLP === null) {
+  renderFrozenSection({ status: "rpc-error" });
+} else {
+  renderFrozenSection({ status: info.hasFrozenLP ? "present" : "absent" });
+}
+
+if (info.hasSleepingLP === null) {
+  renderSleepingSection({ status: "rpc-error" });
+} else {
+  renderSleepingSection({ status: info.hasSleepingLP ? "present" : "absent" });
+}
+```
+
+In lockstep, **14 NON-BREAKING logger-routing additions** across 5
+files complete the silent-catch-elimination sweep started in v2.3.0
+— previously-silent diagnostic catches in `dexFunctions.ts`,
+`ouroFunctions.ts`, `activateFunctions.ts`, `infoOneFunctions.ts`,
+and `urStoaFunctions.ts` private helpers now route via
+`getLogger().error("Error in <funcName>:", error)`. Consumers who
+called `setLogger(...)` (introduced in v2.3.0) automatically capture
+these new error events with no additional wiring.
+
+## Migrating to v3.x
+
+v3.0.0 is the first major bump since v2.0.0 and the deliberate
+forcing function for **Option B null-pattern** (locked Q3..Q11):
+sixteen `src/interactions/*` read helpers that previously fabricated
+chain values on RPC failure now widen their return types so consumers
+see RPC failures instead of silently fabricated sentinels (`1.0` USD
+prices, `"0"` balances, sentinel `"N/A"` strings, fake `false`
+existence flags). Fifteen functions widen from `Promise<T>` to
+`Promise<T | null>`; one (`validateLiquidity`) adds an optional
+`error?: string` field on its mixed shape to distinguish "RPC failed"
+from "validation rejected" without dropping the existing `valid:
+boolean` contract.
+
+Every breaking change below stems from the **Option B null-pattern**
+locked decision per the 2026-04-30 audit cycle: callers add `if
+(result === null) { showRPCErrorBanner(); return; }` branches before
+reading the previously-fabricated value. The 14 NON-BREAKING
+logger-routing additions across 5 files (Phase 3) require **NO
+consumer migration** — they are pure observability and existing call
+sites continue to work unchanged.
+
+### 1. Pricing-quartet — `Promise<number>` → `Promise<number | null>`
+
+`getStoaPriceUSD`, `getTokenDecimals`, `getPoolTotalFee`, and
+`getDPTFMinMove` (REQ-01..REQ-04) all widen to `Promise<number |
+null>`. The previous `1.0` / `0` / `8` fabrication sentinels are
+replaced with `null`, and `Number.isFinite()` guards catch `NaN`
+from malformed chain data (e.g. `parseInt("abc", 10)` or
+`parseFloat(String(undefined))`). All three failure paths — outer
+catch (network failure), `status !== "success"` branch (chain
+failure), and success-but-not-finite branch — now return `null`.
+
+These are transaction-relevant amounts: silently fabricating `1.0`
+for a missing USD price would have produced wildly wrong position
+values; silently returning `8` for missing token decimals would have
+produced off-by-many-orders-of-magnitude amounts. The **Option B
+null-pattern** locked decision makes this failure mode explicit at
+the call site.
+
+```ts
+// Before (v2.x):
+const price = await getStoaPriceUSD();          // number — could be fabricated 1.0
+const decimals = await getTokenDecimals(token); // number — could be fabricated 8
+renderPosition(price * amount, decimals);
+
+// After (v3.x):
+const price = await getStoaPriceUSD();
+const decimals = await getTokenDecimals(token);
+if (price === null || decimals === null) {
+  showRPCErrorBanner("Could not fetch pricing data");
+  return;
+}
+renderPosition(price * amount, decimals);
+```
+
+### 2. String-balance cluster — `Promise<string>` → `Promise<string | null>`
+
+`getIgnisBalance`, `getAccountTokenSupply`, `getOuroDispoCapacity`,
+and `getVirtualOuro` (REQ-05) all widen to `Promise<string | null>`
+as a tightly-coupled cluster — both `return "0"` sentinels in each
+function become `return null`. Per the locked decision, "changing
+only some risks a UI where some buttons silently misbehave on RPC
+failure while others now correctly disable" — these four functions
+move together so consumer-side balance-display UI can branch
+uniformly on `null`.
+
+Existing v2.3.0 logger routing is preserved; only the type and
+sentinel change. Catch paths still route via `getLogger().error()`.
+
+```ts
+// Before (v2.x):
+const balance = await getIgnisBalance(account); // string — could be fabricated "0"
+showBalance(formatToken(balance));
+
+// After (v3.x):
+const balance = await getIgnisBalance(account);
+if (balance === null) {
+  showBalanceUnknown(); // Distinguish RPC failure from a real "0" balance
+  return;
+}
+showBalance(formatToken(balance));
+```
+
+### 3. `getLPTypeInfo` field widening (Approach A — function return type unchanged)
+
+`getLPTypeInfo` (REQ-06) widens its inner field types from `{
+hasFrozenLP: boolean; hasSleepingLP: boolean }` to `{ hasFrozenLP:
+boolean | null; hasSleepingLP: boolean | null }`. Per the locked
+**Approach A** decision, the **function-level return type is
+UNCHANGED** — only the inner field types widen. Consumers can render
+granular per-flag mixed UI (e.g. Frozen LP succeeded but Sleeping LP
+RPC-failed). Approach B (function-level null) was rejected because
+it loses granularity; Approach C (separate error channel) was
+rejected because it is non-breaking and defeats the audit purpose.
+
+Per the Phase 2 P-001 fix, **3-state preservation** is the locked
+contract for each flag: chain-failure-status (`response.result.status
+!== "success"`) returns `false`, the inner IIFE catch returns `null`,
+and a successful chain read returns `true`. Both inner catches route
+via `getLogger().error("Error checking Frozen LP:", error)` and
+`("Error checking Sleeping LP:", error)`.
+
+```ts
+// Before (v2.x):
+const info = await getLPTypeInfo(swpair);
+// { hasFrozenLP: boolean; hasSleepingLP: boolean }
+if (info.hasFrozenLP) renderFrozen();
+if (info.hasSleepingLP) renderSleeping();
+
+// After (v3.x):
+const info = await getLPTypeInfo(swpair);
+// { hasFrozenLP: boolean | null; hasSleepingLP: boolean | null }
+if (info.hasFrozenLP === null) renderFrozenRpcError();
+else if (info.hasFrozenLP) renderFrozen();
+else renderFrozenAbsent();
+
+if (info.hasSleepingLP === null) renderSleepingRpcError();
+else if (info.hasSleepingLP) renderSleeping();
+else renderSleepingAbsent();
+```
+
+### 4. urStoa trio — `Promise<T>` → `Promise<T | null>`
+
+`getUrStoaBalance`, `getUrStoaGuard`, and `checkCoinAccountExists`
+(urStoa) (REQ-07) all widen to nullable returns as a tightly-coupled
+trio. `getUrStoaBalance` widens `Promise<number>` → `Promise<number
+| null>` (both `return 0` sites become `return null`).
+`getUrStoaGuard` widens `Promise<UrStoaGuardResult>` →
+`Promise<UrStoaGuardResult | null>` and **drops the sentinel** `empty
+= { exists: false, isKeyset: false, keys: [], pred: "" }` value;
+`null` now means RPC failed, while a real `UrStoaGuardResult` means
+the chain answered. **3-state preservation** in `getUrStoaGuard` is
+the locked contract: `null` (RPC failed), `{ exists: false, ... }`
+(chain confirmed no guard), `{ exists: true, ... }` (chain returned a
+real guard). `checkCoinAccountExists` widens `Promise<boolean>` →
+`Promise<boolean | null>` and gains `getLogger().error("Error in
+checkCoinAccountExists (urStoa):", error)` routing (was silent); JSDoc
+gains a cross-reference to the `ouroFunctions.ts:2088` sibling that
+already has the same nullable-boolean shape.
+
+```ts
+// Before (v2.x):
+const guard = await getUrStoaGuard(account);
+// guard is always present; "empty" sentinel masks RPC failure
+if (!guard.exists) renderCreateGuardForm();
+else renderEditGuardForm(guard);
+
+// After (v3.x):
+const guard = await getUrStoaGuard(account);
+if (guard === null) showRPCError();           // RPC failed
+else if (!guard.exists) renderCreateGuardForm(); // chain confirmed no guard
+else renderEditGuardForm(guard);              // chain returned a real guard
+```
+
+### 5. `validateLiquidity` mixed-shape addition
+
+`validateLiquidity` (REQ-08) **preserves** its existing `valid:
+boolean` field but adds an optional `error?: string` field on RPC
+failure. This is the **mixed-shape** locked decision: distinguishing
+"validation rejected" from "RPC failed" without collapsing both into
+`valid: false`. Consumers route a populated `error` to the
+network-failure banner and a `valid: false` with no `error` to the
+validation-failure message.
+
+The catch path now routes via `getLogger().error("Error in
+validateLiquidity:", error)` (preserved from v2.3.0) and sets the
+`error` field on the returned object.
+
+```ts
+// Before (v2.x):
+const result = await validateLiquidity(...);  // { valid: boolean; ... }
+if (!result.valid) showValidationFail("Liquidity rejected");
+
+// After (v3.x):
+const result = await validateLiquidity(...);  // { valid: boolean; error?: string; ... }
+if (result.error) {
+  showRPCErrorBanner(result.error);          // RPC failure
+} else if (!result.valid) {
+  showValidationFail("Liquidity rejected");  // real validation rejection
+}
+```
+
+### 6. `getMaxBuyMovieBooster` — `Promise<number>` → `Promise<number | null>`
+
+`getMaxBuyMovieBooster` (REQ-08) widens to `Promise<number | null>`,
+matching the Phase 1 `getPoolTotalFee` pattern exactly. Both `return
+0` sites become `return null`; the success-path falsy-collapse (`||
+0`) becomes a `Number.isFinite()` guard. A `0` max-buy is a plausible
+chain return (e.g. when a booster is sold out) — collapsing the
+fabricated-failure case onto the same `0` made the two states
+indistinguishable. Existing v2.3.0 logger routing is preserved.
+
+```ts
+// Before (v2.x):
+const max = await getMaxBuyMovieBooster(); // number — 0 could mean sold-out OR RPC fail
+if (max === 0) showSoldOut();              // ambiguous
+
+// After (v3.x):
+const max = await getMaxBuyMovieBooster();
+if (max === null) showRPCErrorBanner();    // RPC failed
+else if (max === 0) showSoldOut();         // chain confirmed sold-out
+else showAvailable(max);                   // chain returned real positive max
+```
+
+### 7. Magic-string elimination — `getSWPSpawnLimit` + `getSWPInactiveLimit`
+
+`getSWPSpawnLimit` and `getSWPInactiveLimit` (REQ-09) widen from
+`Promise<string>` (sentinel `"N/A"`) to `Promise<string | null>` per
+the **magic-string elimination** locked decision. Both `return
+"N/A"` sites in each function become `return null`; consumers swap
+`=== "N/A"` checks for `=== null` checks. Both functions also gain
+`getLogger().error("Error in <funcName>:", error)` routing in their
+catch paths (was silent).
+
+```ts
+// Before (v2.x):
+const spawnLimit = await getSWPSpawnLimit(swpair);
+if (spawnLimit === "N/A") showRPCError();
+else renderLimit(spawnLimit);
+
+// After (v3.x):
+const spawnLimit = await getSWPSpawnLimit(swpair);
+if (spawnLimit === null) showRPCError();
+else renderLimit(spawnLimit);
+```
+
+### Phase 3 logger-routing additions — no consumer migration required
+
+The 14 NON-BREAKING logger-routing additions across 5 files
+(`dexFunctions.ts`, `ouroFunctions.ts`, `activateFunctions.ts`,
+`infoOneFunctions.ts`, and the `urStoaFunctions.ts` private helpers
+`verifyEd25519Sig` + `describeKeyset`) are pure observability —
+return types and parameter signatures are unchanged. Consumers who
+called `setLogger(...)` (introduced in v2.3.0) automatically capture
+the new error events with no additional wiring; consumers who did
+not configure a logger continue to see the default `console.error`
+output that the seam falls back to. No migration is required for
+this set of changes.
+
 ## Migrating to v2.x
 
 Two breaking changes shipped in v2.0.0 — both consumer-side, no
@@ -438,7 +787,7 @@ Each is a subpath export of the package: `import { ... } from "@stoachain/ourone
 | `@stoachain/ouronet-core/observability` | **(v2.3.0+)** central logger seam mirroring `setPactReader`. Exports `Logger` type (`{ warn(msg, ...args), error(msg, ...args) }`), `setLogger(logger)` mutator (throws `TypeError("setLogger requires a non-null Logger")` on null/undefined), `getLogger()` accessor. Default routes `warn` to `console.warn` and `error` to `console.error` — consumers who do nothing observe identical behavior to direct `console.*` calls. |
 | `@stoachain/ouronet-core/guard` | **(v2.3.0+)** `UnknownPredicateError` typed class — thrown by `computeThreshold` on unrecognized predicates; `analyzeGuard` catches it and folds it into a `predicateRecognized: false` bit on the returned analysis. Also adds optional `firstSignableButUnsatisfied: number` field on `SmartAccountAuthPathsAnalysis`. |
 | `@stoachain/ouronet-core/pact` | `formatDecimalForPact`, `safeCreationTime`, `filterFreePositionData`, EU locale formatters, and **14 `buildXxxPactCode` builders** for every CFM function the ecosystem ships |
-| `@stoachain/ouronet-core/interactions` | Read helpers (`getXxxInfo`, `getXxxBalance`, `getHibernatedNonces…`) + non-CFM execute helpers (`executeWrapStoa`, `executeWrapUrStoa`, `executeNativeUrStoaTransfer`); **(v2.0.0+)** `simulateTransaction(pactCode, chainId)` (signature change — see Migrating to v2.x) |
+| `@stoachain/ouronet-core/interactions` | Read helpers (`getXxxInfo`, `getXxxBalance`, `getHibernatedNonces…`) + non-CFM execute helpers (`executeWrapStoa`, `executeWrapUrStoa`, `executeNativeUrStoaTransfer`); **(v2.0.0+)** `simulateTransaction(pactCode, chainId)` (signature change — see Migrating to v2.x); **(v3.0.0+)** 16 fabricated-fallback fabrications widened to `Promise<T \| null>` (BREAKING — see Migrating to v3.x); 14 logger-routing additions across 5 files complete the silent-catch elimination (NON-BREAKING) |
 | `@stoachain/ouronet-core/dalos` | **(v1.3.0+)** thin re-export of `@stoachain/dalos-crypto/registry` + `createOuronetAccount(registry, options)` convenience helper covering all 6 DALOS input modes. One-stop shop for browser-side key-gen; no need to install `dalos-crypto` as a separate dep. |
 
 ## Quick start — `/dalos` subpath
@@ -485,7 +834,7 @@ for deeper documentation on the cryptographic primitive itself.
 npm install
 npm run build        # tsc -p tsconfig.build.json → dist/
 npm run typecheck    # tsc --noEmit
-npm test             # vitest run — 500 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam, network, failover-client, timeouts, failover-submit, pact-reader, wallet-builder, transaction-errors, seed-type-migration, crypto-errors, crypto-v2-classification, package-version, observability-logger, phase5-catch-routing
+npm test             # vitest run — 558 tests across crypto, guard, gas, pact format, signing, strategy, codex, cfmBuilders, dalos integration, wallet, interactions-read-seam, network, failover-client, timeouts, failover-submit, pact-reader, wallet-builder, transaction-errors, seed-type-migration, crypto-errors, crypto-v2-classification, package-version, observability-logger, phase5-catch-routing, interactions-pricing, interactions-balance-cluster, interactions-logger-parity
 ```
 
 To hot-reload changes into OuronetUI (which now depends on the published

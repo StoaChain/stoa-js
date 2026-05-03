@@ -7,9 +7,12 @@
  *   - calling `console.error(...)` directly (the pre-Phase-5 routed shape on
  *     three of the seven sites — `getRotateKadenaInfo`, `getUnwrapStoaTarget`,
  *     `checkCoinAccountExists`); OR
- *   - silently swallowing the error with `} catch { return "0"; }` (the
+ *   - silently swallowing the error with `} catch { return <sentinel>; }` (the
  *     pre-Phase-5 silent shape on four of the seven sites — `getIgnisBalance`,
  *     `getAccountTokenSupply`, `getOuroDispoCapacity`, `getVirtualOuro`).
+ *     In v2.3.0 those four returned the string `"0"`; the v3.0.0 audit cycle
+ *     (`fabricated-fallbacks-removal`) widened them to `Promise<string | null>`
+ *     and the documented fallback became `null` (see Phase 2 / REQ-05).
  *
  * The audit closure rationale (F-CORE-019) is that mixed conventions across the
  * same module lose diagnostic info on the silent paths and create reviewer
@@ -18,11 +21,15 @@
  *
  * Strategy: install a throwing PactReader via `setPactReader(...)`, install a
  * spy logger via `setLogger(...)`, exercise one previously-silent function
- * (`getIgnisBalance` — exercises the path Phase 5 had to add error binding to)
- * and one previously-routed function (`getRotateKadenaInfo` — exercises the
- * `console.error` → `getLogger().error` swap), and assert (a) the spy logger
- * captured both calls, (b) the global `console.error` was never invoked
- * directly, and (c) each function still returned its documented fallback.
+ * (`getIgnisBalance` — exercises the path Phase 5 had to add error binding to,
+ * now also widened to `null` per v3.0.0) and one previously-routed function
+ * (`getRotateKadenaInfo` — exercises the `console.error` → `getLogger().error`
+ * swap), and assert (a) the spy logger captured both calls, (b) the global
+ * `console.error` was never invoked directly, and (c) each function still
+ * returned its documented fallback.
+ *
+ * Cross-reference: v3.0.0 audit cycle = `fabricated-fallbacks-removal` spec
+ * (`.bee/specs/2026-05-03-fabricated-fallbacks-removal/`), Phase 2 REQ-05.
  *
  * Both seams (PactReader + Logger) are restored in `afterEach` to keep tests
  * independent — Phase 6's `setLogger` and Phase 2b's `setPactReader` both hold
@@ -59,14 +66,14 @@ afterEach(() => {
 });
 
 describe("Phase 5 catch-block routing (F-CORE-019)", () => {
-  it("getIgnisBalance routes its catch via getLogger().error and returns the documented '0' fallback", async () => {
+  it("getIgnisBalance routes its catch via getLogger().error and returns the documented `null` fallback (post-v3.0.0 — was \"0\" in v2.3.0 per F-CORE-019 audit closure; v3.0.0 nullable widening per REQ-05)", async () => {
     const spyLogger: Logger = { warn: vi.fn(), error: vi.fn() };
     setLogger(spyLogger);
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const out = await getIgnisBalance("k:abc");
 
-    expect(out).toBe("0");
+    expect(out).toBeNull();
     expect(spyLogger.error).toHaveBeenCalledTimes(1);
     expect(spyLogger.error).toHaveBeenCalledWith(
       "Error in getIgnisBalance:",

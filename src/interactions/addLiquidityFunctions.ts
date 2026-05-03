@@ -57,8 +57,8 @@ export interface MultiStepAddLiquidityResult {
 
 // LP Type information
 export interface LPTypeInfo {
-  hasFrozenLP: boolean;
-  hasSleepingLP: boolean;
+  hasFrozenLP: boolean | null;
+  hasSleepingLP: boolean | null;
 }
 
 // Special LP Type parameters
@@ -218,8 +218,9 @@ export async function getLPTypeInfo(swpair: string): Promise<LPTypeInfo> {
         );
 
         return response?.result?.status === "success" ? response.result.data === true : false;
-      } catch {
-        return false;
+      } catch (error) {
+        getLogger().error("Error checking Frozen LP:", error);
+        return null;
       }
     })(),
 
@@ -232,8 +233,9 @@ export async function getLPTypeInfo(swpair: string): Promise<LPTypeInfo> {
         );
 
         return response?.result?.status === "success" ? response.result.data === true : false;
-      } catch {
-        return false;
+      } catch (error) {
+        getLogger().error("Error checking Sleeping LP:", error);
+        return null;
       }
     })()
   ]);
@@ -857,11 +859,13 @@ export async function getLiquidityData(
 /**
  * Validate asymmetric liquidity deviation.
  * Returns { valid: true, computed: string, max: string } on success,
- * or { valid: false } when deviation exceeds limit (enforce fails).
+ * { valid: false } when deviation exceeds limit (chain rejection / validation failure),
+ * or { valid: false, error: string } when the read itself throws (RPC failure).
+ * Consumers distinguish RPC failure from validation rejection by checking the optional `error` field.
  */
 export async function validateLiquidity(
   swpair: string, inputAmounts: string[]
-): Promise<{ valid: boolean; computed?: string; max?: string }> {
+): Promise<{ valid: boolean; computed?: string; max?: string; error?: string }> {
   try {
     const pactAmounts = `[${inputAmounts.map(a => { const s = String(a || "0"); return s.includes(".") ? s : s + ".0"; }).join(" ")}]`;
     // Try to run UEV_Liquidity — returns [computed_deviation, max_deviation] on success, throws on exceed
@@ -877,7 +881,10 @@ export async function validateLiquidity(
       return { valid: true, computed: parseVal(data[0]), max: parseVal(data[1]) };
     }
     return { valid: true };
-  } catch { return { valid: false }; }
+  } catch (error) {
+    getLogger().error("Error in validateLiquidity:", error);
+    return { valid: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /**

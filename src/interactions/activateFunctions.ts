@@ -60,7 +60,8 @@ export async function getDeployStandardAccountInfoOnly(
     const response = await pactRead(pactCode, { tier: "T5" });
     if (response?.result?.status === "success") return (response.result as any).data;
     return null;
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getDeployStandardAccountInfoOnly:", error);
     return null;
   }
 }

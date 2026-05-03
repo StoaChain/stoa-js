@@ -245,7 +245,8 @@ export async function getPrimordialPool(): Promise<string | null> {
       return String(response.result.data);
     }
     return null;
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getPrimordialPool:", error);
     return null;
   }
 }
@@ -1287,23 +1288,30 @@ export async function executeSmartSwapWithSlippage(
  * Fetch decimal precision for a DPTF token via DPTF.UR_Decimals
  * Returns the number of decimal places (e.g. 12 for high-precision tokens)
  */
-export async function getTokenDecimals(tokenId: string): Promise<number> {
+export async function getTokenDecimals(tokenId: string): Promise<number | null> {
   try {
     const response = await pactRead(`(${KADENA_NAMESPACE}.DPTF.UR_Decimals "${tokenId}")`, { tier: "T7" });
-
     if (!response || !response.result || response.result.status === "failure") {
-      return 8; // sensible default
+      return null;
     }
-
     const data = response.result.data;
-    if (typeof data === "number") return data;
-    if (data && typeof data === "object") {
-      if ("int" in data) return parseInt((data as any).int, 10);
-      if ("decimal" in data) return parseInt((data as any).decimal, 10);
+    if (typeof data === "number") {
+      return Number.isFinite(data) ? data : null;
     }
-    return 8;
-  } catch {
-    return 8;
+    if (data && typeof data === "object") {
+      if ("int" in data) {
+        const n = parseInt((data as any).int, 10);
+        return Number.isFinite(n) ? n : null;
+      }
+      if ("decimal" in data) {
+        const n = parseInt((data as any).decimal, 10);
+        return Number.isFinite(n) ? n : null;
+      }
+    }
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getTokenDecimals:", error);
+    return null;
   }
 }
 
@@ -1324,15 +1332,17 @@ function resolvePactDecimalLocal(val: any): number {
  * Fetch total fee for a swap pair pool via SWP.URC_PoolTotalFee
  * Returns fee as a decimal fraction (e.g. 0.003 = 0.3%)
  */
-export async function getPoolTotalFee(swpair: string): Promise<number> {
+export async function getPoolTotalFee(swpair: string): Promise<number | null> {
   try {
     const response = await pactRead(`(${KADENA_NAMESPACE}.SWP.URC_PoolTotalFee "${swpair}")`, { tier: "T5" });
-    if (response.result.status === "success") {
-      return resolvePactDecimalLocal(response.result.data);
+    if (response?.result?.status === "success") {
+      const value = resolvePactDecimalLocal(response.result.data);
+      return Number.isFinite(value) ? value : null;
     }
-    return 0;
-  } catch {
-    return 0;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getPoolTotalFee:", error);
+    return null;
   }
 }
 
@@ -1496,7 +1506,8 @@ export async function describeModule(moduleName: string): Promise<string | null>
       return data?.code || JSON.stringify(data);
     }
     return null;
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in describeModule:", error);
     return null;
   }
 }
@@ -1507,27 +1518,36 @@ export async function getSWPPrincipals(): Promise<string[]> {
     const res = await pactRead(`(${KADENA_NAMESPACE}.SWP.UR_Principals)`, { tier: "T7" });
     if (res.result.status === "failure") return [];
     return (Array.isArray(res.result.data) ? res.result.data : []) as string[];
-  } catch { return []; }
+  } catch (error) {
+    getLogger().error("Error in getSWPPrincipals:", error);
+    return [];
+  }
 }
 
 /** Fetch SWP spawn limit (WSTOA minimum to create a pool) */
-export async function getSWPSpawnLimit(): Promise<string> {
+export async function getSWPSpawnLimit(): Promise<string | null> {
   try {
     const res = await pactRead(`(${KADENA_NAMESPACE}.SWP.UR_SpawnLimit)`, { tier: "T7" });
-    if (res.result.status === "failure") return "N/A";
+    if (res.result.status === "failure") return null;
     const d = res.result.data;
-    return d && typeof d === "object" && (d as any).decimal ? (d as any).decimal : String(d ?? "N/A");
-  } catch { return "N/A"; }
+    return d && typeof d === "object" && (d as any).decimal ? (d as any).decimal : (d != null ? String(d) : null);
+  } catch (error) {
+    getLogger().error("Error in getSWPSpawnLimit:", error);
+    return null;
+  }
 }
 
 /** Fetch SWP inactive limit (WSTOA below which swap auto-deactivates) */
-export async function getSWPInactiveLimit(): Promise<string> {
+export async function getSWPInactiveLimit(): Promise<string | null> {
   try {
     const res = await pactRead(`(${KADENA_NAMESPACE}.SWP.UR_InactiveLimit)`, { tier: "T7" });
-    if (res.result.status === "failure") return "N/A";
+    if (res.result.status === "failure") return null;
     const d = res.result.data;
-    return d && typeof d === "object" && (d as any).decimal ? (d as any).decimal : String(d ?? "N/A");
-  } catch { return "N/A"; }
+    return d && typeof d === "object" && (d as any).decimal ? (d as any).decimal : (d != null ? String(d) : null);
+  } catch (error) {
+    getLogger().error("Error in getSWPInactiveLimit:", error);
+    return null;
+  }
 }
 
 // ── LP Entry Functions ────────────────────────────────────────────────────────
@@ -1573,7 +1593,8 @@ export async function getTrueFungibleLPEntry(
     if (!data || typeof data !== "object") return null;
 
     return data as TrueFungibleLPEntry;
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getTrueFungibleLPEntry:", error);
     return null;
   }
 }
@@ -1617,7 +1638,8 @@ export async function getOwnedSwapPairs(account: string): Promise<string[]> {
     const data = response.result.data;
     if (Array.isArray(data)) return data as string[];
     return [];
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getOwnedSwapPairs:", error);
     return [];
   }
 }
@@ -1895,7 +1917,8 @@ export async function getSwpairFromLpId(lpId: string): Promise<string | null> {
     const data = response.result.data;
     if (typeof data !== "string") return null;
     return data;
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getSwpairFromLpId:", error);
     return null;
   }
 }
@@ -1915,7 +1938,8 @@ export async function getSwpairsFromLpIds(lpIds: string[]): Promise<(string | nu
     const data = response.result.data;
     if (!Array.isArray(data)) return lpIds.map(() => null);
     return data.map((v: any) => (typeof v === "string" && v !== "" ? v : null));
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getSwpairsFromLpIds:", error);
     return lpIds.map(() => null);
   }
 }

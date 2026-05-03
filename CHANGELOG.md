@@ -2,6 +2,204 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.0.0 — 2026-05-03
+
+**BREAKING release: 15 fabricated-fallback fabrications widened from `Promise<T>` to `Promise<T | null>` plus 1 mixed-shape addition (`validateLiquidity` gains optional `error?: string` field per Q10/A10) so consumers see RPC failures instead of fabricated chain values; 14 NON-BREAKING logger-routing additions across 5 files complete the silent-catch-elimination sweep.**
+
+Closes the M3 milestone of the 2026-04-30 audit cycle (lead finding F-CORE-007 HIGH plus the broader ~24-site fabrication catalog). Sixteen interactions-surface functions previously swallowed RPC failures by returning fabricated sentinel values — `1.0` for STOA price, `8` for token decimals, `0` for fees and minimum-move amounts, `"0"` for balances and supplies, `false` for LP-type checks, an empty-guard sentinel for urStoa guards, and the magic string `"N/A"` for SWP limits. Consumers had no way to distinguish "RPC failed" from "the chain returned this value." This release widens those return types so RPC failures surface as `null` (or, for `validateLiquidity`, as a populated `error?: string` field on the existing object shape) and routes their previously silent catches through the project logger established in v2.3.0.
+
+The release composes four phases: Phase 1 closes the four HIGH-risk pricing functions flagged by F-CORE-007; Phase 2 sweeps the broader catalog (the four-function string-balance cluster, field-level `LPTypeInfo` widening, the urStoa trio, two audit-missed extras, and the two `"N/A"` magic-string eliminations); Phase 3 brings logger parity to fourteen remaining silent catches across five files so the silent-catch pattern is fully eliminated from the interactions surface; Phase 4 ships the release artifacts (this entry, the README migration guide, the package version bump, and the verification gate). This is the FIRST major bump since v2.0.0 (2026-05-01). All sixteen modified functions retain their NAMES and PARAMETER signatures (NFR-03) — only return types widen (15 nullable widenings + 1 structural addition). The `tests/types.test.ts` v1.7.0 type-regression lock has been updated atomically across Phases 1 + 2 to assert the new nullable signatures (NFR-02), so the public-surface contract continues to be machine-verified at every commit.
+
+Consumers should read the `## Migrating to v3.x` section of `README.md` for per-function `Before:` / `After:` migration patterns. The short version: every `=== "N/A"` check becomes `=== null`; every previously-fabricated read needs an `if (result === null) showRPCErrorBanner();` branch before the value is used; `LPTypeInfo` consumers can now render the per-flag mixed UI state (Frozen=true, Sleeping=null); `validateLiquidity` consumers route a populated `error` field to the network-failure banner.
+
+### Phase 1 — Critical pricing functions (4 BREAKING)
+
+The four functions flagged by F-CORE-007 (HIGH-risk) all return numeric values used directly in financial-math paths — STOA-to-USD price, token decimal counts, pool total fee, and DPTF minimum-move amounts. Each previously fabricated a plausible default on RPC failure (`1.0`, `8`, `0`, `0`) that consumers could not distinguish from a real chain answer. Each now resolves to `null` on any of three failure paths: outer catch (network exception), chain-level failure response (`status !== "success"`), and an unexpected payload that fails a `Number.isFinite()` guard. Each catch is routed through `getLogger().error("Error in <funcName>:", error)` per the v2.3.0 Phase 5 convention. The four functions are `getStoaPriceUSD` (`src/interactions/ouroFunctions.ts`), `getTokenDecimals` and `getPoolTotalFee` (`src/interactions/dexFunctions.ts`), and `getDPTFMinMove` (`src/interactions/ouroFunctions.ts`). `getDPTFMinMove` was promoted into Phase 1 because it is structurally identical to the other three pricing functions; the audit citation `dexFunctions.ts:1318` was an imprecise line reference whose actual subject is `getPoolTotalFee`.
+
+### Phase 2 — Catalog HIGH-risk + bonus extras + magic-strings (12 BREAKING)
+
+The broader catalog sweep covers four clusters. **The four-function string-balance cluster** (REQ-05) — `getIgnisBalance`, `getAccountTokenSupply`, `getOuroDispoCapacity`, `getVirtualOuro` (all in `src/interactions/ouroFunctions.ts`) — moves together as a tightly-coupled cluster because partial migration would leave a UI in which some buttons silently misbehave on RPC failure while others correctly disable. All four widen `Promise<string>` to `Promise<string | null>`; both `return "0"` sites in each function become `return null`; the v2.3.0 logger routing is preserved. **The `LPTypeInfo` widening** (REQ-06, Approach A locked) widens the inner field shapes from `{ hasFrozenLP: boolean; hasSleepingLP: boolean }` to `{ hasFrozenLP: boolean | null; hasSleepingLP: boolean | null }`; the function-level return shape (`Promise<LPTypeInfo>`) is preserved so callers can render granular per-flag mixed UI state (Frozen=true, Sleeping=null). Both inner IIFEs return `null` on failure (was `false`) and route through `getLogger().error()` with distinguished contextual messages. The 3-state preservation guarantee (chain-failure-status returns `false`, catch returns `null`, success returns `true`) was added per the Phase 2 P-001 plan-review fix. **The urStoa trio** (REQ-07) — `getUrStoaBalance`, `getUrStoaGuard`, `checkCoinAccountExists` (all in `src/interactions/urStoaFunctions.ts`) — aligns with the nullable house style: `getUrStoaBalance` widens to `Promise<number | null>`; `getUrStoaGuard` widens to `Promise<UrStoaGuardResult | null>` and drops the previously-fabricated empty-guard sentinel object so consumers gain an explicit three-state flow (RPC failure / no guard yet / guard present); `checkCoinAccountExists` widens to `Promise<boolean | null>` and gains a JSDoc cross-reference to its semantically aligned sibling in `src/interactions/ouroFunctions.ts` (the rename to disambiguate names is deferred to a separate breaking change). **Two audit-missed extras** (REQ-08): `validateLiquidity` (`src/interactions/addLiquidityFunctions.ts`) gains an optional `error?: string` field on its existing `{ valid: boolean; ... }` return shape so consumers can distinguish RPC failure (populated `error`) from real validation rejection (`valid: false` with no `error`); `getMaxBuyMovieBooster` (`src/interactions/ouroFunctions.ts`) widens to `Promise<number | null>` matching Phase 1's pattern. **The two magic-string eliminations** (REQ-09): `getSWPSpawnLimit` and `getSWPInactiveLimit` (both in `src/interactions/dexFunctions.ts`) stop returning the string sentinel `"N/A"` and instead widen to `Promise<string | null>`; both gain logger routing on their previously silent catches; consumers swap their `=== "N/A"` checks for `=== null` checks, removing a class of stringly-typed sentinel from the public surface.
+
+### Phase 3 — Logger parity for remaining silent catches (14 NON-BREAKING)
+
+Fourteen remaining silent catches across five files gain `getLogger().error("Error in <funcName>:", error)` routing without any type changes — these functions are already correctly modelled as nullable or as empty-collection returns; the only gap was that their catches did not visibly log the RPC failure. The fourteen functions are: in `src/interactions/dexFunctions.ts` — `getSWPPrincipals`, `getTrueFungibleLPEntry`, `getOwnedSwapPairs`, `getSwpairFromLpId`, `getSwpairsFromLpIds`, `getPrimordialPool`, `describeModule`; in `src/interactions/ouroFunctions.ts` — `getDPTFIssueInfo`, `getSublimateInfo`, `getCompressInfo`; in `src/interactions/activateFunctions.ts` — `getDeployStandardAccountInfoOnly`; in `src/interactions/infoOneFunctions.ts` — `getClearDispoInfo`; in `src/interactions/urStoaFunctions.ts` — the file-private helpers `verifyEd25519Sig` and `describeKeyset`. End-state goal: the silent-catch pattern is fully eliminated from the interactions surface; a maintainer audit grep for unrouted catch-then-return patterns in `src/interactions/*.ts` returns zero matches. The two LP-type-info inner-IIFE catches that would otherwise belong to this set are already covered by REQ-06 (Phase 2) so they are out of REQ-10 scope to avoid double-coverage.
+
+### Public API impact
+
+- **Breaking change — `getStoaPriceUSD` (`@stoachain/ouronet-core/interactions/ouroFunctions`):** return type widens from `Promise<number>` to `Promise<number | null>`. Three failure paths now yield `null`: outer catch, chain-level `status !== "success"`, and a success payload that fails a `Number.isFinite()` guard (replacing the previous `Number(...) || 1.0` fabrication). The optional `skipTempWatcher` parameter is preserved unchanged.
+
+  Before:
+  ```ts
+  const price: number = await getStoaPriceUSD();
+  const usd = stoaAmount * price;  // silently uses 1.0 on RPC failure
+  ```
+
+  After:
+  ```ts
+  const price: number | null = await getStoaPriceUSD();
+  if (price === null) { showRPCErrorBanner(); return; }
+  const usd = stoaAmount * price;
+  ```
+
+- **Breaking change — `getTokenDecimals` (`@stoachain/ouronet-core/interactions/dexFunctions`):** return type widens from `Promise<number>` to `Promise<number | null>`. All three `return 8` sites become `return null`: chain-failure branch, unexpected-data-shape branch, catch. Two defensive `Number.isFinite()` guards on `parseInt` results catch malformed `{int: "abc"}` chain data.
+
+  Before:
+  ```ts
+  const decimals: number = await getTokenDecimals(tokenId);
+  const display = amount / 10 ** decimals;  // silently uses 8 on RPC failure
+  ```
+
+  After:
+  ```ts
+  const decimals: number | null = await getTokenDecimals(tokenId);
+  if (decimals === null) { showRPCErrorBanner(); return; }
+  const display = amount / 10 ** decimals;
+  ```
+
+- **Breaking change — `getPoolTotalFee` (`@stoachain/ouronet-core/interactions/dexFunctions`):** return type widens from `Promise<number>` to `Promise<number | null>`. Both `return 0` sites become `return null`. A `Number.isFinite()` guard wraps the `resolvePactDecimalLocal` helper return so that helper-internal `NaN` results are caught at the user-facing boundary. The helper itself is unchanged because it is not user-facing.
+
+  Before:
+  ```ts
+  const fee: number = await getPoolTotalFee(swpair);
+  const cost = amount * fee;  // silently uses 0 (free swap!) on RPC failure
+  ```
+
+  After:
+  ```ts
+  const fee: number | null = await getPoolTotalFee(swpair);
+  if (fee === null) { disableSwapButton(); showRPCErrorBanner(); return; }
+  const cost = amount * fee;
+  ```
+
+- **Breaking change — `getDPTFMinMove` (`@stoachain/ouronet-core/interactions/ouroFunctions`):** return type widens from `Promise<number>` to `Promise<number | null>`. Both `return 0` sites become `return null`; the success-path `parseFloat(...) || 0` falsy-coalesce becomes `parseFloat(...)` followed by a `Number.isFinite()` guard.
+
+  Before:
+  ```ts
+  const minMove: number = await getDPTFMinMove(tokenId);
+  if (amount < minMove) showError();  // silently uses 0 on RPC failure
+  ```
+
+  After:
+  ```ts
+  const minMove: number | null = await getDPTFMinMove(tokenId);
+  if (minMove === null) { showRPCErrorBanner(); return; }
+  if (amount < minMove) showError();
+  ```
+
+- **Breaking change — string-balance cluster (`@stoachain/ouronet-core/interactions/ouroFunctions`):** four functions move together as a tightly-coupled cluster — `getIgnisBalance`, `getAccountTokenSupply`, `getOuroDispoCapacity`, `getVirtualOuro`. Each widens from `Promise<string>` to `Promise<string | null>`; both `return "0"` sites in each function become `return null`. The four move together because partial migration would create a UI in which some buttons silently misbehave on RPC failure while others correctly disable; this risk was explicitly surfaced in research and locked at requirements time.
+
+  Before:
+  ```ts
+  const balance: string = await getIgnisBalance(account);
+  if (parseFloat(balance) > 0) enableButton();  // silently uses "0" on RPC failure
+  ```
+
+  After:
+  ```ts
+  const balance: string | null = await getIgnisBalance(account);
+  if (balance === null) { disableButton(); showRPCErrorBanner(); return; }
+  if (parseFloat(balance) > 0) enableButton();
+  ```
+
+- **Breaking change — `LPTypeInfo` field widening (`@stoachain/ouronet-core/interactions/addLiquidityFunctions`):** the `LPTypeInfo` type's two inner fields widen from `boolean` to `boolean | null` so that "Frozen LP check failed" and "Sleeping LP check failed" can be rendered as distinct mixed states. The function-level return shape (`Promise<LPTypeInfo>`) is preserved (the function still resolves to an `LPTypeInfo` object); only the two boolean flags inside the object widen to allow `null`. Both inner failure paths return `null` instead of `false`. Approach A (field-level widening) was selected over function-level nullability and over an error-channel approach because it preserves the maximum amount of granular information for consumer UIs. The 3-state preservation guarantee per the Phase 2 P-001 fix: chain-failure-status returns `false` (real chain answer), catch returns `null` (RPC failure), success returns `true` (real chain answer).
+
+  Before:
+  ```ts
+  type LPTypeInfo = { hasFrozenLP: boolean; hasSleepingLP: boolean };
+  const info = await getLPTypeInfo(account);
+  if (info.hasFrozenLP) showFrozenBadge();  // silently false on RPC failure
+  ```
+
+  After:
+  ```ts
+  type LPTypeInfo = { hasFrozenLP: boolean | null; hasSleepingLP: boolean | null };
+  const info = await getLPTypeInfo(account);
+  if (info.hasFrozenLP === null) showFrozenIndeterminateBadge();
+  else if (info.hasFrozenLP) showFrozenBadge();
+  if (info.hasSleepingLP === null) showSleepingIndeterminateBadge();
+  else if (info.hasSleepingLP) showSleepingBadge();
+  ```
+
+- **Breaking change — urStoa trio (`@stoachain/ouronet-core/interactions/urStoaFunctions`):** three functions align with the nullable house style. `getUrStoaBalance` widens from `Promise<number>` to `Promise<number | null>`; both `return 0` sites become `return null`. `getUrStoaGuard` widens from `Promise<UrStoaGuardResult>` to `Promise<UrStoaGuardResult | null>`; the previously-fabricated `empty = {exists:false, isKeyset:false, keys:[], pred:""}` sentinel object is dropped in favour of `null` on failure; consumers gain an explicit three-state flow (RPC failure / no guard yet / guard present). `checkCoinAccountExists` widens from `Promise<boolean>` to `Promise<boolean | null>`; the previously silent catch now routes through the project logger; both failure paths return `null` instead of `false`. The function gains a JSDoc cross-reference to its semantically aligned sibling in the OURO functions module, explaining that the two functions share the nullable-boolean shape but differ in account scope (urStoa vs coin); the rename to disambiguate names is deferred to a separate breaking change.
+
+  Before:
+  ```ts
+  const guard: UrStoaGuardResult = await getUrStoaGuard(account);
+  if (guard.exists) renderEditGuardForm(guard);
+  else renderCreateGuardForm();  // silently fabricates empty guard on RPC failure
+  ```
+
+  After:
+  ```ts
+  const guard: UrStoaGuardResult | null = await getUrStoaGuard(account);
+  if (guard === null) { showRPCErrorBanner(); return; }
+  if (!guard.exists) renderCreateGuardForm();
+  else renderEditGuardForm(guard);
+  ```
+
+- **Breaking change — `validateLiquidity` mixed-shape addition (`@stoachain/ouronet-core/interactions/addLiquidityFunctions`):** the boolean validity flag is preserved, and an optional `error?: string` field is added that is populated only when an RPC error occurred. This is a mixed-shape addition (NOT a nullable widening): the existing `{ valid: boolean; ... }` shape gains an OPTIONAL `error?: string` field per the Q10/A10 locked decision. Consumers therefore route a populated `error` to a network-failure banner and a `valid: false` with no `error` to a validation-failure message.
+
+  Before:
+  ```ts
+  const result = await validateLiquidity(...);
+  if (!result.valid) showValidationFail();  // silently catches RPC failure as valid:false
+  ```
+
+  After:
+  ```ts
+  const result = await validateLiquidity(...);
+  if (result.error) showRPCErrorBanner(result.error);
+  else if (!result.valid) showValidationFail();
+  ```
+
+- **Breaking change — `getMaxBuyMovieBooster` (`@stoachain/ouronet-core/interactions/ouroFunctions`):** return type widens from `Promise<number>` to `Promise<number | null>`. Both `return 0` sites become `return null`; the success-path `|| 0` falsy-coalesce becomes a `Number.isFinite()` guard.
+
+  Before:
+  ```ts
+  const maxBuy: number = await getMaxBuyMovieBooster(account);
+  if (amount > maxBuy) showLimitExceeded();  // silently uses 0 on RPC failure
+  ```
+
+  After:
+  ```ts
+  const maxBuy: number | null = await getMaxBuyMovieBooster(account);
+  if (maxBuy === null) { showRPCErrorBanner(); return; }
+  if (amount > maxBuy) showLimitExceeded();
+  ```
+
+- **Breaking change — magic-string eliminations: `getSWPSpawnLimit` and `getSWPInactiveLimit` (`@stoachain/ouronet-core/interactions/dexFunctions`):** both functions widen from `Promise<string>` to `Promise<string | null>`. Both `return "N/A"` sites become `return null`. Both gain `getLogger().error()` routing on their previously silent catches. Consumers swap `=== "N/A"` checks for `=== null` checks, removing a class of stringly-typed sentinel from the public surface (Q11/A11 locked decision).
+
+  Before:
+  ```ts
+  const limit = await getSWPSpawnLimit(swpair);
+  if (limit === "N/A") showUnknownLimit();  // stringly-typed sentinel
+  else displayLimit(limit);
+  ```
+
+  After:
+  ```ts
+  const limit = await getSWPSpawnLimit(swpair);
+  if (limit === null) showRPCErrorBanner();
+  else displayLimit(limit);
+  ```
+
+- **Non-breaking observability — fourteen logger-routing additions across five files:** the fourteen previously silent catches in `dexFunctions.ts` (`getSWPPrincipals`, `getTrueFungibleLPEntry`, `getOwnedSwapPairs`, `getSwpairFromLpId`, `getSwpairsFromLpIds`, `getPrimordialPool`, `describeModule`), `ouroFunctions.ts` (`getDPTFIssueInfo`, `getSublimateInfo`, `getCompressInfo`), `activateFunctions.ts` (`getDeployStandardAccountInfoOnly`), `infoOneFunctions.ts` (`getClearDispoInfo`), and `urStoaFunctions.ts` (file-private helpers `verifyEd25519Sig` and `describeKeyset`) gain `getLogger().error("Error in <funcName>:", error)` routing. No return-type changes — these functions are already correctly modelled as nullable or as empty-collection returns. End-state goal: the silent-catch pattern is fully eliminated from the interactions surface.
+
+- **No public-API removals (NFR-03):** all sixteen modified functions retain their NAMES and PARAMETER signatures. No exports are removed. The release is breaking only in the sense of return-type widening (15 nullable widenings + 1 structural addition for `validateLiquidity`). Consumers who rebuild against v3.0.0 will see TypeScript errors at every call site that does not handle the `null` (or, for `validateLiquidity`, the optional `error` field) — this is the deliberate forcing function that surfaces every consumer call site for explicit migration.
+
+### Migration
+
+See the `## Migrating to v3.x` section of `README.md` for the full per-function `Before:` / `After:` migration patterns. Short version: every consumer call site that previously consumed one of the sixteen modified functions needs an explicit RPC-failure branch. For the fifteen nullable widenings, add `if (result === null) showRPCErrorBanner();` before reading the previously-fabricated value. For `validateLiquidity`, route a populated `error` field to the network-failure banner (`if (result.error) showRPCErrorBanner(result.error); else if (!result.valid) showValidationFail();`). For the two magic-string eliminations (`getSWPSpawnLimit`, `getSWPInactiveLimit`), swap `=== "N/A"` checks for `=== null` checks. For `LPTypeInfo` consumers, render the per-flag mixed UI state (Frozen=true, Sleeping=null) per Approach A — each of the two flags is now individually nullable. Consumer-side migration code in OuronetUI and AncientHolder HUB is OUT OF SCOPE per `spec.md` — those repos handle their own update work informed by the README.
+
+### Stats
+
+Files changed:
+
+- NEW: `tests/interactions-pricing.test.ts`, `tests/interactions-balance-cluster.test.ts`, `tests/interactions-logger-parity.test.ts`
+- MODIFIED: `src/interactions/ouroFunctions.ts`, `src/interactions/dexFunctions.ts`, `src/interactions/addLiquidityFunctions.ts`, `src/interactions/urStoaFunctions.ts`, `src/interactions/activateFunctions.ts`, `src/interactions/infoOneFunctions.ts`, `tests/types.test.ts`, `tests/phase5-catch-routing.test.ts`, `package.json`, `CHANGELOG.md`, `README.md`
+
+Test count: **558** passing (up from 500 v2.3.0 baseline; +58 new in v3.0.0).
+
 ## 2.3.0 — 2026-05-02
 
 **Additive medium-and-low audit closures release. MINOR, non-breaking.**

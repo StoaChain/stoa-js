@@ -468,7 +468,8 @@ export async function getClearDispoInfo(
     const response = await pactRead(`(${KADENA_NAMESPACE}.INFO-ONE.DPTF|INFO_ClearDispo "${patronAddress}" "${accountAddress}")`, { tier: "T2" });
     if (response.result.status === "failure") return null;
     return (response.result as any).data ?? null;
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in getClearDispoInfo:", error);
     return null;
   }
 }

@@ -46,7 +46,8 @@ function verifyEd25519Sig(hashBase64Url: string, sigHex: string, pubKeyHex: stri
     const hashBytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) hashBytes[i] = bin.charCodeAt(i);
     return ed25519.verify(hexToU8(sigHex), hashBytes, hexToU8(pubKeyHex));
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in verifyEd25519Sig:", error);
     return false;
   }
 }
@@ -63,20 +64,24 @@ export interface UrStoaGuardResult {
 
 // ── Balance ─────────────────────────────────────────────────────────────────
 
-export async function getUrStoaBalance(account: string): Promise<number> {
+export async function getUrStoaBalance(account: string): Promise<number | null> {
   try {
     const pactCode = `(try 0.0 (coin.UR_UR|Balance "${account}"))`;
     const response = await pactRead(pactCode, { tier: "T5" });
     if (response?.result?.status === "success") {
       const data = (response.result as any).data;
-      if (typeof data === "number") return data;
-      if (data?.decimal !== undefined) return parseFloat(data.decimal);
-      return parseFloat(String(data));
+      if (typeof data === "number") return Number.isFinite(data) ? data : null;
+      if (data?.decimal !== undefined) {
+        const n = parseFloat(data.decimal);
+        return Number.isFinite(n) ? n : null;
+      }
+      const n = parseFloat(String(data));
+      return Number.isFinite(n) ? n : null;
     }
-    return 0;
+    return null;
   } catch (error) {
     getLogger().error("Error fetching UrStoa balance:", error);
-    return 0;
+    return null;
   }
 }
 
@@ -93,14 +98,15 @@ async function describeKeyset(ksRef: string): Promise<{ keys: string[]; pred: st
       }
     }
     return null;
-  } catch {
+  } catch (error) {
+    getLogger().error("Error in describeKeyset:", error);
     return null;
   }
 }
 
 // ── Guard ───────────────────────────────────────────────────────────────────
 
-export async function getUrStoaGuard(account: string): Promise<UrStoaGuardResult> {
+export async function getUrStoaGuard(account: string): Promise<UrStoaGuardResult | null> {
   const empty: UrStoaGuardResult = { exists: false, isKeyset: false, keys: [], pred: "" };
   try {
     const pactCode = `(try false (coin.UR_UR|Guard "${account}"))`;
@@ -159,10 +165,10 @@ export async function getUrStoaGuard(account: string): Promise<UrStoaGuardResult
       }
       return empty;
     }
-    return empty;
+    return null;
   } catch (error) {
     getLogger().error("Error fetching UrStoa guard:", error);
-    return empty;
+    return null;
   }
 }
 
@@ -501,17 +507,31 @@ export async function executeUnstakeUrStoa(params: UnstakeUrStoaParams): Promise
 
 // ─── Check if account exists in coin table ───────────────────────────────────
 /**
- * Polls for account existence using:
+ * Polls for urStoa account existence in the coin table using:
  * (if (= (typeof (try false (coin.UR_Balance account))) "bool") false true)
- * Returns true if account exists, false otherwise.
+ *
+ * Returns: true = exists, null = doesn't exist OR RPC error (both collapse
+ * to a non-existence/uncertainty signal — callers should treat null as
+ * "do not proceed assuming the account exists").
+ *
+ * @see {@link checkCoinAccountExists} in `ouroFunctions.ts` — both functions
+ * share the nullable-boolean return shape (`Promise<boolean | null>`) but
+ * differ in account scope: this one probes urStoa account existence via
+ * `coin.UR_Balance`; the sibling probes a generic coin account via
+ * `coin.get-balance`. Renaming to disambiguate the two identifiers is
+ * deferred to a separate breaking change to keep the consumer migration
+ * surface tight.
  */
-export async function checkCoinAccountExists(account: string): Promise<boolean> {
+export async function checkCoinAccountExists(account: string): Promise<boolean | null> {
   const pactCode = `(if (= (typeof (try false (coin.UR_Balance "${account}"))) "bool") false true)`;
   try {
     const r = await pactRead(pactCode, { tier: "T5" });
-    if (r?.result?.status === "success") return r.result.data === true;
-    return false;
-  } catch { return false; }
+    if (r?.result?.status === "success") return r.result.data === true ? true : null;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in checkCoinAccountExists (urStoa):", error);
+    return null;
+  }
 }
 
 // ─── Execute Collect UrStoa ───────────────────────────────────────────────────

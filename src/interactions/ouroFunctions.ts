@@ -1448,19 +1448,20 @@ export async function movieBoosterBuy(
 export async function getMaxBuyMovieBooster(
   account: string,
   native: boolean
-): Promise<number> {
+): Promise<number | null> {
   try {
     const response = await pactRead(`(${KADENA_NAMESPACE}.MB.URC_GetMaxBuy "${account}" ${native})`, { tier: "T5" });
 
     if (!response || !response.result || response.result.status === "failure") {
-      return 0;
+      return null;
     }
 
     const data = response.result.data as any;
-    return data?.int || 0;
+    const value = Number(data?.int);
+    return Number.isFinite(value) ? value : null;
   } catch (error) {
     getLogger().error("Error getting max buy for movie booster:", error);
-    return 0;
+    return null;
   }
 }
 
@@ -1830,12 +1831,17 @@ export async function coilOuroToAuryn(
 /**
  * Get IGNIS (GAS) balance for an Ouronet account.
  * Uses DPTF.UR_AccountSupply with the IGNIS token ID.
+ *
+ * Returns the balance as a decimal string on success, or `null` when the
+ * RPC call fails or the chain returns a non-success status. Consumers must
+ * distinguish "no balance" (legitimate `"0"` from chain) from "RPC failure"
+ * (`null`) — see v3.0.0 fabricated-fallbacks-removal.
  */
 import { TOKEN_ID_IGNIS } from "../constants";
 export const IGNIS_TOKEN_ID = TOKEN_ID_IGNIS;
 
 // All catch blocks below route via getLogger().error(...) from ../observability (F-CORE-019, v2.3.0)
-export async function getIgnisBalance(account: string): Promise<string> {
+export async function getIgnisBalance(account: string): Promise<string | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.DPTF.UR_AccountSupply "${IGNIS_TOKEN_ID}" "${account}")`;
     const response = await pactRead(pactCode, { tier: "T5" });
@@ -1843,18 +1849,21 @@ export async function getIgnisBalance(account: string): Promise<string> {
     if (response?.result?.status === "success") {
       return String(mayComeWithDeimal((response.result as any).data));
     }
-    return "0";
+    return null;
   } catch (error) {
     getLogger().error("Error in getIgnisBalance:", error);
-    return "0";
+    return null;
   }
 }
 
 /**
  * Fetch DPTF token balance for any account via DPTF.UR_AccountSupply
  * (ouronet-ns.DPTF.UR_AccountSupply <token-id> <account>)
+ *
+ * Returns the balance as a decimal string on success, or `null` when the
+ * RPC call fails or the chain returns a non-success status (v3.0.0).
  */
-export async function getAccountTokenSupply(tokenId: string, account: string): Promise<string> {
+export async function getAccountTokenSupply(tokenId: string, account: string): Promise<string | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.DPTF.UR_AccountSupply "${tokenId}" "${account}")`;
     const response = await pactRead(pactCode, { tier: "T5" });
@@ -1862,17 +1871,20 @@ export async function getAccountTokenSupply(tokenId: string, account: string): P
     if (response?.result?.status === "success") {
       return String(mayComeWithDeimal((response.result as any).data));
     }
-    return "0";
+    return null;
   } catch (error) {
     getLogger().error("Error in getAccountTokenSupply:", error);
-    return "0";
+    return null;
   }
 }
 
 /**
  * Fetch OURO dispo capacity for an account via DALOS.UR_DISPOSupply
+ *
+ * Returns the capacity as a decimal string on success, or `null` when the
+ * RPC call fails or the chain returns a non-success status (v3.0.0).
  */
-export async function getOuroDispoCapacity(account: string): Promise<string> {
+export async function getOuroDispoCapacity(account: string): Promise<string | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.DALOS.UR_DISPOSupply "${account}")`;
     const response = await pactRead(pactCode, { tier: "T5" });
@@ -1880,28 +1892,31 @@ export async function getOuroDispoCapacity(account: string): Promise<string> {
     if (response?.result?.status === "success") {
       return String(mayComeWithDeimal((response.result as any).data));
     }
-    return "0";
+    return null;
   } catch (error) {
     getLogger().error("Error in getOuroDispoCapacity:", error);
-    return "0";
+    return null;
   }
 }
 
 /**
  * Fetch Virtual OURO balance for an account
  * (ouronet-ns.TFT.URC_VirtualOuro <account>)
+ *
+ * Returns the virtual balance as a decimal string on success, or `null` when
+ * the RPC call fails or the chain returns a non-success status (v3.0.0).
  */
-export async function getVirtualOuro(account: string): Promise<string> {
+export async function getVirtualOuro(account: string): Promise<string | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.TFT.URC_VirtualOuro "${account}")`;
     const response = await pactRead(pactCode, { tier: "T5" });
     if (response?.result?.status === "success") {
       return String(mayComeWithDeimal((response.result as any).data));
     }
-    return "0";
+    return null;
   } catch (error) {
     getLogger().error("Error in getVirtualOuro:", error);
-    return "0";
+    return null;
   }
 }
 
@@ -2048,17 +2063,26 @@ export async function rotateKadenaPaymentKey(
   return await submit(signedTransaction);
 }
 
-export async function getStoaPriceUSD(options?: { skipTempWatcher?: boolean }): Promise<number> {
+/**
+ * Read the live STOA/USD price from the on-chain KDA-PID oracle.
+ *
+ * Returns `null` when the oracle is unreachable, the chain call returns a
+ * non-success status, or the decoded value is not a finite number. Callers
+ * are expected to handle the nullable contract explicitly — no fabricated
+ * fallback price is ever returned.
+ */
+export async function getStoaPriceUSD(options?: { skipTempWatcher?: boolean }): Promise<number | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.U|CT.UR|KDA-PID)`;
     const response = await pactRead(pactCode, { tier: "T6", skipTempWatcher: options?.skipTempWatcher });
-
     if (response?.result?.status === "success") {
-      return Number(mayComeWithDeimal((response.result as any).data)) || 1.0;
+      const value = Number(mayComeWithDeimal((response.result as any).data));
+      return Number.isFinite(value) ? value : null;
     }
-    return 1.0;
-  } catch {
-    return 1.0;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getStoaPriceUSD:", error);
+    return null;
   }
 }
 
@@ -2114,7 +2138,10 @@ export async function getDPTFIssueInfo(
     const response = await pactRead(pactCode, { tier: "T2" });
     if (response?.result?.status === "success") return (response.result as any).data;
     return null;
-  } catch { return null; }
+  } catch (error) {
+    getLogger().error("Error in getDPTFIssueInfo:", error);
+    return null;
+  }
 }
 
 export async function getSublimateInfo(
@@ -2128,7 +2155,10 @@ export async function getSublimateInfo(
     const response = await pactRead(pactCode, { tier: "T2" });
     if (response?.result?.status === "success") return (response.result as any).data;
     return null;
-  } catch { return null; }
+  } catch (error) {
+    getLogger().error("Error in getSublimateInfo:", error);
+    return null;
+  }
 }
 
 export async function getCompressInfo(
@@ -2141,7 +2171,10 @@ export async function getCompressInfo(
     const response = await pactRead(pactCode, { tier: "T2" });
     if (response?.result?.status === "success") return (response.result as any).data;
     return null;
-  } catch { return null; }
+  } catch (error) {
+    getLogger().error("Error in getCompressInfo:", error);
+    return null;
+  }
 }
 
 export async function getUnwrapStoaInfo(
@@ -2283,17 +2316,25 @@ export async function executeUnwrapStoa(params: UnwrapStoaParams): Promise<any> 
 /**
  * Fetch the minimum transfer amount for a DPTF token.
  * (ouronet-ns.DPTF.UR_MinMove <token-id>) → decimal
+ *
+ * Returns null when the chain read returns a non-success status, when the
+ * outer call throws, or when the decoded value is not a finite number.
+ * Callers must handle the nullable contract explicitly — no fabricated
+ * sentinel (previously `0`) is ever returned, since `0` is also a valid
+ * legitimate min-move and would mask read failures.
  */
-export async function getDPTFMinMove(tokenId: string): Promise<number> {
+export async function getDPTFMinMove(tokenId: string): Promise<number | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.DPTF.UR_MinMove "${tokenId}")`;
     const response = await pactRead(pactCode, { tier: "T7" });
     if (response?.result?.status === "success") {
-      return parseFloat(String(mayComeWithDeimal((response.result as any).data))) || 0;
+      const value = parseFloat(String(mayComeWithDeimal((response.result as any).data)));
+      return Number.isFinite(value) ? value : null;
     }
-    return 0;
-  } catch {
-    return 0;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getDPTFMinMove:", error);
+    return null;
   }
 }
 
