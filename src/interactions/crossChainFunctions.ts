@@ -1,6 +1,6 @@
 import { Pact, ITransactionDescriptor } from "@kadena/client";
-import { getFailoverClient } from "../network";
-import { KADENA_NETWORK, getPactUrl, getSpvUrl, GAS_STATION, KADENA_NAMESPACE } from "../constants";
+import { getFailoverClient, withFailover } from "../network";
+import { KADENA_NETWORK, getPactUrl, GAS_STATION, KADENA_NAMESPACE } from "../constants";
 import { GAS_PRICE_MIN_ANU, anuToStoa } from "../gas";
 import { pactRead } from "../reads";
 import { safeCreationTime, formatDecimalForPact } from "../pact";
@@ -113,6 +113,17 @@ export function buildCrossChainTransfer(params: CrossChainTransferParams) {
     .setMeta({
       chainId: sourceChain as ChainId,
       senderAccount: sender,
+      // v3.2.3: added `creationTime: safeCreationTime()` to close audit
+      // finding F-BUG-002. The v2.3.0 audit consolidated `safeCreationTime()`
+      // (returns `Date.now()/1000 - 30`) precisely so client-side clock drift
+      // doesn't trigger chain-side "creation time too far in the future"
+      // rejections; without this field, `@kadena/client` falls back to the
+      // raw current time and any consumer with a clock slightly ahead of
+      // node time gets sporadic submit failures. This was the lone builder
+      // in interactions/* that omitted the helper after the v2.3.0 sweep —
+      // every other setMeta block (including `buildCTransferAcross` two
+      // functions below) already includes it.
+      creationTime: safeCreationTime(),
       gasLimit: 2500,
       gasPrice: 0.00000001,
       ttl: 28800,
@@ -207,7 +218,31 @@ export function buildCTransferAcross(params: CTransferAcrossParams) {
 }
 
 /**
- * Submit a cross-chain transfer and get the request key
+ * Submit a cross-chain transfer and get the request key.
+ *
+ * Resolves to the chainweb `ITransactionDescriptor` (request key + chain id +
+ * network id) for the submitted transaction. Caller is responsible for
+ * persisting the descriptor — it's the only handle for `pollTransactionStatus`,
+ * `fetchSpvProof`, and `submitContinuation` later in the cross-chain flow.
+ *
+ * **Error contract** (closes audit finding F-ERR-001 — v3.2.3):
+ *
+ * Unlike its sibling `pollTransactionStatus` (which catches errors and
+ * returns `{ status: "pending", error: ... }` — the codebase's discriminated-
+ * union convention), this function deliberately propagates errors rather
+ * than swallowing them. A failed submit is not a transient state to poll
+ * past — it means the transaction did NOT land on chain, and the caller's
+ * UI must surface that as a hard failure (refund the user's escrowed gas
+ * estimate, present a retry button, etc.). Wrapping the throw in an
+ * envelope would mask the failure.
+ *
+ * @throws {SigningError} with `code: "TIMEOUT"` if the underlying
+ *   `submit()` exceeds the per-tier deadline (default 60s for submit).
+ *   See `runWithTimeout` in `src/network/failoverClient.ts`.
+ * @throws {Error} On network failure that survives both the primary and
+ *   fallback node attempts. Both errors propagate verbatim from
+ *   `getFailoverClient`'s submit method — the caller's catch block
+ *   should distinguish via `error instanceof SigningError && error.code === "TIMEOUT"`.
  */
 export async function submitCrossChainTransfer(
   signedTransaction: any,
@@ -261,8 +296,51 @@ export async function pollTransactionStatus(
 }
 
 /**
- * Fetch SPV proof for a cross-chain transfer
- * This requires waiting for block finality (~100-120 seconds)
+ * Default per-attempt timeout for `fetchSpvProof` in milliseconds. Picked to
+ * be longer than the chainweb dirty-read default (15s) since SPV proof
+ * generation may pull from disk on the node, but short enough that a wedged
+ * primary node doesn't hang the consumer's retry loop. The `pollSpvProof`
+ * outer loop adds its own retry budget on top of this per-attempt cap.
+ *
+ * Added in v3.2.3 to close audit finding F-BUG-004.
+ */
+const SPV_PROOF_TIMEOUT_MS = 30_000;
+
+/**
+ * Fetch SPV proof for a cross-chain transfer.
+ *
+ * Requires waiting for block finality (~100-120 seconds). The on-chain
+ * proof becomes available a few blocks after the source-chain submit
+ * commits; before that, the chainweb node returns `400 not available`.
+ *
+ * v3.2.3 (closes audit finding F-BUG-004): wrapped in `withFailover` and
+ * `AbortSignal.timeout(SPV_PROOF_TIMEOUT_MS)`. Pre-v3.2.3, this was the
+ * only chain-RPC function in the entire codebase that called raw `fetch()`
+ * without either guard:
+ *
+ *   - No `AbortController`: a wedged primary node (slow, not erroring)
+ *     would hang the `await fetch(...)` indefinitely. The outer
+ *     `pollSpvProof` retry loop never advanced because each attempt
+ *     awaited the hung fetch.
+ *
+ *   - No `withFailover`: even if the primary node returned an error or
+ *     timed out, traffic stayed pinned to the primary; the consumer's
+ *     subsequent attempts hit the same wedged node forever.
+ *
+ *   - Combined consequence: the user's KDA was committed to
+ *     `kadena-xchain-gas` escrow on the source chain (step 1 succeeded),
+ *     but step 2's SPV proof retrieval hung silently with the UI showing
+ *     a perpetual "Waiting for SPV proof..." spinner and no recovery
+ *     path. This is the highest-impact bug surfaced by the 2026-05-05
+ *     audit.
+ *
+ * Post-v3.2.3 behaviour: each attempt has a hard 30s deadline; on timeout
+ * (or any network-class error on the primary node), `withFailover`
+ * switches to the fallback node and retries once. The outer
+ * `pollSpvProof` loop then re-invokes this function after the configured
+ * `delayMs` (default 5s), so a stuck primary surfaces as ~30s of
+ * waiting, then automatic fallback, then continued polling — never an
+ * infinite hang.
  */
 export async function fetchSpvProof(
   requestKey: string,
@@ -270,22 +348,23 @@ export async function fetchSpvProof(
   targetChain: string
 ): Promise<{ proof: string | null; error?: string }> {
   try {
-    const spvUrl = getSpvUrl(sourceChain);
-
-    const response = await fetch(spvUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        requestKey,
-        targetChainId: targetChain,
+    const response = await withFailover((baseUrl) =>
+      fetch(`${baseUrl}/chain/${sourceChain}/pact/spv`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestKey,
+          targetChainId: targetChain,
+        }),
+        signal: AbortSignal.timeout(SPV_PROOF_TIMEOUT_MS),
       }),
-    });
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      // If proof is not ready yet, return null without error
+      // Chainweb returns 400 "not available" while the proof is still being
+      // generated (pre-finality). pollSpvProof's outer loop translates this
+      // into "wait and try again" — pass null + descriptive error.
       if (response.status === 400 && errorText.includes("not available")) {
         return { proof: null, error: "SPV proof not ready yet. Please wait for block confirmation." };
       }
@@ -297,9 +376,19 @@ export async function fetchSpvProof(
     const cleanProof = proof.replace(/^"|"$/g, "");
     return { proof: cleanProof };
   } catch (error) {
+    // AbortError surfaces here when the 30s timeout fires. withFailover
+    // will already have retried on fallback by this point — if BOTH primary
+    // and fallback timed out (or otherwise failed), the error propagates
+    // out as the standard `{ proof: null, error }` shape so the polling
+    // loop above can decide whether to retry the whole sequence.
+    const message = error instanceof Error
+      ? (error.name === "TimeoutError" || error.name === "AbortError"
+          ? `SPV proof fetch timed out after ${SPV_PROOF_TIMEOUT_MS}ms (both primary and fallback nodes)`
+          : error.message)
+      : "Failed to fetch SPV proof";
     return {
       proof: null,
-      error: error instanceof Error ? error.message : "Failed to fetch SPV proof",
+      error: message,
     };
   }
 }
@@ -364,9 +453,22 @@ export function buildContinuationTransaction(
 }
 
 /**
- * Submit a continuation transaction
- * Note: For public gas station, no signature needed
- * For user-paid gas, transaction must be signed first
+ * Submit a continuation transaction.
+ *
+ * Note: for the public gas station path (chain 0 + DALOS.GAS_PAYER), no
+ * signature is needed — the caller passes the unsigned `transaction`
+ * directly. For user-paid-gas paths the transaction MUST be signed before
+ * this function is called; the function itself does not sign.
+ *
+ * **Error contract** (closes audit finding F-ERR-001 — v3.2.3): same
+ * propagating-throw pattern as `submitCrossChainTransfer`. A failed
+ * continuation submit is a hard failure, not a transient state — surface
+ * to the user, don't swallow.
+ *
+ * @throws {SigningError} with `code: "TIMEOUT"` if `submit()` exceeds
+ *   the per-tier deadline.
+ * @throws {Error} On network failure surviving both primary and fallback
+ *   node attempts.
  */
 export async function submitContinuation(
   transaction: any,
@@ -377,7 +479,28 @@ export async function submitContinuation(
 }
 
 /**
- * Listen for transaction completion
+ * Listen for transaction completion (long-poll for chainweb inclusion).
+ *
+ * Resolves to the chainweb command-result envelope when the transaction
+ * is included in a block (~30-180s on mainnet depending on block density).
+ *
+ * **Error contract** (closes audit finding F-ERR-001 — v3.2.3): a thrown
+ * error from this function is **NOT** a definitive failure. The chainweb
+ * `listen` endpoint times out after a per-tier deadline (default 180s,
+ * approximately 6 Kadena blocks); if the deadline fires, the transaction
+ * may still complete on chain — it just hasn't been included yet by the
+ * time this function gives up. Callers should treat a `SigningError(code:
+ * "TIMEOUT")` from this function as `status: "pending"` (poll again
+ * later via `pollTransactionStatus`), NOT as `status: "failed"` (do not
+ * retry the submit; it would double-pay gas for a transaction that may
+ * already be confirmed). This is the exact pattern that audit finding
+ * F-ERR-014 surfaced for the multi-step add-liquidity flow before that
+ * surface was deleted in v3.2.2.
+ *
+ * @throws {SigningError} with `code: "TIMEOUT"` if `listen()` exceeds
+ *   the 180s deadline. **Treat as pending, not failed.**
+ * @throws {Error} On network failure surviving both primary and fallback
+ *   node attempts.
  */
 export async function listenForCompletion(
   requestKey: string,

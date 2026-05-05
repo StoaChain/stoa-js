@@ -52,11 +52,14 @@ describe("setNodeConfig / getNodeConfig", () => {
     expect(cfg.fallback).toBe(NODE2);
   });
 
-  it("custom without URL falls through to node2 default", () => {
-    setNodeConfig("custom", undefined);  // missing customUrl → default behaviour
-    const cfg = getNodeConfig();
-    expect(cfg.primary).toBe(NODE2);
-    expect(cfg.fallback).toBe(NODE1);
+  it("custom without URL throws TypeError (post-v3.2.3 contract — closes F-SEC-002)", () => {
+    // v3.2.3: setNodeConfig now throws on missing/malformed customUrl
+    // rather than silently falling through to node2. Pre-v3.2.3 the path
+    // was lenient and accepted any truthy string, allowing accidental
+    // misconfiguration to silently route signed transactions through
+    // wrong hosts. Synchronous throw is the correct boundary discipline.
+    expect(() => setNodeConfig("custom", undefined)).toThrow(TypeError);
+    expect(() => setNodeConfig("custom", undefined)).toThrow(/customUrl is required/);
   });
 
   it("setNodeConfig resets active host to primary", () => {
@@ -94,7 +97,11 @@ describe("getActiveGasLimit / getNodeGasLimit", () => {
   });
 
   it("getNodeGasLimit queries presets by name", () => {
-    setNodeConfig("custom", "x", 777_777);
+    // v3.2.3: customUrl must be a valid https:// URL; pre-v3.2.3 this test
+    // passed `"x"` which would have been accepted as PRIMARY_HOST, producing
+    // a malformed chainweb URL on the next read attempt. Now uses a proper
+    // https URL so the customGasLimit assignment under test still happens.
+    setNodeConfig("custom", "https://node.example.com", 777_777);
     expect(getNodeGasLimit("node2")).toBe(2_000_000);
     expect(getNodeGasLimit("node1")).toBe(2_000_000);
     expect(getNodeGasLimit("custom")).toBe(777_777);

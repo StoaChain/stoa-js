@@ -2,6 +2,86 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.2.3 — 2026-05-05
+
+**MINOR, behaviour change.** Fourth and final wave of the v3.2.x audit-cycle close-out track. Four targeted bug fixes that close the highest-user-impact remaining audit findings: `creationTime` in `buildCrossChainTransfer` (F-BUG-002), `fetchSpvProof` failover + 30s AbortController timeout (F-BUG-004 — the highest-impact bug in the entire audit), `setNodeConfig` URL parse + `https:` scheme allow-list (F-SEC-002), and `@throws` JSDoc documentation on the three crossChainFunctions submit/listen helpers (F-ERR-001). With these four findings closed, the v3.2.x sequence has remediated **15 of the audit's 62 confirmed findings** across four ship cycles. The remaining ~47 findings (logger-seam completion, test coverage, structural decomposition, type consolidation, etc.) are scheduled for v3.3.x and v4.0.0 per the audit's suggested spec groupings. **618/618 tests pass** (was 601 in v3.2.2; +17 new it-blocks in `tests/v3-2-3-bug-fixes.test.ts` covering creationTime presence + offset, setNodeConfig URL validation across 8 cases, and fetchSpvProof failover/timeout/proof-shape across 4 cases; +2 existing network.test.ts tests updated to reflect the new setNodeConfig contract).
+
+### Added — `creationTime: safeCreationTime()` to `buildCrossChainTransfer` (closes F-BUG-002)
+
+`src/interactions/crossChainFunctions.ts:113-119` setMeta block now includes `creationTime: safeCreationTime()`. Pre-v3.2.3 the field was omitted and `@kadena/client` fell back to `Math.floor(Date.now() / 1000)`. On a consumer machine with a slightly-ahead clock, that produced `creationTime` values past the chainweb node's "is creation time too far in the future?" tolerance window, causing sporadic submit rejections that confusingly looked like network failures. The v2.3.0 audit consolidated `safeCreationTime()` (returns `Date.now()/1000 - 30`) precisely to absorb client-side clock drift; this builder was the lone interactions-surface function that omitted the helper after the v2.3.0 sweep — every other `setMeta` block (including the sibling `buildCTransferAcross` two functions below) already includes it. One-line addition; no other behaviour change.
+
+### Added — `withFailover` + `AbortSignal.timeout(30s)` on `fetchSpvProof` (closes F-BUG-004 — HIGHEST USER-IMPACT FIX)
+
+`src/interactions/crossChainFunctions.ts:267-345` (`fetchSpvProof`) is rewritten to wrap the `fetch()` call in `withFailover` and add a per-attempt `AbortSignal.timeout(SPV_PROOF_TIMEOUT_MS)` deadline. Pre-v3.2.3 this was the only chain-RPC function in the entire codebase that called raw `fetch()` without either guard, with three compounding consequences:
+
+1. **No `AbortController`**: a wedged primary node (slow, not erroring) would hang the `await fetch(...)` indefinitely. The outer `pollSpvProof` retry loop never advanced because each attempt awaited the hung fetch.
+2. **No `withFailover`**: even if the primary node returned an error or timed out, traffic stayed pinned to the primary; the consumer's subsequent attempts hit the same wedged node forever.
+3. **Combined consequence**: the user's KDA was committed to `kadena-xchain-gas` escrow on the source chain (step 1 succeeded), but step 2's SPV proof retrieval hung silently with the UI showing a perpetual "Waiting for SPV proof..." spinner and **no recovery path**.
+
+This was identified by the bug-detector audit agent as the highest-impact bug surfaced by the 2026-05-05 audit. Post-v3.2.3 behaviour: each attempt has a hard 30-second deadline; on timeout (`TimeoutError`/`AbortError`) or any network-class error on the primary node, `withFailover` switches to the fallback node and retries once. The outer `pollSpvProof` loop then re-invokes this function after the configured `delayMs` (default 5s), so a stuck primary surfaces as ~30s of waiting, then automatic fallback, then continued polling — never an infinite hang. New module-level constant `SPV_PROOF_TIMEOUT_MS = 30_000` makes the deadline a single tunable. The unused `getSpvUrl` import is removed (the URL is now constructed inline from `withFailover`'s `baseUrl` callback).
+
+### Added — URL parse + `https:` scheme allow-list on `setNodeConfig` (closes F-SEC-002)
+
+`src/network/nodeFailover.ts:160-194` (`setNodeConfig`) `selected: "custom"` path now validates `customUrl` before assignment via three guards:
+
+1. **Required-field check**: `customUrl` must be present (was just truthy-check pre-v3.2.3, which silently fell through to node2 on missing input — now throws `TypeError("customUrl is required when selected === 'custom'")`).
+2. **URL parseability**: `new URL(customUrl)` rejects malformed strings (`"foo"`, `"not a url"`, etc.) with `TypeError("customUrl is not a valid URL")`.
+3. **Scheme allow-list**: only `https:` is accepted. `http:`, `javascript:`, `ftp:`, etc. throw `TypeError("customUrl must use https://")`. Chain transactions sign sensitive payloads (capability args, derived public keys); transmitting them over plaintext defeats the cryptographic discipline the rest of the codebase enforces.
+
+Plus a fourth defensive change: `parsed.origin` discards any pathname/query/fragment from the input URL. Pre-v3.2.3 the entire input string was assigned to `PRIMARY_HOST`, so a `customUrl` like `"https://node.example.com/some-path"` would have produced `https://node.example.com/some-path/chainweb/0.0/{network}` when `getActiveBaseUrl()` appended its suffix — a confusing trap. Now the host portion is the only part that survives.
+
+This is a **behaviour change for consumers passing malformed `customUrl`**: pre-v3.2.3 such inputs silently fell through to default node2; post-v3.2.3 they throw `TypeError` at the function entry. Any consumer relying on the silent-fallthrough was already shipping wrong configuration; the throw is the audit-mandated diagnostic improvement. Added `@throws` to the function's JSDoc so the contract is documented.
+
+### Added — `@throws` JSDoc on `submitCrossChainTransfer`, `submitContinuation`, `listenForCompletion` (closes F-ERR-001)
+
+`src/interactions/crossChainFunctions.ts` — three submit/listen helpers gain JSDoc `@throws` annotations documenting their error contracts. Runtime behaviour is unchanged; this is documentation-only. The three helpers diverge from the discriminated-union pattern (`{status, error?: string}`) used by their siblings (`pollTransactionStatus`, `getBalanceOnChain`) — they propagate errors via throws because a failed submit/listen is a hard failure that must surface to the consumer's error UI, not a transient state to poll past. The audit finding asked for either consistent envelope-wrapping OR documentation; we picked documentation because the throwing behaviour is correct (see the F-ERR-014 lesson: the multi-step add-liquidity path that swallowed listen-timeouts caused user double-pay; we don't want to repeat that pattern here). The new JSDoc explicitly distinguishes:
+
+- **`submitCrossChainTransfer`** / **`submitContinuation`**: `@throws SigningError(code: "TIMEOUT")` on per-tier deadline; `@throws Error` on network failure surviving both primary+fallback. Caller treats either as **definitively failed** — no retry without surfacing to user.
+- **`listenForCompletion`**: same `@throws` shape, but with the critical caveat that a TIMEOUT **must be treated as `pending`, not `failed`** — the chainweb listen endpoint times out at 180s, but the transaction may still complete on chain after that deadline. Caller should poll via `pollTransactionStatus` rather than retry the submit (which would double-pay gas for a transaction that may already be confirmed). This is the exact pattern F-ERR-014 surfaced for the multi-step add-liquidity flow before that surface was deleted in v3.2.2 — codified here as documentation so future consumers don't re-introduce it.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The unused `getSpvUrl` and `getActiveSpvUrl` imports were cleaned up after the `fetchSpvProof` refactor; no other call sites depend on them.
+- `npm test` — **618/618 tests pass** (was 601 in v3.2.2; +17 new it-blocks for the v3.2.3 surface; +2 existing `tests/network.test.ts` tests updated to reflect the new `setNodeConfig` throw-on-malformed-input contract).
+- `npm run build` — clean tsc emit. The four behaviour changes flow into `dist/`: `creationTime` in cross-chain transactions, the rewritten `fetchSpvProof` with timeout + failover, the validated `setNodeConfig`, and the documented error contracts on the three submit/listen helpers.
+
+### Migration
+
+For consumers calling `buildCrossChainTransfer`: no change required. The `creationTime` addition is invisible at the API surface — the transaction shape is the same, just with one extra `meta` field that didn't exist before. Sporadic chain-side rejections under client clock drift should disappear.
+
+For consumers calling `fetchSpvProof` directly (as opposed to via `pollSpvProof`): no change required. Same return shape (`{ proof: string | null; error?: string }`); the difference is that a wedged primary node now produces a `{ proof: null, error: "SPV proof fetch timed out after 30000ms..." }` after 30s rather than hanging forever. Callers that already handle the `proof: null` path get the new behaviour for free.
+
+For consumers calling `setNodeConfig("custom", customUrl, ...)`: **migration required if `customUrl` may come from untrusted/unvalidated input**. Wrap the call in try/catch:
+
+```ts
+try {
+  setNodeConfig("custom", userInput);
+} catch (e: unknown) {
+  if (e instanceof TypeError) {
+    showError("Invalid custom node URL. Must use https:// scheme.");
+  } else {
+    throw e;
+  }
+}
+```
+
+Consumers passing well-formed `https://` URLs see no behaviour change. Consumers passing malformed input were already shipping wrong configuration (the silent-fallthrough was a footgun, not a feature); the throw is the audit-mandated diagnostic improvement.
+
+For consumers calling `submitCrossChainTransfer` / `submitContinuation` / `listenForCompletion`: no migration required. Runtime behaviour unchanged; the new `@throws` JSDoc just documents existing behaviour. Callers should ensure they wrap these in try/catch (as they always should have); the `listenForCompletion` JSDoc now flags that a TIMEOUT must be treated as `pending` and polled, **not** as `failed` and retried (which would double-pay gas).
+
+### v3.2.x sequence — completed
+
+| Wave | Version | Findings closed | Type |
+|---|---|---|---|
+| 1 | v3.2.0 | (infrastructure only) | additive |
+| 2 | v3.2.1 | F-SEC-001, F-BUG-003 | behaviour change |
+| 3 | v3.2.2 | F-ERR-005, F-ERR-014, F-PERF-014, F-PERF-015, F-API-026 | public-API removal |
+| 4 | v3.2.3 | F-BUG-002, F-BUG-004, F-SEC-002, F-ERR-001 | behaviour change + docs |
+
+**15 audit findings closed** across the v3.2.x track (counting v3.1.1's earlier 5 audit-cycle gaps brings the total to **20** across the v3.x line). Next: v3.3.x for logger-seam completion + test coverage + documentation cleanups; v4.0.0 for structural decomposition + monorepo split + type consolidation.
+
+---
+
 ## 3.2.2 — 2026-05-05
 
 **MINOR, public API removal.** Third wave of the v3.2.x audit-cycle close-out. Removes the four `executeAddLiquidityMultiStep*` functions plus the `MultiStepAddLiquidityResult` type from `src/interactions/addLiquidityFunctions.ts`, along with the `_strategy` parameter on `executeAddLiquidity`. Closes audit findings **F-ERR-005** (`error.message.includes` retry-loop crash on non-Error throws), **F-ERR-014** (listen-timeout vs submit-failure conflation causing user double-pay risk), **F-PERF-014** (4× hardcoded 3-second sleeps), **F-PERF-015** (retry-with-fixed-sleep against string-matched `error.message.includes("Cannot find module")` patterns), and **F-API-026** (the `_strategy: "auto" | "single" | "multi"` parameter on `executeAddLiquidity` was always handled as `"auto"` → single-step path; dead public surface). All five findings are closed **by removal** rather than fix — the cleaner outcome by far. Net code change: **−338 lines** (1031 → 693 lines in `addLiquidityFunctions.ts`). **601/601 tests pass** unchanged; no test exercised the removed functions, which was itself a v3.2.x audit signal that the surface was unused.

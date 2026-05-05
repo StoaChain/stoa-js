@@ -139,7 +139,39 @@ export async function withFailover<T>(
   }
 }
 
-/** Configure the primary and fallback nodes based on user selection */
+/**
+ * Configure the primary and fallback nodes based on user selection.
+ *
+ * v3.2.3 (closes audit finding F-SEC-002): the `selected: "custom"` path
+ * now validates `customUrl` before assigning it to `PRIMARY_HOST`. Pre-v3.2.3
+ * the function accepted ANY truthy string and assigned it directly — a
+ * consumer wiring this to a "custom node" settings dialog without input
+ * validation could route every signed transaction (including the user's
+ * Σ-prefix Smart-account caps) through an attacker-controlled host. The
+ * three guards introduced here are the minimum trust-boundary discipline
+ * that should have always been present:
+ *
+ *   1. **URL parse**: `new URL(customUrl)` rejects malformed strings
+ *      (`"foo"`, `"javascript:..."`, anything not WHATWG-URL-shaped).
+ *   2. **Scheme allow-list**: only `https:` is accepted. `http:` is rejected
+ *      because chain transactions sign sensitive payloads (capability args,
+ *      derived public keys); transmitting them over plaintext defeats the
+ *      cryptographic discipline the rest of the codebase enforces.
+ *   3. **Origin-only assignment**: `parsed.origin` discards any pathname,
+ *      query, or fragment. The chainweb base URL is constructed by
+ *      appending `/chainweb/0.0/{network}` later (see `getActiveBaseUrl`),
+ *      so a `customUrl` like `"https://node.example.com/some-path"` would
+ *      have produced `https://node.example.com/some-path/chainweb/...`
+ *      pre-v3.2.3 — a confusing trap. Now the host portion is the only
+ *      part that survives.
+ *
+ * Failure modes throw `TypeError` synchronously at the function entry, so
+ * a misconfigured boot path fails immediately with a legible diagnostic
+ * rather than producing inscrutable downstream fetch errors.
+ *
+ * @throws {TypeError} If `selected === "custom"` and `customUrl` is missing,
+ *   not a parseable URL, or uses a scheme other than `https:`.
+ */
 export function setNodeConfig(
   selected: "node2" | "node1" | "custom",
   customUrl?: string,
@@ -150,8 +182,28 @@ export function setNodeConfig(
   if (selected === "node1") {
     PRIMARY_HOST = NODE1_HOST;
     FALLBACK_HOST = NODE2_HOST;
-  } else if (selected === "custom" && customUrl) {
-    PRIMARY_HOST = customUrl;
+  } else if (selected === "custom") {
+    if (!customUrl) {
+      throw new TypeError(
+        "setNodeConfig: customUrl is required when selected === 'custom'",
+      );
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(customUrl);
+    } catch {
+      throw new TypeError(
+        `setNodeConfig: customUrl is not a valid URL: ${customUrl}`,
+      );
+    }
+    if (parsed.protocol !== "https:") {
+      throw new TypeError(
+        `setNodeConfig: customUrl must use https://; got ${parsed.protocol}`,
+      );
+    }
+    // origin-only — discards pathname/query/fragment so getActiveBaseUrl's
+    // suffix concatenation doesn't produce a malformed URL.
+    PRIMARY_HOST = parsed.origin;
     FALLBACK_HOST = NODE2_HOST;
   } else {
     // node2 (default)

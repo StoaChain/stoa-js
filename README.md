@@ -6,7 +6,34 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.2.2` on public npmjs** — **MINOR, public API removal** —
+**`3.2.3` on public npmjs** — **MINOR, behaviour change** — fourth
+and final wave of the v3.2.x audit-cycle close-out track. Four
+targeted bug fixes closing the highest-user-impact remaining
+findings: **F-BUG-002** (added `creationTime: safeCreationTime()`
+to `buildCrossChainTransfer` setMeta block — the lone interactions
+builder that omitted the helper after v2.3.0's sweep, causing
+sporadic chain-side rejections under client clock drift); **F-BUG-004**
+(rewrote `fetchSpvProof` to wrap in `withFailover` + add
+`AbortSignal.timeout(30s)` per-attempt deadline — pre-v3.2.3 a
+wedged primary node would hang the function indefinitely with the
+user's KDA committed to `kadena-xchain-gas` escrow and no recovery
+path, identified as the highest-impact bug in the entire audit);
+**F-SEC-002** (added URL parse + `https:` scheme allow-list to
+`setNodeConfig("custom", customUrl)` — pre-v3.2.3 it accepted any
+truthy string and assigned it to `PRIMARY_HOST`, allowing an
+attacker-controlled custom-node setting to redirect every signed
+transaction); and **F-ERR-001** (added `@throws` JSDoc to
+`submitCrossChainTransfer`, `submitContinuation`, and
+`listenForCompletion`, documenting the
+TIMEOUT-as-pending-not-failed contract that prevents user
+double-pay on `listen` timeouts). With these four findings closed,
+the v3.2.x sequence has remediated **15 of the audit's 62
+confirmed findings** across four ship cycles. **618/618 tests pass**
+(was 601 in v3.2.2; +17 new it-blocks). Next: v3.3.x for
+logger-seam completion + test coverage; v4.0.0 for structural
+decomposition + monorepo split + type consolidation.
+
+**`3.2.2`** — **MINOR, public API removal** —
 third wave of the v3.2.x audit-cycle close-out track. Removes the
 four `executeAddLiquidityMultiStep*` functions plus the
 `MultiStepAddLiquidityResult` type from
@@ -519,11 +546,52 @@ breaking and would justify a MAJOR bump; classified MINOR for
 v3.2.2 because the removed surface had no known consumer
 (verified via repo-wide grep + user confirmation).
 
-**601 tests** pass on every commit (unchanged from v3.2.1 — the
-v3.2.2 removal didn't disturb any existing test, which was itself
-the strongest signal the removed surface was unused). Published to
-the public npmjs registry via `.github/workflows/publish.yml` on
-every `v*` tag (which also creates a GitHub Release). Published to the public
+**v3.2.3** — final wave of the v3.2.x audit-cycle close-out track.
+**MINOR, behaviour change.** Four targeted bug fixes closing the
+highest-user-impact remaining findings: **F-BUG-002** added
+`creationTime: safeCreationTime()` to `buildCrossChainTransfer`
+setMeta (the lone interactions/* builder that omitted the helper
+post v2.3.0's DRY sweep, causing sporadic chain-side rejections
+under client-clock drift); **F-BUG-004** rewrote `fetchSpvProof` to
+wrap in `withFailover` + 30-second `AbortSignal.timeout()` —
+pre-v3.2.3 this was the only chain-RPC function calling raw
+`fetch()` without either guard, with the consequence that a wedged
+primary node hung cross-chain transfers indefinitely with the
+user's KDA committed to `kadena-xchain-gas` escrow on the source
+chain and no recovery path (the highest-impact bug surfaced by the
+2026-05-05 audit); **F-SEC-002** added URL parse + `https:` scheme
+allow-list to `setNodeConfig`'s custom-URL path — pre-v3.2.3 it
+accepted any truthy string and assigned it to `PRIMARY_HOST`,
+allowing an attacker-controlled custom-node setting to redirect
+every signed transaction (now throws `TypeError` on missing,
+unparseable, or non-https customUrl, with the parsed origin only
+stored to discard pathname/query/fragment); **F-ERR-001** added
+`@throws` JSDoc to the three `crossChainFunctions` submit/listen
+helpers — documentation-only, no runtime change, but the
+`listenForCompletion` JSDoc now explicitly calls out that a
+TIMEOUT must be treated as `pending` (poll via
+`pollTransactionStatus`) **not** as `failed` (do NOT retry the
+submit, which would double-pay gas for a transaction that may
+already be confirmed). 17 new it-blocks in
+`tests/v3-2-3-bug-fixes.test.ts` cover all four fixes; 2 existing
+`tests/network.test.ts` tests updated to reflect the new
+`setNodeConfig` throw-on-malformed-input contract.
+
+**v3.2.x sequence completed** — 15 audit findings closed across 4
+ship cycles (v3.2.0 infrastructure / v3.2.1 apply-formatters /
+v3.2.2 delete-multi-step / v3.2.3 targeted-bug-fixes). Combined
+with v3.1.1's 5 audit-cycle gaps, the v3.x line has remediated
+**20 audit findings** total. The remaining ~47 confirmed findings
+are scheduled for v3.3.x (logger-seam completion + test coverage
++ documentation cleanups) and v4.0.0 (structural decomposition +
+monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`
++ type consolidation + `readonly` on public types + nullable
+widening for the 10 swap functions).
+
+**618 tests** pass on every commit (up from 601 v3.2.2; +17 new
+it-blocks for the v3.2.3 targeted bug fixes). Published to the
+public npmjs registry via `.github/workflows/publish.yml` on every
+`v*` tag (which also creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
 tag (which also creates a GitHub Release).
 
