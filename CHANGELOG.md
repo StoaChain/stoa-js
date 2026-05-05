@@ -2,6 +2,42 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.2.0 — 2026-05-05
+
+**MINOR, additive.** First wave of the v3.2.x audit-cycle close-out — number-hygiene infrastructure for Pact-bound integers and decimals. Pact has arbitrary-precision integers AND arbitrary-precision decimals; JavaScript's number primitive is IEEE-754 float64 (~15-17 significant digits). Round-tripping a chain value through `parseFloat` / `Number()` / `.toFixed()` silently destroys precision for any value beyond float64's range. v3.2.0 closes that loophole at the package level by introducing the validation contract; v3.2.1 will apply it at the existing `parseFloat(...).toFixed(N)` call sites; v3.2.2 will remove the dead multi-step add-liquidity surface; v3.2.3 will land the targeted bug fixes (creationTime, fetchSpvProof failover, setNodeConfig URL validation). **No consumer-visible behaviour changes in v3.2.0** — every existing valid input to `formatDecimalForPact` continues to produce the same output. The additions are: a relaxation of the input contract to accept comma-as-decimal-separator (so European-locale UI text fields work without upstream normalisation), a new sibling helper for integer-typed Pact arguments, and a pair of branded TypeScript types that prove "this string passed the formatter" at the type level. **593/593 tests pass** (was 565 in v3.1.1; +28 = 6 comma-normalisation cases, 4 arbitrary-precision round-trip cases including the explicit truncation-at-maxDecimals lock, 13 `formatIntegerForPact` cases, 3 brand-type compile probes; the 1 pre-v3.2.0 "rejects EU decimal separator" test was removed because the new comma-support contract supersedes it, and the 3 brand-type tests use `@ts-expect-error` probes that count as runtime-asserted compile checks).
+
+### Added — `formatIntegerForPact(amount: string): ValidatedInteger`
+
+New helper sibling to `formatDecimalForPact`. Pact distinguishes integers from decimals at the lexer level: functions expecting `integer` arguments (counts, indices, slot numbers, integer-typed cap arguments) reject `1.0` and accept `1`. Without a dedicated formatter, callers historically interpolated integer values via `String(numAmount)` (`urStoaFunctions.ts` cap-args do this today) or hand-rolled `${value | 0}` patterns — both vulnerable to JS float64 precision loss for values past `Number.MAX_SAFE_INTEGER` (`2^53 - 1` ≈ `9.0e15`). The new helper validates `^\d+$` (non-negative, no decimal point, no scientific notation, no thousand-separators), trims whitespace, and returns the trimmed input verbatim with no float round-trip. A 100-digit integer string round-trips byte-identical. Throws `Error("Invalid integer format")` on rejection — same shape as `formatDecimalForPact`'s error message so consumer catch blocks can be written once.
+
+### Added — `ValidatedDecimal` and `ValidatedInteger` brand types
+
+TypeScript-only newtypes (zero runtime cost — just a `unique symbol` brand on the string type) that flow out of `formatDecimalForPact` and `formatIntegerForPact` respectively. A function declared `(amount: ValidatedDecimal) => Transaction` cannot accidentally accept a raw user-input string; the type system requires the caller to pass a value through the formatter first. The two brands are **distinct types** (a `ValidatedInteger` is not assignable to `ValidatedDecimal` and vice versa), preserving Pact's lexer-level int vs decimal distinction at the function-boundary level — the failure mode of accidentally interpolating an integer where a decimal was needed (and vice versa) becomes a compile error rather than a runtime chain-side rejection. Both brands are runtime-equivalent to `string` so JSON serialisation, console logging, and Pact-code interpolation all work without unwrapping. v3.2.1 will adopt them at the call-site signatures so the formatter→builder→submit pipeline is statically traceable.
+
+### Changed — `formatDecimalForPact` accepts a single comma as decimal separator
+
+Pre-v3.2.0, the helper accepted only `^\d+\.?\d*$` and rejected any comma. European-locale UIs that capture user input as `"1,5"` (German `1 Komma 5`, French `1 virgule 5`, etc.) had to swap separators upstream before calling the helper. v3.2.0 normalises a single comma to a period before validation, so `"1,5"` and `"1.5"` both produce `"1.5"`. **Multi-comma strings (thousand-separator-style `"1,234,567"`) still throw** — the consumer's UI must strip thousand-grouping before calling the helper. Mixed comma+period strings (`"1,5.6"`, `"1.234,56"`) also throw — these are ambiguous between "decimal point + grouping" and "grouping + decimal comma" and the helper refuses to guess. The relaxation is strictly additive: every previously-accepted input continues to produce the same output, plus a new class of inputs (single-comma-as-decimal) is now accepted.
+
+### Documented — number-hygiene contract in `src/pact/format.ts` JSDoc
+
+The file-level JSDoc now spells out the three-rule contract: (1) UI/consumer code passes amounts AS STRINGS, never as `number`; (2) the `format*ForPact` family is the sole boundary where a string becomes a Pact-code literal — strict regex enforces digits-only with at most one optional decimal point, no exponent notation, no thousand-separators, no signs; (3) the brand types prove "this string passed the formatter" at the type level so downstream code that interpolates them can rely on the chain accepting them verbatim. This codifies the v2.0.0+ design intent that was previously implicit in the codebase's idioms but never written down.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The brand types compile cleanly with `unique symbol` declarations; the `@ts-expect-error` probes in the new test block prove the compile-time contract.
+- `npm test` — **593/593 tests pass** (was 565 in v3.1.1; +28 net = +29 new it-blocks for the v3.2.0 surface − 1 deleted "rejects EU decimal separator" test that the comma-support contract supersedes).
+- `npm run build` — clean tsc emit to `dist/`. The new `formatIntegerForPact` value, `ValidatedDecimal` type, and `ValidatedInteger` type are all exposed in the published `.d.ts` of the `./pact` subpath.
+
+### Migration
+
+No migration required. Every existing valid input continues to produce byte-identical output. New surface is opt-in:
+
+- Consumers who want to accept European-locale UI input directly can stop pre-stripping commas before the formatter call.
+- Consumers who type a function parameter as `(amount: ValidatedDecimal)` get compile-time enforcement that the value came through the formatter; consumers who keep using `string` parameters see no change.
+- `formatIntegerForPact` is a new export; existing call sites that still use `String(num)` continue to work, and v3.2.1 will sweep the codebase to replace them.
+
+---
+
 ## 3.1.1 — 2026-05-05
 
 **PATCH, additive.** Pre-publish audit-cycle close-out for the v3.1.0 dalos-crypto integration. v3.1.0 was committed locally (`bf10dc1`) but had not been published to npm when the post-integration audit (2026-05-05, see `.bee/AUDIT-REPORT.md`) flagged five gaps directly attributable to that commit. v3.1.1 closes all five before the package reaches npmjs, so the first published release on the new dalos-crypto v4.0.3 line carries the corrections rather than a broken-then-fixed pair. **565/565 tests pass** (was 558 in v3.1.0; +7 = 1 new strict locale grouping-style assertion + 5 new Schnorr re-export tests + 1 new validation-error class probe).

@@ -6,20 +6,46 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.1.1` on public npmjs** — **PATCH, additive** release that closes
-the audit-cycle gaps identified by the post-v3.1.0-integration audit
-(see [`CHANGELOG.md`](CHANGELOG.md) v3.1.1 entry for the full per-finding
-trace). Three additive re-exports complete the `./dalos` integration
-surface (`InvalidBitStringError`, `InvalidBitmapError`,
-`InvalidPrivateKeyError` for typed validation-failure
-discrimination + `CoordAffine` companion type for
-`SchnorrSignature`); the `src/dalos/` subdirectory is realigned with
-CONVENTIONS.md (double-quoted imports, no `.js` extensions); the
-v3.1.0 locale-determinism test assertion in `tests/gas.test.ts` is
-tightened to strict equality (was a substring regex that wouldn't
-detect a regression on a US-locale CI host); a fresh
-`tests/dalos-integration.test.ts` block covers the v3.1.0 Schnorr
-re-exports end-to-end. **560/560 tests pass.** No runtime change for
+**`3.2.0` on public npmjs** — **MINOR, additive** release that opens
+the v3.2.x audit-cycle close-out track with number-hygiene
+infrastructure for Pact-bound integers and decimals.
+`formatDecimalForPact` now accepts a single comma as decimal
+separator (so European-locale UI text fields work without upstream
+normalisation); a new sibling `formatIntegerForPact(amount: string):
+ValidatedInteger` validates integer-typed Pact arguments without ever
+round-tripping through float64 (arbitrary-precision-safe — a
+100-digit integer string passes through byte-identical); two new
+branded TypeScript types (`ValidatedDecimal`, `ValidatedInteger`)
+prove "this string passed the formatter" at the type level so
+downstream call sites get compile-time guarantees that consumer
+input has been validated before it reaches Pact-code interpolation.
+**No consumer-visible behaviour changes** — every previously-valid
+input continues to produce byte-identical output. **593/593 tests
+pass** (was 565 in v3.1.1; +28 covering comma-normalisation,
+arbitrary-precision round-trips with the explicit
+truncation-at-maxDecimals lock, the new integer formatter, and the
+brand-type compile contract). v3.2.1 will apply the new helpers at
+the existing `parseFloat(...).toFixed(N)` call sites to close the
+F-SEC-001 / F-BUG-003 precision-loss vectors; v3.2.2 will remove
+the dead multi-step add-liquidity surface (chainweb's gas bump made
+it obsolete); v3.2.3 will land the targeted bug fixes
+(`creationTime`, `fetchSpvProof` failover, `setNodeConfig` URL
+validation).
+
+**`3.1.1`** — **PATCH, additive** release that closed the
+audit-cycle gaps identified by the post-v3.1.0-integration audit
+(see [`CHANGELOG.md`](CHANGELOG.md) v3.1.1 entry for the full
+per-finding trace). Three additive re-exports completed the
+`./dalos` integration surface (`InvalidBitStringError`,
+`InvalidBitmapError`, `InvalidPrivateKeyError` for typed
+validation-failure discrimination + `CoordAffine` companion type
+for `SchnorrSignature`); the `src/dalos/` subdirectory was
+realigned with CONVENTIONS.md (double-quoted imports, no `.js`
+extensions); the v3.1.0 locale-determinism test assertion in
+`tests/gas.test.ts` was tightened to strict equality (was a
+substring regex that wouldn't detect a regression on a US-locale
+CI host); a fresh `tests/dalos-integration.test.ts` block covered
+the v3.1.0 Schnorr re-exports end-to-end. No runtime change for
 any v3.1.0 consumer; v3.1.0 itself was committed locally
 (`bf10dc1`) but never pushed to npm — the npm registry skips from
 `3.0.0` to `3.1.1`.
@@ -329,10 +355,44 @@ v3.1.0; +7 = 1 new strict locale grouping-style sibling
 assertion + 5 new Schnorr re-export it-blocks + 1 new
 validation-error class probe).
 
-**565 tests** pass on every commit (up from 558 v3.1.0; +7 across
-the v3.1.1 audit-cycle close-out). Published to the public npmjs
-registry via `.github/workflows/publish.yml` on every `v*` tag
-(which also creates a GitHub Release).
+**v3.2.0** — number-hygiene infrastructure for the v3.2.x
+audit-cycle close-out track. **MINOR, additive.** First wave of the
+v3.2.x sequence (v3.2.0 = infrastructure / v3.2.1 = apply at call
+sites / v3.2.2 = delete dead multi-step add liquidity / v3.2.3 =
+targeted bug fixes). v3.2.0 lands three additive surfaces in the
+`./pact` subpath: (1) `formatDecimalForPact` now accepts a single
+comma as decimal separator and normalises it to a period before
+validation, so European-locale UI inputs (`"1,5"`, `"0,9"`,
+`"1234,567890"`) work without upstream normalisation; multi-comma
+strings (`"1,234,567"` thousand-separator-style) and mixed
+period+comma strings (`"1,5.6"`, `"1.234,56"`) still throw because
+they are ambiguous. (2) New `formatIntegerForPact(amount: string):
+ValidatedInteger` sibling helper for integer-typed Pact arguments
+— Pact distinguishes integers from decimals at the lexer level
+(`integer` cap-args reject `1.0`, accept `1`); the new helper
+validates `^\d+$` and returns the trimmed input verbatim with no
+float round-trip, so 100-digit integer strings round-trip
+byte-identical (versus `Number(big)` which collapses past
+`Number.MAX_SAFE_INTEGER` ≈ `9.0e15`). (3) Two new branded
+TypeScript types `ValidatedDecimal` and `ValidatedInteger` (zero
+runtime cost — just `unique symbol` brands on `string`) flow out
+of the formatters; functions declared `(amount: ValidatedDecimal)
+=> Transaction` cannot accidentally accept raw user input, and the
+two brands are distinct types so the lexer-level int-vs-decimal
+distinction is enforced at the function-boundary level. The
+file-level JSDoc in `src/pact/format.ts` now spells out the
+three-rule number-hygiene contract: strings in, strings out, never
+round-trip through float64. NO consumer-visible behaviour change
+— every previously-valid input produces byte-identical output;
+the new surface is opt-in. v3.2.1 will adopt the new helpers at
+the existing `parseFloat(...).toFixed(N)` and raw `${amount}`
+interpolation sites to close the F-SEC-001 / F-BUG-003
+precision-loss vectors that the 2026-05-05 audit flagged.
+
+**593 tests** pass on every commit (up from 565 v3.1.1; +28 across
+the v3.2.0 number-hygiene infrastructure). Published to the public
+npmjs registry via `.github/workflows/publish.yml` on every `v*`
+tag (which also creates a GitHub Release).
 
 ```bash
 npm install @stoachain/ouronet-core

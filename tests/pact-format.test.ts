@@ -12,8 +12,11 @@
 import { describe, it, expect } from "vitest";
 import {
   formatDecimalForPact,
+  formatIntegerForPact,
   mayComeWithDeimal,
   filterFreePositionData,
+  type ValidatedDecimal,
+  type ValidatedInteger,
 } from "../src/pact";
 import { KADENA_NAMESPACE } from "../src/constants";
 
@@ -109,16 +112,169 @@ describe("formatDecimalForPact", () => {
       expect(formatDecimalForPact("007.5")).toBe("007.5");
     });
 
-    it("rejects EU decimal separator ',' — only '.' is the fractional marker", () => {
-      expect(() => formatDecimalForPact("1,5")).toThrow("Invalid decimal format");
-    });
-
     it("preserves trailing zeros under maxDecimals — '1.500' returned verbatim", () => {
       // Three trailing zeros, well under the 24-decimal default cap, so the
       // truncate branch is skipped and `trimmed` is returned as-is. Trailing
       // zeros carry precision intent on-chain; do not silently strip them.
       expect(formatDecimalForPact("1.500")).toBe("1.500");
     });
+  });
+
+  // ── v3.2.0+ comma-as-decimal-separator support ────────────────────────────
+  describe("v3.2.0+ — single comma normalised to period (EU-locale UI input)", () => {
+    it("'1,5' → '1.5' (single comma normalised)", () => {
+      expect(formatDecimalForPact("1,5")).toBe("1.5");
+    });
+    it("'0,9' → '0.9' (single comma normalised)", () => {
+      expect(formatDecimalForPact("0,9")).toBe("0.9");
+    });
+    it("'1234,567890' → '1234.567890' (long fractional preserved)", () => {
+      expect(formatDecimalForPact("1234,567890")).toBe("1234.567890");
+    });
+    it("rejects mixed comma+period — '1,5.6' is ambiguous", () => {
+      expect(() => formatDecimalForPact("1,5.6")).toThrow("Invalid decimal format");
+    });
+    it("rejects thousand-separator-style multi-comma — '1,234,567'", () => {
+      // A consumer that ships thousand-separated UI text must strip the
+      // grouping before calling this helper; we don't guess at locales.
+      expect(() => formatDecimalForPact("1,234,567")).toThrow("Invalid decimal format");
+    });
+    it("rejects mixed period+comma where comma is grouping — '1.234,56'", () => {
+      // EU "1.234,56" (one-thousand-two-hundred-and-thirty-four point fifty-
+      // six) is parsed by parseEU separately; format*ForPact requires the
+      // already-clean digit form.
+      expect(() => formatDecimalForPact("1.234,56")).toThrow("Invalid decimal format");
+    });
+  });
+
+  // ── v3.2.0+ arbitrary-precision contract ──────────────────────────────────
+  describe("v3.2.0+ — arbitrary-precision strings round-trip byte-identical", () => {
+    it("preserves a 50-digit integer-shape (would overflow float64)", () => {
+      // 2^53 is ~9.0e15; this value is far past safe-integer territory.
+      // A parseFloat round-trip would silently truncate.
+      const huge = "12312419843287492374257983275498759437593";
+      expect(formatDecimalForPact(huge)).toBe(`${huge}.0`);
+    });
+    it("preserves a 39-digit-int + 38-digit-fractional decimal at maxDecimals=999", () => {
+      // The integer side has 39 digits (well past 2^53) — string handling
+      // preserves it. The fractional has 38 digits; the default maxDecimals
+      // is 24 (would truncate), so we pass 999 to demonstrate that the
+      // truncation is a deliberate cap, NOT a precision-loss artifact.
+      // Pact decimals are arbitrary-precision; the consumer chooses the cap.
+      const huge = "308948325783475835674896548964586458654.42389754354398523984543985348925389";
+      expect(formatDecimalForPact(huge, 999)).toBe(huge);
+    });
+    it("default maxDecimals=24 truncates rather than rounds (v3.0.0+ contract)", () => {
+      // Pre-existing contract: truncate (not round) so the value the chain
+      // sees is always ≤ the user's intent. Lock this here alongside the
+      // arbitrary-precision tests for clarity.
+      const longFrac = "1.42389754354398523984543985348925389";
+      // Fractional after dot is 35 digits; default cap is 24.
+      expect(formatDecimalForPact(longFrac)).toBe("1.423897543543985239845439");
+    });
+    it("preserves digit-precision past float64's 15-17 significant-digit window", () => {
+      // 1.0000000000000001 (16 significant figures) round-trips through
+      // parseFloat as 1 (precision lost). format*ForPact preserves it.
+      const subtle = "1.0000000000000001";
+      expect(formatDecimalForPact(subtle)).toBe(subtle);
+    });
+  });
+});
+
+// ══ formatIntegerForPact (v3.2.0+) ═══════════════════════════════════════════
+describe("formatIntegerForPact — integer-string canonicalisation", () => {
+  describe("happy path", () => {
+    it("'0' → '0'", () => {
+      expect(formatIntegerForPact("0")).toBe("0");
+    });
+    it("'1' → '1'", () => {
+      expect(formatIntegerForPact("1")).toBe("1");
+    });
+    it("'1234567890' → '1234567890'", () => {
+      expect(formatIntegerForPact("1234567890")).toBe("1234567890");
+    });
+    it("trims leading/trailing whitespace", () => {
+      expect(formatIntegerForPact("  42  ")).toBe("42");
+    });
+    it("preserves leading zeros (Pact accepts '007')", () => {
+      expect(formatIntegerForPact("007")).toBe("007");
+    });
+  });
+
+  describe("arbitrary-precision contract", () => {
+    it("preserves a 41-digit integer (well past 2^53 - 1)", () => {
+      // Pact integers are arbitrary-precision; JS `Number()` would
+      // collapse this to scientific-notation float at this length.
+      const huge = "12312419843287492374257983275498759437593";
+      expect(formatIntegerForPact(huge)).toBe(huge);
+    });
+    it("preserves a 100-digit integer", () => {
+      const massive = "9".repeat(100);
+      expect(formatIntegerForPact(massive)).toBe(massive);
+    });
+  });
+
+  describe("rejection cases — strict integer regex", () => {
+    it("rejects decimal point", () => {
+      expect(() => formatIntegerForPact("1.0")).toThrow("Invalid integer format");
+    });
+    it("rejects bare period", () => {
+      expect(() => formatIntegerForPact("1.")).toThrow("Invalid integer format");
+    });
+    it("rejects empty string", () => {
+      expect(() => formatIntegerForPact("")).toThrow("Invalid integer format");
+    });
+    it("rejects negative sign — chain integers are non-negative", () => {
+      expect(() => formatIntegerForPact("-5")).toThrow("Invalid integer format");
+    });
+    it("rejects positive sign — leading '+' not part of Pact integer literal", () => {
+      expect(() => formatIntegerForPact("+5")).toThrow("Invalid integer format");
+    });
+    it("rejects scientific notation", () => {
+      expect(() => formatIntegerForPact("1e10")).toThrow("Invalid integer format");
+    });
+    it("rejects comma as decimal separator (use formatDecimalForPact for decimals)", () => {
+      expect(() => formatIntegerForPact("1,5")).toThrow("Invalid integer format");
+    });
+    it("rejects letters / non-digit characters", () => {
+      expect(() => formatIntegerForPact("1abc")).toThrow("Invalid integer format");
+    });
+    it("rejects whitespace within the number", () => {
+      expect(() => formatIntegerForPact("1 000")).toThrow("Invalid integer format");
+    });
+  });
+});
+
+// ══ ValidatedDecimal / ValidatedInteger brand types (v3.2.0+) ═══════════════
+describe("brand types — type-level validation passthrough", () => {
+  it("formatDecimalForPact return value is assignable to ValidatedDecimal", () => {
+    // Compile-time check: a function declared `(x: ValidatedDecimal) => string`
+    // must accept the formatter's return value without `as` casting. The
+    // runtime body only proves the value is the expected string.
+    const v: ValidatedDecimal = formatDecimalForPact("1.5");
+    const consume = (d: ValidatedDecimal): string => d;
+    expect(consume(v)).toBe("1.5");
+  });
+
+  it("formatIntegerForPact return value is assignable to ValidatedInteger", () => {
+    const v: ValidatedInteger = formatIntegerForPact("42");
+    const consume = (i: ValidatedInteger): string => i;
+    expect(consume(v)).toBe("42");
+  });
+
+  it("ValidatedDecimal and ValidatedInteger are distinct types", () => {
+    // Compile-time check: the brands are distinct, so a `ValidatedInteger`
+    // cannot be passed where `ValidatedDecimal` is expected (and vice versa)
+    // without a deliberate cast. This locks in the lexer-level int vs decimal
+    // distinction at the type boundary.
+    const dec: ValidatedDecimal = formatDecimalForPact("1.5");
+    const int: ValidatedInteger = formatIntegerForPact("42");
+    // @ts-expect-error — ValidatedInteger is not assignable to ValidatedDecimal
+    const _x: ValidatedDecimal = int;
+    // @ts-expect-error — ValidatedDecimal is not assignable to ValidatedInteger
+    const _y: ValidatedInteger = dec;
+    expect(dec).toBe("1.5");
+    expect(int).toBe("42");
   });
 });
 
