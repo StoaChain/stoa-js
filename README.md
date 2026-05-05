@@ -300,11 +300,39 @@ the audit-trail of the 18 dalos-crypto symbols verified
 shape-compatible at upgrade time, and the verification-gate results
 (typecheck + 558/558 tests + build all green).
 
-**558 tests** pass on every commit (unchanged from v3.0.0 — the
-v3.1.0 changes are additive re-exports and a 1-line locale fix; no
-new test files). Published to the public npmjs registry via
-`.github/workflows/publish.yml` on every `v*` tag (which also
-creates a GitHub Release).
+**v3.1.1** — pre-publish audit-cycle close-out for the v3.1.0
+dalos-crypto integration. **PATCH, additive.** Closes 5 audit
+findings the post-v3.1.0-integration audit (2026-05-05) flagged
+against commit `bf10dc1` before that commit reached npm: 3 typed
+validation-error class re-exports added to `./dalos`
+(`InvalidBitStringError`, `InvalidBitmapError`,
+`InvalidPrivateKeyError` — close F-BUG-005 by completing the
+`instanceof`-discrimination surface); 1 type-only re-export added
+(`CoordAffine` — closes F-API-024 by restoring the "single
+integration surface" promise for `SchnorrSignature.r`); 1
+stylistic alignment (`src/dalos/{index,account}.ts` converted
+from single quotes + `.js` extensions to the codebase's standard
+double quotes + bare relative imports — closes F-ARCH-012); 1
+test-strictness fix (`tests/gas.test.ts` `formatMaxFee` assertion
+tightened from `toMatch(/10,000,000/)` substring regex to strict
+`toBe("10,000,000")` — closes F-TEST-001 so the v3.1.0
+locale-determinism contract is actually locked); and 1 fresh
+test block (`tests/dalos-integration.test.ts` gains coverage for
+the v3.1.0 Schnorr re-exports — closes F-TEST-004 with 5
+new it-blocks covering sign/verify round-trip, async variants,
+`SchnorrSignError` class identity, and `SchnorrSignature` /
+`CoordAffine` type-import compile probes). v3.1.0 was committed
+locally (`bf10dc1`) but never pushed to npm, so the npm registry
+goes from `3.0.0` straight to `3.1.1` with v3.1.0 visible only in
+the GitHub commit history. **565/565 tests pass** (was 558 in
+v3.1.0; +7 = 1 new strict locale grouping-style sibling
+assertion + 5 new Schnorr re-export it-blocks + 1 new
+validation-error class probe).
+
+**565 tests** pass on every commit (up from 558 v3.1.0; +7 across
+the v3.1.1 audit-cycle close-out). Published to the public npmjs
+registry via `.github/workflows/publish.yml` on every `v*` tag
+(which also creates a GitHub Release).
 
 ```bash
 npm install @stoachain/ouronet-core
