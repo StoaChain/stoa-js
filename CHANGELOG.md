@@ -2,6 +2,63 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.2.2 — 2026-05-05
+
+**MINOR, public API removal.** Third wave of the v3.2.x audit-cycle close-out. Removes the four `executeAddLiquidityMultiStep*` functions plus the `MultiStepAddLiquidityResult` type from `src/interactions/addLiquidityFunctions.ts`, along with the `_strategy` parameter on `executeAddLiquidity`. Closes audit findings **F-ERR-005** (`error.message.includes` retry-loop crash on non-Error throws), **F-ERR-014** (listen-timeout vs submit-failure conflation causing user double-pay risk), **F-PERF-014** (4× hardcoded 3-second sleeps), **F-PERF-015** (retry-with-fixed-sleep against string-matched `error.message.includes("Cannot find module")` patterns), and **F-API-026** (the `_strategy: "auto" | "single" | "multi"` parameter on `executeAddLiquidity` was always handled as `"auto"` → single-step path; dead public surface). All five findings are closed **by removal** rather than fix — the cleaner outcome by far. Net code change: **−338 lines** (1031 → 693 lines in `addLiquidityFunctions.ts`). **601/601 tests pass** unchanged; no test exercised the removed functions, which was itself a v3.2.x audit signal that the surface was unused.
+
+### Why this is a public-API removal (and why it's classified MINOR not MAJOR)
+
+The four removed functions were exported from `src/interactions/addLiquidityFunctions.ts` and reachable via the per-file glob subpath `@stoachain/ouronet-core/interactions/addLiquidityFunctions`. Strict semver classifies any removal of an exported public symbol as a breaking change requiring a MAJOR bump. We're classifying as MINOR for v3.2.2 because:
+
+1. **The functions had no consumer.** OuronetUI is the only known consumer of the multi-step path; per the user's confirmation, OuronetUI hasn't called these since the StoaChain chainweb gas-limit increase made multi-step unnecessary. The published v3.x.x npm artefacts contain the functions, but no code in this ecosystem invokes them.
+2. **The Pact-side multi-step contract still exists on chain** (`TS01-CP.SWP|C_AddStandardLiquidity` defpact with continuation steps) — preserved for historical interoperability. Consumers who genuinely need the multi-step flow (none expected) can build it directly via `@kadena/client`'s `Pact.builder.continuation` API; we just stop providing the TypeScript wrappers in this package.
+3. **The dead code carried real correctness risk.** F-ERR-005's `error.message.includes` crash on non-Error throws is a genuine bug; F-ERR-014's listen-timeout-vs-submit-failure conflation could cause user double-pay; F-PERF-014's hardcoded sleeps add ~6 seconds of unnecessary wall-clock latency to every successful flow. Fixing each in place would require ~30 minutes of work each plus tests; removing the surface that nobody uses takes 5 minutes and closes all five findings simultaneously.
+
+If a consumer surfaces post-publish that DID rely on the multi-step path, this becomes a v3.x → v4.0.0 trigger; otherwise the MINOR classification holds. Documenting the removal explicitly in the migration section below so the audit trail is unambiguous.
+
+### Removed — four `executeAddLiquidityMultiStep*` functions
+
+- **`executeAddLiquidityMultiStep1(params: AddLiquidityParams): Promise<any>`** — built and submitted the initial defpact transaction for `TS01-CP.SWP|C_AddStandardLiquidity`. ~90 lines.
+- **`executeAddLiquidityMultiStep2(params: AddLiquidityParams, step1Result: any): Promise<any>`** — built and submitted the first continuation step. ~50 lines.
+- **`executeAddLiquidityMultiStep3(params: AddLiquidityParams, step1Result: any): Promise<any>`** — built and submitted the second continuation step. ~50 lines.
+- **`executeAddLiquidityMultiStepComplete(params: AddLiquidityParams, onProgress?: (step: number) => void): Promise<MultiStepAddLiquidityResult>`** — orchestrated all three steps with the retry loops, hardcoded sleeps, and confused error-handling that the audit flagged. ~140 lines.
+
+### Removed — `MultiStepAddLiquidityResult` type
+
+- The discriminated-union return shape `{ type: "multi-step"; steps: Array<{stepNumber, transaction, requestKey, status}>; totalSteps; requestKey?; chainId?; networkId? }` is no longer exported. It was used only as the return type of `executeAddLiquidityMultiStepComplete` and was not referenced from any test file or other source file (verified via repo-wide grep at removal time).
+
+### Removed — `_strategy` parameter on `executeAddLiquidity`
+
+The signature changed from:
+
+```ts
+executeAddLiquidity(params: AddLiquidityParams, _strategy?: "auto" | "single" | "multi"): Promise<any>
+```
+
+to:
+
+```ts
+executeAddLiquidity(params: AddLiquidityParams): Promise<any>
+```
+
+The parameter was prefix-underscored (a TypeScript convention for unused parameters) and the function body always called `executeAddLiquiditySingle(params)` regardless of the `_strategy` value. Closes F-API-026.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The removal is internally consistent; no remaining code in `src/` references the removed symbols (verified via `grep -rn "MultiStepAddLiquidityResult|executeAddLiquidityMultiStep" src/` returning zero hits post-removal).
+- `npm test` — **601/601 tests pass**, unchanged. No test file referenced the removed functions or types — itself a strong audit signal that the surface was unused (any working code is tested; untested code is suspect).
+- `npm run build` — clean tsc emit. The `dist/interactions/addLiquidityFunctions.js` and `.d.ts` no longer carry the removed exports.
+
+### Migration
+
+For consumers calling any of the four `executeAddLiquidityMultiStep*` functions: the recommended migration is to call `executeAddLiquidity(params)` instead — same `AddLiquidityParams` shape, single-step under the 2M chainweb gas budget. The TypeScript SDK no longer exposes the multi-step wrappers; the on-chain `TS01-CP.SWP|C_AddStandardLiquidity` defpact is still callable via `@kadena/client`'s low-level `Pact.builder.continuation()` API for any consumer with the unusual need.
+
+For consumers passing `_strategy` to `executeAddLiquidity`: drop the second argument. The function's behaviour is identical (it always called the single-step path anyway).
+
+For consumers importing `MultiStepAddLiquidityResult` as a type: this type is gone; consumers should not have been importing it (the only producer was `executeAddLiquidityMultiStepComplete`, which is also gone). If a consumer does have an orphan reference, it should be deleted.
+
+---
+
 ## 3.2.1 — 2026-05-05
 
 **MINOR, behaviour change.** Second wave of the v3.2.x audit-cycle close-out. v3.2.0 built the number-hygiene infrastructure (`formatDecimalForPact` with comma support, `formatIntegerForPact`, branded types); v3.2.1 puts those helpers to work at the four chain-call sites the 2026-05-05 audit flagged. Closes audit findings **F-SEC-001** (Pact-code injection via raw `${amount}` interpolation in urStoa stake/unstake) and **F-BUG-003** (`parseFloat(amount).toFixed(N)` silent precision loss + silent rounding in cross-chain transfer + urStoa native transfer). **601/601 tests pass** (was 593 in v3.2.0; +8 new decimal-validation tests pinning the synchronous-throw + comma-normalisation + arbitrary-precision contract at the function boundaries).

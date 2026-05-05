@@ -6,7 +6,41 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.2.1` on public npmjs** — **MINOR, behaviour change** release —
+**`3.2.2` on public npmjs** — **MINOR, public API removal** —
+third wave of the v3.2.x audit-cycle close-out track. Removes the
+four `executeAddLiquidityMultiStep*` functions plus the
+`MultiStepAddLiquidityResult` type from
+`src/interactions/addLiquidityFunctions.ts`, along with the
+unused `_strategy` parameter on `executeAddLiquidity`. Closes audit
+findings **F-ERR-005** (`error.message.includes` retry-loop crash on
+non-Error throws), **F-ERR-014** (listen-timeout vs submit-failure
+conflation causing user double-pay risk), **F-PERF-014** (4×
+hardcoded 3-second sleeps adding ~6s wall-clock latency to every
+successful flow), **F-PERF-015** (retry-with-fixed-sleep against
+string-matched `error.message.includes("Cannot find module")`
+patterns), and **F-API-026** (the always-`"auto"` `_strategy`
+parameter on `executeAddLiquidity` was dead public surface). All
+five findings closed **by removal** rather than fix — the
+multi-step pipeline existed because the historical Kadena chainweb
+gas limit (150k per block) couldn't fit a single-block
+add-liquidity transaction; StoaChain's 2M-per-block chainweb fits
+the entire flow in one transaction, so multi-step has been dead
+code in OuronetUI since the gas-limit increase. Net code change:
+**−338 lines** (1031 → 693 lines in `addLiquidityFunctions.ts`).
+**601/601 tests pass** unchanged; no test exercised the removed
+functions, which was itself a v3.2.x audit signal that the surface
+was unused. The Pact-side multi-step contract
+(`TS01-CP.SWP|C_AddStandardLiquidity` defpact) is still on chain
+for historical interoperability — this package just stops exposing
+the TypeScript wrappers around it. Strict-semver-wise this is a
+breaking change requiring a MAJOR bump; classified MINOR for v3.2.2
+because the removed functions had no known consumer (verified via
+repo-wide grep + user confirmation that OuronetUI no longer uses
+multi-step). v3.2.3 will land the targeted bug fixes
+(`creationTime`, `fetchSpvProof` failover, `setNodeConfig` URL
+validation).
+
+**`3.2.1`** — **MINOR, behaviour change** —
 second wave of the v3.2.x audit-cycle close-out track. Puts the
 v3.2.0 number-hygiene helpers (`formatDecimalForPact`,
 `formatIntegerForPact`, `ValidatedDecimal` / `ValidatedInteger`
@@ -450,10 +484,46 @@ that previously relied on silent `"NaN"` interpolation or
 silent-rounding need to wrap calls in try/catch (the throw is the
 audit-mandated improvement).
 
-**601 tests** pass on every commit (up from 593 v3.2.0; +8 across
-the v3.2.1 decimal-validation enforcement). Published to the public
-npmjs registry via `.github/workflows/publish.yml` on every `v*`
-tag (which also creates a GitHub Release). Published to the public
+**v3.2.2** — removes the dead multi-step add-liquidity surface from
+`src/interactions/addLiquidityFunctions.ts`. **MINOR, public API
+removal.** Closes **F-ERR-005**, **F-ERR-014**, **F-PERF-014**,
+**F-PERF-015**, and **F-API-026** — five audit findings
+simultaneously, all by removal rather than fix. The historical
+multi-step pipeline existed because Kadena chainweb's 150k-per-block
+gas limit couldn't fit a single-block add-liquidity transaction;
+StoaChain runs at 2M gas per block (13×), which fits the entire
+flow in one transaction. OuronetUI hasn't called the multi-step
+path since the gas-limit increase, and no test in this package's
+suite exercised it — both signals that the four exported
+`executeAddLiquidityMultiStep*` functions plus their
+`MultiStepAddLiquidityResult` return type plus the unused
+`_strategy` parameter on `executeAddLiquidity` were dead public
+surface carrying real correctness risk (F-ERR-005's
+`.includes(...)` crash on non-Error throws; F-ERR-014's
+listen-timeout-vs-submit-failure conflation that could cause user
+double-pay; F-PERF-014's 4× hardcoded 3-second sleeps adding ~6s
+to every successful flow; F-PERF-015's retry loops against
+string-matched `error.message`). Net code change: **−338 lines**
+(1031 → 693 in `addLiquidityFunctions.ts`). The Pact-side defpact
+contract (`TS01-CP.SWP|C_AddStandardLiquidity` with continuation
+steps) is still on chain for historical interoperability;
+consumers with unusual need can still invoke it via
+`@kadena/client`'s low-level `Pact.builder.continuation()` API.
+Migration: callers of `executeAddLiquidityMultiStep*` should
+switch to `executeAddLiquidity(params)`, same `AddLiquidityParams`
+shape, single-step path. Callers passing `_strategy` to
+`executeAddLiquidity` should drop the second argument (the
+function's behaviour is identical — it always called the
+single-step path anyway). Strict-semver-wise the removal is
+breaking and would justify a MAJOR bump; classified MINOR for
+v3.2.2 because the removed surface had no known consumer
+(verified via repo-wide grep + user confirmation).
+
+**601 tests** pass on every commit (unchanged from v3.2.1 — the
+v3.2.2 removal didn't disturb any existing test, which was itself
+the strongest signal the removed surface was unused). Published to
+the public npmjs registry via `.github/workflows/publish.yml` on
+every `v*` tag (which also creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
 tag (which also creates a GitHub Release).
 

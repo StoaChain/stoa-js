@@ -39,22 +39,6 @@ export interface AddLiquidityParams {
   inputAmounts: string[];
 }
 
-// Multi-step add liquidity result
-export interface MultiStepAddLiquidityResult {
-  type: "multi-step";
-  steps: Array<{
-    stepNumber: number;
-    transaction: any;
-    requestKey: string;
-    status: "completed" | "pending" | "failed";
-  }>;
-  totalSteps: number;
-  // TransactionProcessing compatibility properties (from final step)
-  requestKey?: string;
-  chainId?: string;
-  networkId?: string;
-}
-
 // LP Type information
 export interface LPTypeInfo {
   hasFrozenLP: boolean | null;
@@ -324,356 +308,34 @@ export async function executeAddLiquiditySingle(
 }
 
 /**
- * Execute multi-step add liquidity (TS01-CP module) - Step 1
- */
-export async function executeAddLiquidityMultiStep1(
-  params: AddLiquidityParams
-): Promise<any> {
-  try {
-    const pactInputAmounts = `[${params.inputAmounts.map(amount => {
-      const amountStr = typeof amount === 'string' ? amount : String(amount);
-      return amountStr.includes('.') ? amountStr : `${amountStr}.0`;
-    }).join(' ')}]`;
-    
-    const pactCode = `(${KADENA_NAMESPACE}.TS01-CP.SWP|C_AddStandardLiquidity "${params.patronKeypair.address}" "${params.account}" "${params.swpair}" ${pactInputAmounts})`;
-    
-    
-    const keysetName = `ks`;
-    let gasLimit = 2_000_000;
-    
-    const buildTransaction = (gasLimitOverride?: number) => {
-      return Pact.builder
-        .execution(pactCode)
-        .addData(keysetName, {
-          keys: [params.guardKeypair.publicKey],
-          pred: "keys-all",
-        })
-        .setMeta({
-          senderAccount: GAS_STATION,
-        creationTime: safeCreationTime(),
-          chainId: KADENA_CHAIN_ID,
-          gasLimit: gasLimitOverride || gasLimit,
-        })
-        .setNetworkId(KADENA_NETWORK)
-        .addSigner(params.kadenaKeypair.publicKey, (withCapability: any) => [
-          withCapability(
-            `${KADENA_NAMESPACE}.DALOS.GAS_PAYER`,
-            "",
-            { int: 0 },
-            { decimal: "0.0" },
-          ),
-        ])
-        .addSigner(params.guardKeypair.publicKey)
-        .createTransaction();
-    };
-
-    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
-    
-    // First do a simulation to check gas
-    let transaction = buildTransaction();
-    const simulation = await dirtyRead(transaction);
-    
-    
-    // Check if simulation failed
-    if (simulation.result.status === "failure") {
-      const errorMessage = simulation.result.error?.message || "Transaction simulation failed";
-      throw new Error(`Add liquidity multi-step 1 simulation failed: ${errorMessage}`);
-    }
-
-    // Check if we need to adjust gas limit
-    const requiredGas = simulation.gas;
-    if (requiredGas && requiredGas > gasLimit) {
-      gasLimit = calculateAutoGasLimit(requiredGas);
-      transaction = buildTransaction(gasLimit);
-    }
-
-    // Sign the transaction
-    const signedTransaction: any = await universalSignTransaction(transaction, [
-    fromKeypair(params.kadenaKeypair),
-    fromKeypair(params.guardKeypair),
-  ]);
-
-    // Submit the transaction
-    const result = await submit(signedTransaction);
-    
-    // Wait for transaction to complete and extract pactId
-    const { listen } = getFailoverClient(KADENA_CHAIN_ID);
-    const transactionResult = await listen(result);
-    
-    
-    // Extract pactId from the transaction result for continuation steps
-    const pactId = result.requestKey;
-    
-    
-    return {
-      ...result,
-      pactId: pactId,
-      transactionResult: transactionResult
-    };
-    
-  } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
-  }
-}
-
-/**
- * Execute multi-step add liquidity continuation (Step 2)
- */
-export async function executeAddLiquidityMultiStep2(
-  params: AddLiquidityParams,
-  step1Result: any
-): Promise<any> {
-  try {
-    if (!step1Result?.pactId) {
-      throw new Error("Step 1 pactId is required for continuation but is missing or undefined");
-    }
-    
-    const gasLimit = 2_000_000; // Safe buffer for continuation steps
-    
-    const buildTransaction = (gasLimitOverride?: number) => {
-      return Pact.builder
-        .continuation({
-          pactId: step1Result.pactId,
-          rollback: false,
-          step: 1,
-          proof: null
-        })
-        .setMeta({
-          senderAccount: `k:${params.kadenaKeypair.publicKey}`, // Direct kadena gas payment for continuation 
-          chainId: KADENA_CHAIN_ID,
-          gasLimit: gasLimitOverride || gasLimit,
-        })
-        .setNetworkId(KADENA_NETWORK)
-        .addSigner(params.kadenaKeypair.publicKey) // No gas station capability for continuation
-        .addSigner(params.guardKeypair.publicKey)
-        .createTransaction();
-    };
-
-    const { submit } = getFailoverClient(KADENA_CHAIN_ID);
-    
-    // Build transaction with fixed gas limit (no simulation needed)
-    const transaction = buildTransaction();
-
-    // Sign the transaction - simple signing for continuation (direct kadena gas payment)
-    const signedTransaction: any = await universalSignTransaction(transaction, [
-    fromKeypair(params.kadenaKeypair),
-    fromKeypair(params.guardKeypair),
-  ]);
-
-    // Submit the transaction
-    const result = await submit(signedTransaction);
-    
-    
-    return result;
-    
-  } catch (error) {
-    getLogger().error("Multi-Step Add Liquidity Step 2 Error:", error);
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
-  }
-}
-
-/**
- * Execute multi-step add liquidity final step (Step 3)
- */
-export async function executeAddLiquidityMultiStep3(
-  params: AddLiquidityParams,
-  step1Result: any
-): Promise<any> {
-  try {
-    if (!step1Result?.pactId) {
-      throw new Error("Step 1 pactId is required for continuation but is missing or undefined");
-    }
-
-    
-    const gasLimit = 2_000_000; // Safe buffer for continuation steps
-    
-    const buildTransaction = (gasLimitOverride?: number) => {
-      return Pact.builder
-        .continuation({
-          pactId: step1Result.pactId,
-          rollback: false,
-          step: 2,
-          proof: null
-        })
-        .setMeta({
-          senderAccount: `k:${params.kadenaKeypair.publicKey}`, // Direct kadena gas payment for continuation 
-          chainId: KADENA_CHAIN_ID,
-          gasLimit: gasLimitOverride || gasLimit,
-        })
-        .setNetworkId(KADENA_NETWORK)
-        .addSigner(params.kadenaKeypair.publicKey) // No gas station capability for continuation
-        .addSigner(params.guardKeypair.publicKey)
-        .createTransaction();
-    };
-
-    const { submit } = getFailoverClient(KADENA_CHAIN_ID);
-    
-    // Build transaction with fixed gas limit (no simulation needed)
-    const transaction = buildTransaction();
-
-    // Sign the transaction - simple signing for continuation (direct kadena gas payment)
-    const signedTransaction: any = await universalSignTransaction(transaction, [
-    fromKeypair(params.kadenaKeypair),
-    fromKeypair(params.guardKeypair),
-  ]);
-
-    // Submit the transaction
-    const result = await submit(signedTransaction);
-    
-    
-    return result;
-    
-  } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
-  }
-}
-
-/**
- * Execute complete multi-step add liquidity (all 3 steps with continuation)
- */
-export async function executeAddLiquidityMultiStepComplete(
-  params: AddLiquidityParams,
-  onProgress?: (step: number) => void
-): Promise<MultiStepAddLiquidityResult> {
-  const steps: MultiStepAddLiquidityResult['steps'] = [];
-  
-  try {
-
-    
-    // Step 1: Initial transaction
-    const step1Result = await executeAddLiquidityMultiStep1(params);
-    const step1RequestKey = step1Result.requestKey;
-    
-    if (!step1RequestKey || !step1Result.pactId) {
-      throw new Error("Step 1 request key or pactId is missing or undefined");
-    }
-    
-    steps.push({
-      stepNumber: 1,
-      transaction: step1Result,
-      requestKey: step1RequestKey,
-      status: "completed"
-    });
-    
-    // Notify step 1 completion
-    onProgress?.(0);
-    
-    // Wait for step 1 to be confirmed before continuing
-    const { listen } = getFailoverClient(KADENA_CHAIN_ID);
-    await listen(step1Result);
-    
-    // Much longer delay to ensure transaction is fully processed and available for continuation on mainnet
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Increased from 5s to 15s
-    
-    
-    // Step 2: First continuation (with retry if transaction not found)
-    let step2Result;
-    let step2RequestKey;
-    let retryCount = 0;
-    const maxRetries = 5; // Increased from 3 to 5 for better success rate
-    
-    while (retryCount <= maxRetries) {
-      try {
-        step2Result = await executeAddLiquidityMultiStep2(params, step1Result);
-        step2RequestKey = step2Result.requestKey;
-        break; // Success, exit retry loop
-      } catch (error: any) {
-        if (error.message.includes("Cannot find module") && retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 3000)); // Increased from 3s to 10s
-          retryCount++;
-        } else {
-          throw error; // Re-throw if not a "module not found" error or max retries exceeded
-        }
-      }
-    }
-    
-    if (!step2Result || !step2RequestKey) {
-      throw new Error("Step 2 failed to complete successfully");
-    }
-    
-    steps.push({
-      stepNumber: 2,
-      transaction: step2Result,
-      requestKey: step2RequestKey,
-      status: "completed"
-    });
-    
-    // Notify step 2 completion
-    onProgress?.(1);
-    
-    // Wait for step 2 to be confirmed
-    await listen(step2Result);
-    
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Increased from 5s to 15s
-    
-    
-    // Step 3: Final continuation (with retry if transaction not found)
-    let step3Result;
-    retryCount = 0;
-    
-    while (retryCount <= maxRetries) {
-      try {
-        step3Result = await executeAddLiquidityMultiStep3(params, step1Result);
-        break; // Success, exit retry loop
-      } catch (error: any) {
-        if (error.message.includes("Cannot find module") && retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 3000)); // Increased from 3s to 10s
-          retryCount++;
-        } else {
-          throw error; // Re-throw if not a "module not found" error or max retries exceeded
-        }
-      }
-    }
-    
-    if (!step3Result) {
-      throw new Error("Step 3 failed to complete successfully");
-    }
-    
-    steps.push({
-      stepNumber: 3,
-      transaction: step3Result,
-      requestKey: step3Result.requestKey,
-      status: "completed"
-    });
-    
-    // Notify step 3 completion (final step)
-    onProgress?.(2);
-    
-    console.info("Multi-step Summary:", {
-      totalSteps: 3,
-      step1Key: step1RequestKey,
-      step2Key: step2RequestKey,
-      step3Key: step3Result.requestKey
-    });
-    
-    return {
-      type: "multi-step",
-      steps,
-      totalSteps: 3,
-      // Add transaction properties from final step for TransactionProcessing compatibility
-      requestKey: step3Result.requestKey,
-      chainId: step3Result.chainId,
-      networkId: step3Result.networkId
-    };
-    
-  } catch (error) {
-    console.info("Multi-Step Add Liquidity Error:", error);
-    
-    // Mark current step as failed
-    if (steps.length > 0) {
-      steps[steps.length - 1].status = "failed";
-    }
-    
-    throw error instanceof Error ? error : new Error("Multi-step add liquidity failed");
-  }
-}
-
-/**
- * Main add liquidity function - always uses single-step with gas simulation
+ * Main add liquidity function — single-step with gas simulation.
+ *
+ * REMOVED IN v3.2.2: the four multi-step execute functions
+ * (`executeAddLiquidityMultiStep1`, `executeAddLiquidityMultiStep2`,
+ * `executeAddLiquidityMultiStep3`, `executeAddLiquidityMultiStepComplete`)
+ * and the `MultiStepAddLiquidityResult` type they returned. The
+ * multi-step pipeline existed because the historical Kadena chainweb
+ * gas limit (150k per block) couldn't fit a single-block add-liquidity
+ * transaction; the consumer had to split into a defpact with two
+ * continuation steps. StoaChain's chainweb runs at 2M gas per block
+ * (13×), which fits the entire add-liquidity flow in one transaction —
+ * so the multi-step path has been dead code in OuronetUI since the
+ * gas-limit increase. Removing it closes audit findings F-ERR-005
+ * (`error.message.includes` on possibly-undefined retry-loop crashes),
+ * F-ERR-014 (listen timeout vs submit failure double-pay risk),
+ * F-PERF-014 (4× hardcoded 3-second sleeps), F-PERF-015 (retry-with-
+ * fixed-sleep against string-matched error messages), and F-API-026
+ * (the `_strategy` parameter on `executeAddLiquidity` was always
+ * `"auto"` → single-step path; dead public surface).
+ *
+ * The Pact-side multi-step contract still exists on chain
+ * (`TS01-CP.SWP|C_AddStandardLiquidity` defpact with continuation
+ * steps) — preserved for historical interoperability. This package
+ * just stops exposing the TypeScript wrappers around it because no
+ * consumer needs them any more.
  */
 export async function executeAddLiquidity(
   params: AddLiquidityParams,
-  _strategy: "auto" | "single" | "multi" = "auto",
 ): Promise<any> {
   try {
     return await executeAddLiquiditySingle(params);
