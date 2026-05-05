@@ -595,9 +595,16 @@ export async function getInfoRemoveLiquidity(
   try {
     const decLpAmount = lpAmount.includes(".") ? lpAmount : lpAmount + ".0";
     const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.SWP|INFO_RemoveLiquidity "${patron}" "${account}" "${swpair}" ${decLpAmount})`;
+    // v3.3.0 (closes part of consolidated F-LOGGER-SEAM-001): the two
+    // `console.log` debug-leak calls that used to live here were leftover
+    // dev instrumentation (per-keystroke pretty-printed `JSON.stringify`
+    // dumps that bypassed the seam AND added serialisation cost on every
+    // preview read). The legitimate diagnostic — the FAILED warn call
+    // below — already routes through the seam. Removing the debug-only
+    // calls is the audit-recommended outcome (per the F-LOGGER-SEAM-001
+    // validator's "should be removed or routed" classification — these
+    // had no operational value beyond developer-side trace).
     const response = await pactRead(pactCode, { tier: "T2" });
-    console.log("[INFO_RemoveLiquidity] pactCode:", pactCode);
-    console.log("[INFO_RemoveLiquidity] response:", JSON.stringify(response?.result, null, 2));
     if (!response?.result || response.result.status === "failure") {
       getLogger().warn("[INFO_RemoveLiquidity] FAILED:", (response?.result as any)?.error?.message);
       return null;

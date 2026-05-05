@@ -6,7 +6,27 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.2.3` on public npmjs** — **MINOR, behaviour change** — fourth
+**`3.3.0` on public npmjs** — **MINOR, additive (Logger interface
+extension) + behaviour change (call-site routing)** — first release
+in the v3.3.x line. Closes the consolidated **F-LOGGER-SEAM-001**
+finding flagged by all 8 audit agents at 9 distinct source sites
+(highest-redundancy finding in the entire 2026-05-05 audit). Two
+of the nine sites were already removed by v3.2.2's deletion of
+`executeAddLiquidityMultiStepComplete`; v3.3.0 closes the remaining
+seven by extending the `Logger` interface from `{warn, error}` to
+`{warn, error, info}` and routing every surviving raw `console.*`
+call in `src/` through the seam (or deleting debug-leak
+instrumentation that had no operational value). Post-v3.3.0
+invariant: **zero raw `console.*` call sites in `src/`** outside
+the seam's own default-logger implementation, verified by a new
+regression-lock test that scans the entire src/ tree on every run.
+Backwards-compat: v3.2.x consumers wiring
+`setLogger({warn, error})` continue to work — the setter synthesises
+an `info` wrapper that falls through to `console.info` for the new
+channel; consumers that want full control pass
+`setLogger({warn, error, info})`. **622/622 tests pass.**
+
+**`3.2.3`** — **MINOR, behaviour change** — fourth
 and final wave of the v3.2.x audit-cycle close-out track. Four
 targeted bug fixes closing the highest-user-impact remaining
 findings: **F-BUG-002** (added `creationTime: safeCreationTime()`
@@ -588,10 +608,64 @@ monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`
 + type consolidation + `readonly` on public types + nullable
 widening for the 10 swap functions).
 
-**618 tests** pass on every commit (up from 601 v3.2.2; +17 new
-it-blocks for the v3.2.3 targeted bug fixes). Published to the
-public npmjs registry via `.github/workflows/publish.yml` on every
-`v*` tag (which also creates a GitHub Release). Published to the public
+**v3.3.0** — Logger seam completion. **MINOR, additive + behaviour
+change.** First release in the v3.3.x cleanup track. Closes the
+consolidated **F-LOGGER-SEAM-001** finding (9 distinct source sites
+flagged by 8 of 8 audit agents — the highest-redundancy finding in
+the entire 2026-05-05 audit). v3.2.2's `executeAddLiquidityMultiStepComplete`
+deletion already removed 2 of the 9 sites by removal; v3.3.0 closes
+the remaining 7 — `transactionErrors.ts:252-261` (3 calls in
+`logDetailedError`), `nodeFailover.ts:61` (primary-recovery
+announcement), `infoOneFunctions.ts:599-600` (debug-leak in remove-
+liquidity preview), `ouroFunctions.ts:1590,1595` (Coil preview
+failure path + success-path data dump), and `urStoaFunctions.ts:348`
+(signature-pruning announcement). 4 of those 7 are routed through
+the seam (`getLogger().info` for ops events, `getLogger().warn` for
+unusual operational events worth structured-log capture, folded
+into existing `getLogger().error` calls where grouping framing was
+the only thing using `console.group`); 3 are deleted as
+debug-leak (the `console.log` calls flagged by the audit as
+"left-over dev instrumentation" with no operational value beyond
+developer trace). The `Logger` interface gains an `info(msg,
+...args): void` channel — the missing surface that caused 4 of
+the 7 seam violations (the seam previously exposed only `warn` and
+`error`, so `info`-class events fell through to raw `console.info`
+that bypassed consumer-supplied loggers). v3.3.0's `setLogger`
+accepts BOTH the v3.2.x 2-method input shape (`{warn, error}` —
+synthesised wrapper fills in `info` from default `console.info`
+routing) AND the v3.3.0 3-method input shape (`{warn, error, info}`
+— reference identity preserved). Backwards-compat is automatic;
+v3.2.x consumers see no behaviour change unless they were emitting
+to one of the seven raw-console sites that no longer exist. New
+regression-lock test in `tests/v3-3-0-logger-seam-completion.test.ts`
+scans the entire `src/` tree on every run and fails on any future
+commit that re-introduces a raw `console.*` call (filters out
+JSDoc/comments + the seam's own intentional default-logger
+implementation in `observability/logger.ts`). The audit's
+consolidated finding becomes a permanent invariant rather than a
+one-time cleanup. NO breaking changes: every previously-valid
+consumer call shape continues to work; new surface is opt-in.
+
+**v3.3.x trajectory ahead:** test coverage completion (F-TEST-002
+adding `tests/universal-sign.test.ts` for the chainweaver/
+eckowallet/foreign branches; F-TEST-005 adding success-path tests
+for the 13 v3.0.0 nullable-widened functions; F-TEST-006 adding
+behavioural tests for `pensionFunctions`/`guardFunctions`/
+`infoOneFunctions`); various documentation cleanups (deprecate
+`KADENA_BASE_URL`, fix `CreateAccountOptions` JSDoc, etc.).
+v4.0.0 is the major structural release (monorepo split into
+`@stoachain/stoa-core` + `@stoachain/ouronet-core`, god-file
+decomposition, type consolidation, `readonly` modifiers across
+the public type surface).
+
+**622 tests** pass on every commit (up from 618 v3.2.3; +3 new
+logger-seam contract tests + 1 regression-lock scan-test +
+package-version pin updated to 3.3.0; the existing setLogger
+reference-identity test was rewritten in place to reflect the
+v3.3.0 3-method `Logger` shape — it asserts identity now requires
+the input to have all 3 methods). Published to the public npmjs registry via
+`.github/workflows/publish.yml` on every `v*` tag (which also
+creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
 tag (which also creates a GitHub Release).
 

@@ -345,7 +345,15 @@ export async function executeNativeUrStoaTransfer(params: ExecuteNativeUrStoaPar
       );
     }
 
-    console.info(
+    // v3.3.0 (closes part of F-LOGGER-SEAM-001): routed through
+    // getLogger().warn — signature pruning is an unusual operational
+    // event (guard keys in Codex didn't match the sender's on-chain
+    // guard, suggesting algorithm mismatch or stale key state) that a
+    // HUB operator running structured logs would want to capture in
+    // their incident pipeline. Promoted from info → warn-level for
+    // that reason; the seam's `info` channel is reserved for
+    // recoverable status events (node-recovery, error-suggestions).
+    getLogger().warn(
       `[UrStoa] Rebuilding transaction with ${validGuardKeys.length} valid guard key(s) ` +
       `(removed ${invalidIdxs.length} invalid).`,
     );

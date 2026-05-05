@@ -246,17 +246,29 @@ export function formatErrorForUser(error: SigningError): string {
 }
 
 /**
- * Logs detailed error information for debugging
+ * Logs detailed error information for debugging.
+ *
+ * v3.3.0 (closes part of consolidated F-LOGGER-SEAM-001 finding): all output
+ * now routes through the `getLogger()` seam. Pre-v3.3.0 the function mixed
+ * `console.group`/`console.groupEnd` framing + `console.info("Suggestions:")`
+ * with `getLogger().error(...)` calls — a consumer that wired
+ * `setLogger(myPinoAdapter)` to capture all warn/error output would still
+ * see the group-headers and Suggestions line leak to raw `console`. Now:
+ *
+ *   - The error-name/code header is folded into the first
+ *     `getLogger().error(...)` call (the seam doesn't model grouping; pino
+ *     and similar structured loggers don't support it).
+ *   - Suggestions route through the new `getLogger().info(...)` channel
+ *     added in v3.3.0 — they're operationally informative ("how do you
+ *     recover from this?") rather than warn-level.
  */
 export function logDetailedError(error: SigningError): void {
-  console.group(`🚨 ${error.name}: ${error.code}`);
-  getLogger().error("Message:", error.message);
+  getLogger().error(`🚨 ${error.name}: ${error.code} — ${error.message}`);
   getLogger().error("Context:", error.context);
   if (error.originalError) {
     getLogger().error("Original Error:", error.originalError);
   }
   if (error.suggestions) {
-    console.info("Suggestions:", error.suggestions);
+    getLogger().info("Suggestions:", error.suggestions);
   }
-  console.groupEnd();
 }

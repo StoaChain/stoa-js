@@ -1587,12 +1587,18 @@ export async function getCoilPreview(
     const response = await pactRead(`(${KADENA_NAMESPACE}.INFO-ONE.ATS|INFO_Coil "preview" "preview" "Auryndex-O136CBn22ncY" "OURO-8Nh-JO8JO4F5" ${decimalAmount})`, { tier: "T2" });
 
     if (!response || !response.result || response.result.status === "failure") {
-      console.log("Coil preview failed:", response?.result);
+      // v3.3.0 (closes part of F-LOGGER-SEAM-001): routed through getLogger().warn
+      // — failure context is operationally useful, kept at warn-level so
+      // structured-logger consumers (HUB pino, OuronetUI Sentry) capture it.
+      getLogger().warn("Coil preview failed:", response?.result);
       return null;
     }
 
     const data = response.result.data as any;
-    console.log("Coil preview response data:", data);
+    // v3.3.0: removed `console.log("Coil preview response data:", data)`
+    // — pure debug-only data dump on the success path, no operational
+    // value beyond developer trace. Matches the F-LOGGER-SEAM-001
+    // validator's "should be removed" classification for debug-leak sites.
     
     // Extract AURYN amount from text arrays
     let aurynAmount = 0;

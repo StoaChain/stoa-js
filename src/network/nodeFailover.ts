@@ -58,7 +58,12 @@ function switchToFallback() {
 /** Switch back to primary */
 function switchToPrimary() {
   if (currentHost === PRIMARY_HOST) return;
-  console.info("[node-failover] Primary node recovered, switching back:", PRIMARY_HOST);
+  // v3.3.0 (closes part of consolidated F-LOGGER-SEAM-001): routed through
+  // the `getLogger().info(...)` seam added in v3.3.0. Symmetric with
+  // line 53's `getLogger().warn(...)` for the failover-detected case.
+  // Pre-v3.3.0 this was a raw `console.info` — the only seam violation
+  // in nodeFailover.ts.
+  getLogger().info("[node-failover] Primary node recovered, switching back:", PRIMARY_HOST);
   currentHost = PRIMARY_HOST;
   stopRetryLoop();
 }

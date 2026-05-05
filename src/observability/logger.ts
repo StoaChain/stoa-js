@@ -28,13 +28,25 @@
  */
 
 /**
- * Logger shape. Two methods is the minimum surface that captures every
- * existing core call site (`console.warn` and `console.error`). `unknown[]`
- * (NOT `any[]`) for the rest args keeps consumers honest about what they pass.
+ * Logger shape — three methods covering every core call site:
+ *
+ *   - `warn` / `error`: surfaced from the v2.3.0 catch-routing sweep. Used
+ *     for failure paths in `interactions/*`, `network/*`, `errors/*`.
+ *   - `info` (added v3.3.0 — closes the consolidated `F-LOGGER-SEAM-001`
+ *     finding flagged by 8 audit agents): operational events that aren't
+ *     errors but consumers may still want to capture (node-recovery
+ *     announcements, error-suggestions callouts, signature-pruning
+ *     diagnostics). Pre-v3.3.0 the seam exposed only `warn`/`error`, so
+ *     these events fell through to raw `console.info` calls that bypassed
+ *     consumer-supplied loggers. v3.3.0 routes them through the seam.
+ *
+ * `unknown[]` (NOT `any[]`) for the rest args keeps consumers honest about
+ * what they pass.
  */
 export type Logger = {
   warn(msg: string, ...args: unknown[]): void;
   error(msg: string, ...args: unknown[]): void;
+  info(msg: string, ...args: unknown[]): void;
 };
 
 /**
@@ -46,6 +58,7 @@ export type Logger = {
 const defaultLogger: Logger = {
   warn: (msg: string, ...args: unknown[]) => console.warn(msg, ...args),
   error: (msg: string, ...args: unknown[]) => console.error(msg, ...args),
+  info: (msg: string, ...args: unknown[]) => console.info(msg, ...args),
 };
 
 let _logger: Logger = defaultLogger;
@@ -55,12 +68,28 @@ let _logger: Logger = defaultLogger;
  * boot; later calls replace the previous logger. Throws `TypeError` if
  * `logger` is `null` or `undefined` — the seam refuses to install a missing
  * dependency rather than silently swallow warn/error output downstream.
+ *
+ * v3.3.0 backwards-compatibility: consumers that wired
+ * `setLogger({ warn, error })` against the v3.2.x Logger shape continue to
+ * work. The `info` method is filled in from the default `console.info`
+ * routing if the input object lacks one. New consumers that want full
+ * control of all three channels pass `{ warn, error, info }`.
  */
-export function setLogger(logger: Logger): void {
+export function setLogger(logger: Logger | { warn: Logger["warn"]; error: Logger["error"] }): void {
   if (logger === null || logger === undefined) {
     throw new TypeError("setLogger requires a non-null Logger");
   }
-  _logger = logger;
+  // Fill in `info` from the default if the consumer's logger predates the
+  // v3.3.0 surface extension. Cast is safe because we've validated the
+  // narrower input shape and we're synthesising the missing method.
+  const filled: Logger = "info" in logger && typeof logger.info === "function"
+    ? (logger as Logger)
+    : {
+        warn: logger.warn,
+        error: logger.error,
+        info: defaultLogger.info,
+      };
+  _logger = filled;
 }
 
 /**

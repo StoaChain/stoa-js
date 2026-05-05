@@ -2,6 +2,78 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.0 — 2026-05-06
+
+**MINOR, additive (Logger interface extension) + behaviour change (call-site routing).** First release in the v3.3.x line, opening the second post-audit cleanup track. Closes the consolidated **F-LOGGER-SEAM-001** finding the 2026-05-05 audit flagged across 8 of 8 audit agents at 9 distinct source sites — the highest-redundancy finding in the entire audit. Two of the nine sites were already removed by v3.2.2's deletion of `executeAddLiquidityMultiStepComplete` (`addLiquidityFunctions.ts:642` + `:660`); v3.3.0 closes the remaining seven by extending the `Logger` interface with an `info(...)` method and routing every surviving raw `console.*` call in `src/` through the seam (or deleting debug-leak instrumentation that had no operational value). Post-v3.3.0 invariant: **zero raw `console.*` call sites in `src/` outside the seam's own default-logger implementation in `observability/logger.ts`** — verified by a new regression-lock test in `tests/v3-3-0-logger-seam-completion.test.ts` that greps the entire `src/` tree (excluding JSDoc/comments/the seam file itself) and fails on any future regression. **622/622 tests pass** (was 618 in v3.2.3; +3 new logger-seam contract tests covering the new `info` channel, +1 regression-lock test scanning src/, +1 existing test updated to reflect the new 3-method Logger shape).
+
+### Added — `info(msg, ...args): void` channel on `Logger`
+
+`src/observability/logger.ts` extends the `Logger` type from a 2-method shape (`{warn, error}`) to a 3-method shape (`{warn, error, info}`). The new channel is for operational events that aren't errors but consumers may still want to capture in their structured logs:
+
+- **Node-recovery announcements** — `nodeFailover.ts:61`'s "primary node recovered, switching back" message (symmetric counterpart to line 53's failover-detected `getLogger().warn(...)`).
+- **Error-suggestions callouts** — `transactionErrors.ts:259`'s "Suggestions:" line in `logDetailedError` (the operationally-informative "how do you recover from this?" annotations attached to typed `SigningError` instances).
+
+The pre-v3.3.0 seam exposed only `warn`/`error`, so these `info`-class events fell through to raw `console.info` calls that bypassed consumer-supplied loggers (HUB pino, OuronetUI Sentry, redux-devtools panels). The new channel keeps the seam semantically aligned with what the codebase actually emits.
+
+### Changed — `setLogger` accepts a partial input shape with `info` filled-in default (v3.x backwards-compat)
+
+Pre-v3.3.0 the `setLogger` parameter was typed as `Logger` (which now requires `info`). To avoid forcing every existing v3.2.x consumer to update their `setLogger({warn, error})` call sites in lockstep with v3.3.0, the setter now accepts:
+
+- A **full** `Logger` (`{warn, error, info}`) — reference identity preserved; `getLogger()` returns the same object passed in.
+- A **partial** v3.2.x-compatible input (`{warn, error}` with no `info`) — the setter synthesises a wrapper that fills in `info` from the default `console.info` routing. The wrapper is a NEW object (not the input reference); `info` calls go to `console.info`, `warn`/`error` go to the consumer's logger.
+
+This keeps v3.2.x consumers working unchanged while letting v3.3.0+ consumers wire `setLogger({warn, error, info})` for full structured-log capture. Type signature: `setLogger(logger: Logger | { warn, error }): void`.
+
+### Changed — 7 raw `console.*` call sites in `src/` routed through the seam (or deleted)
+
+| File:Line | Before | After |
+|---|---|---|
+| `transactionErrors.ts:252` | `console.group(\`🚨 ${error.name}: ${error.code}\`)` | folded into `getLogger().error(\`🚨 ${error.name}: ${error.code} — ${error.message}\`)` (seam doesn't model grouping; pino/structured loggers don't support it) |
+| `transactionErrors.ts:259` | `console.info("Suggestions:", error.suggestions)` | `getLogger().info("Suggestions:", error.suggestions)` |
+| `transactionErrors.ts:261` | `console.groupEnd()` | dropped (no seam equivalent) |
+| `nodeFailover.ts:61` | `console.info("[node-failover] Primary node recovered...", PRIMARY_HOST)` | `getLogger().info("[node-failover] Primary node recovered...", PRIMARY_HOST)` |
+| `infoOneFunctions.ts:599` | `console.log("[INFO_RemoveLiquidity] pactCode:", pactCode)` | DELETED (debug-leak — `getLogger().warn` already on line 602 for the failure path) |
+| `infoOneFunctions.ts:600` | `console.log("[INFO_RemoveLiquidity] response:", JSON.stringify(response?.result, null, 2))` | DELETED (debug-leak — pretty-printed JSON dump on every preview read had no operational value beyond developer trace, plus added serialisation cost) |
+| `ouroFunctions.ts:1590` | `console.log("Coil preview failed:", response?.result)` | `getLogger().warn("Coil preview failed:", response?.result)` (failure context — kept at warn-level so structured-logger consumers capture it) |
+| `ouroFunctions.ts:1595` | `console.log("Coil preview response data:", data)` | DELETED (debug-leak — success-path data dump, no operational value) |
+| `urStoaFunctions.ts:348` | `console.info(\`[UrStoa] Rebuilding transaction with ${validGuardKeys.length} valid guard key(s)...\`)` | `getLogger().warn(...)` (promoted to warn-level — signature pruning is an unusual operational event that a HUB operator running structured logs would want in their incident pipeline, not info-level chatter) |
+
+Net 4 calls routed through the seam, 3 deleted as debug-leak. Two `console.log` instances flagged by the audit as "left-over dev instrumentation" are removed entirely — their information value was zero (developer-only trace; the legitimate diagnostics on the same code paths already routed through `getLogger`). One was promoted from `info` → `warn` (urStoaFunctions:348's signature-pruning event) because the level mismatch between "we just rebuilt a transaction because some keys didn't match" and "info-level status update" was an audit smell.
+
+### Added — `tests/v3-3-0-logger-seam-completion.test.ts` regression lock
+
+A new test file scans the entire `src/` tree (recursively, all `.ts` files, excluding `.d.ts`) for raw `console.{log,info,group,groupEnd,debug,warn,error}` call patterns. JSDoc blocks (`/** ... */`), single-line `// ...` comments, and `*` continuation lines are filtered out. The seam's own default-logger implementation in `observability/logger.ts` is exempted (that's how the default routing works — `console.warn` etc. ARE the implementation of the default `Logger.warn` etc.). Any future commit that introduces a raw `console.*` call elsewhere in `src/` fails this test with a structured per-violation report. The audit's consolidated finding becomes a permanent invariant rather than a one-time cleanup.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The `Logger | { warn, error }` union type on `setLogger`'s parameter compiles cleanly; the runtime fill-in branch produces a `Logger` whether the input had 2 or 3 methods.
+- `npm test` — **622/622 tests pass** (was 618 in v3.2.3; +3 new + 1 regression-lock + 1 existing-updated to reflect the new 3-method Logger shape).
+- `npm run build` — clean tsc emit. The new `Logger.info` field is visible in the published `.d.ts` of the `./observability` subpath.
+- Direct-grep verification: `grep -rE "console\.(log|info|group|groupEnd|debug|warn|error)" src/` returns only JSDoc/comment matches and the seam-file's intentional default-logger implementations. No call-sites remain.
+
+### Migration
+
+For v3.2.x consumers wiring `setLogger({warn, error})`: **no migration required**. The setter's backwards-compat path synthesises an `info` wrapper that falls through to `console.info` for the new channel. Existing `getLogger().warn(...)` and `.error(...)` call sites continue to behave identically.
+
+For consumers who want full control of all three channels (recommended for HUB pino integrations and OuronetUI Sentry/redux-devtools wiring): pass a 3-method object to `setLogger`:
+
+```ts
+import { setLogger, type Logger } from "@stoachain/ouronet-core/observability";
+
+const myLogger: Logger = {
+  warn:  (msg, ...args) => myPipeline.warn(msg, args),
+  error: (msg, ...args) => myPipeline.error(msg, args),
+  info:  (msg, ...args) => myPipeline.info(msg, args),
+};
+setLogger(myLogger);
+```
+
+Output that previously bypassed the seam (the 4 `console.{group,info}` calls + 4 `console.log` debug-leaks the audit identified) is now either captured by the consumer's logger (4 routed calls) or removed entirely (4 deleted debug-leaks — the developer-only trace they emitted had no operational value).
+
+For consumers calling `logDetailedError(error: SigningError)` from `@stoachain/ouronet-core/errors`: behaviour change. Pre-v3.3.0 the function emitted `console.group`/`console.groupEnd` framing around the error fields; post-v3.3.0 it emits a single `getLogger().error(...)` line with the `name: code — message` header inlined, plus the existing `Context:`, `Original Error:`, and `Suggestions:` (now via `getLogger().info`) routed through the seam. Visual layout in browser DevTools is flatter (no collapsible group), but consumer-supplied structured loggers now capture the entire error envelope reliably. If the grouped-DevTools layout was important to a consumer, they can wrap the call in their own `console.group` / `console.groupEnd` before/after invoking it.
+
+---
+
 ## 3.2.3 — 2026-05-05
 
 **MINOR, behaviour change.** Fourth and final wave of the v3.2.x audit-cycle close-out track. Four targeted bug fixes that close the highest-user-impact remaining audit findings: `creationTime` in `buildCrossChainTransfer` (F-BUG-002), `fetchSpvProof` failover + 30s AbortController timeout (F-BUG-004 — the highest-impact bug in the entire audit), `setNodeConfig` URL parse + `https:` scheme allow-list (F-SEC-002), and `@throws` JSDoc documentation on the three crossChainFunctions submit/listen helpers (F-ERR-001). With these four findings closed, the v3.2.x sequence has remediated **15 of the audit's 62 confirmed findings** across four ship cycles. The remaining ~47 findings (logger-seam completion, test coverage, structural decomposition, type consolidation, etc.) are scheduled for v3.3.x and v4.0.0 per the audit's suggested spec groupings. **618/618 tests pass** (was 601 in v3.2.2; +17 new it-blocks in `tests/v3-2-3-bug-fixes.test.ts` covering creationTime presence + offset, setNodeConfig URL validation across 8 cases, and fetchSpvProof failover/timeout/proof-shape across 4 cases; +2 existing network.test.ts tests updated to reflect the new setNodeConfig contract).
