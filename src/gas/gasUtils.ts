@@ -94,7 +94,11 @@ export function formatMaxFee(
 ): { anu: string; stoa: string } {
   const totalAnu = gasPrice * gasLimit;
   return {
-    anu: totalAnu.toLocaleString(),
+    // Locale pinned to en-US so consumer rendering and test assertions
+    // are deterministic across host locales (a default toLocaleString()
+    // would emit "10.000.000" on a German host but "10,000,000" on a
+    // US host — the test suite was already pinning the en-US shape).
+    anu: totalAnu.toLocaleString('en-US'),
     stoa: formatAnuAsStoa(totalAnu),
   };
 }

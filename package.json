@@ -1,6 +1,6 @@
 {
   "name": "@stoachain/ouronet-core",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Shared TypeScript core for the OuroNet ecosystem — StoaChain / Chainweb / Pact interactions, Codex signing, guard analysis, encryption. Consumed by OuronetUI and the AncientHolder HUB.",
   "type": "module",
   "main": "./dist/index.js",
@@ -87,7 +87,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@stoachain/dalos-crypto": "^1.2.0"
+    "@stoachain/dalos-crypto": "^4.0.3"
   },
   "peerDependencies": {
     "@kadena/client": "^1.17.0",

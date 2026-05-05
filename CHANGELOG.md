@@ -2,6 +2,50 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.1.0 — 2026-05-05
+
+**MINOR, additive.** Upgrades `@stoachain/dalos-crypto` from `^1.2.0` to `^4.0.3` (covers v2.0.0–v4.0.3 of the dalos-crypto release line — Schnorr v2 wire format, Schnorr cofactor-subgroup hardening, generator-precompute matrix cache, async signing surfaces, RFC-6979-style determinism, the v4.0.0 Elliptic-package carve-out, and the v4.0.3 LOW-band closures), exposes the previously-internal Schnorr signature surface through the `./dalos` subpath, and ships a small locale-determinism fix in `./gas`. **558/558 tests pass.** No public surface from prior versions changes shape; all additions are opt-in.
+
+### Added — Schnorr signature surface re-exports on `./dalos`
+
+The high-level `primitive.sign(keyPair, message)` path through the registry has always been Schnorr internally (DalosGenesis is a Schnorr-over-DALOS-Ellipse primitive), so consumers who use that path continue to work unchanged. v3.1.0 re-exports the lower-level Schnorr functions and types directly from the `./dalos` subpath for advanced consumers who need them — most notably OuronetUI's browser path, where the `*Async` variants yield to the event loop on a fixed data-independent cadence so signing keeps INP under the 200 ms budget without freezing the tab. Five values + one type are added to `@stoachain/ouronet-core/dalos`:
+
+- `schnorrSign(privateKey, message, ellipse)` — synchronous sign; throws `SchnorrSignError` on internal Fiat-Shamir derivation failure (the typed throw was the v3.1.0 throw-contract finalisation in the upstream package; consumers `instanceof SchnorrSignError` to catch).
+- `schnorrVerify(signatureString, message, publicKey, ellipse)` — synchronous verify; returns `boolean`. Includes the v4.0.0 cofactor subgroup-membership checks (`[4]·R ≠ O`, `[4]·P ≠ O`) that reject order-4 small-subgroup attack signatures the pre-Phase-6 verifier accepted.
+- `schnorrSignAsync` / `schnorrVerifyAsync` — async wrappers that yield to the event loop every 8 outer-loop iterations on a fixed cadence (data-independent, constant-time). Recommended for browser consumers; the cadence is verified by the upstream package's REQ-14 yield-count constant-time test.
+- `SchnorrSignError` — typed exception class, importable for `instanceof` catch blocks.
+- `SchnorrSignature` — the canonical signature shape, useful for typing function parameters that take a parsed signature.
+
+The exports are sourced from `@stoachain/dalos-crypto/gen1` (the same subpath we already use for `Bitmap` + bitmap utilities), so no new transitive dependency surface is introduced.
+
+### Changed — `@stoachain/dalos-crypto` dep range bumped `^1.2.0` → `^4.0.3`
+
+Per the upstream v4.0.0 changelog, **TypeScript consumers see no breaking surface changes** between v1.2.0 and v4.0.3. The v4.0.0 major bump was driven entirely by a Go-reference reorganisation (the `Elliptic/` package carve-out into a new `keystore/` package, plus the `EllipseMethods.SchnorrVerify` parameter-order alignment) that affects only Go consumers. On the TS side, all changes across the v2.x/v3.x/v4.x line are additive (new exports, new optional fields like `BitStringValidation.reason?`) or behavior-preserving (`bigIntToBase49` is now O(n) instead of O(n²) but byte-identical for every input; `Modular` is now a structural property on the `Ellipse` interface, derived per curve at construction time, eliminating the `DALOS_FIELD` default-param footgun without changing any externally-observable behavior).
+
+The full set of symbols ouronet-core imports from `@stoachain/dalos-crypto/registry` and `@stoachain/dalos-crypto/gen1` was audited at upgrade time — all 18 symbols (`KeyPair`, `PrivateKeyForms`, `FullKey`, `PrimitiveMetadata`, `CryptographicPrimitive`, `DalosGenesisPrimitive`, `isDalosGenesisPrimitive`, `DalosGenesis`, `CryptographicRegistry`, `createDefaultRegistry`, `Leto`, `Artemis`, `Apollo`, `createGen1Primitive`, `DALOS_PREFIXES`, `Gen1PrimitiveConfig`, `AddressPrefixPair`, `Bitmap` plus the bitmap utility functions) are present and shape-compatible in v4.0.3. The four local gates (`npm install`, `npm run typecheck`, `npm test`, `npm run build`) all pass after the upgrade with zero source-code changes outside the new schnorr re-exports.
+
+### Fixed — locale determinism in `formatMaxFee` (`./gas`)
+
+`formatMaxFee(gasPrice, gasLimit)` in `src/gas/gasUtils.ts` previously called `totalAnu.toLocaleString()` without a locale argument, so the formatted ANU string varied with the host locale (`"10.000.000"` on a German-locale host vs `"10,000,000"` on a US-locale host). The test suite (`tests/gas.test.ts`) was already pinning the en-US shape, so the test silently failed on any non-en-US host while passing on CI (Linux + en-US default). v3.1.0 pins the call to `toLocaleString('en-US')` so consumer rendering and test assertions are deterministic across host locales. Trivial 1-line change. No public-API or runtime-behavior change for en-US consumers (the formatted string is identical); non-en-US consumers see their UI's ANU thousands-separator switch from their locale's separator (e.g., `.` on de-DE) to the en-US comma — a deliberate trade-off for cross-host parity.
+
+### Verified
+
+- `npm run typecheck` — zero errors with the new schnorr re-exports + dalos-crypto v4.0.3.
+- `npm test` — **558/558 tests pass**, including `tests/dalos-integration.test.ts`, `tests/gas.test.ts` (now passing on de-DE locale post-fix), `tests/package-version.test.ts` (re-pinned to `3.1.0`), and the full crypto/guard/signing/strategy/codex regression set.
+- `npm run build` — `tsc -p tsconfig.build.json` emits clean to `dist/`; the `./dalos` subpath barrel exports the new schnorr surface in the `.d.ts`.
+- `package-lock.json` — refreshed to pin `@stoachain/dalos-crypto@4.0.3`.
+
+### Migration
+
+No migration required for any existing consumer. The four cluster-of-changes are each strictly additive at the public-surface level:
+
+1. **dalos-crypto upgrade** — same imports work, same shapes returned, same algorithms produce same byte-identical outputs (Genesis 105-vector corpus byte-identity preserved at upstream extended-elided SHA-256 = `082f7a40405d4c075f1975af0a6075bb0228bbccae60a53b05b350a09ce223ae`).
+2. **Schnorr re-exports** — only visible if a consumer chooses to `import { schnorrSignAsync } from "@stoachain/ouronet-core/dalos"`; consumers who keep using `primitive.sign(...)` see no change.
+3. **Locale fix** — non-en-US consumers see their ANU thousands separator switch to `,` (was their locale's separator). UI inspection confirms the en-US shape is the canonical OuronetUI display. No breaking-change classification because the field is presentational; no caller logic depends on the separator character.
+4. **Test pin update** — `tests/package-version.test.ts` updated `3.0.0` → `3.1.0` to match the new release; not consumer-visible.
+
+---
+
 ## 3.0.0 — 2026-05-03
 
 **BREAKING release: 15 fabricated-fallback fabrications widened from `Promise<T>` to `Promise<T | null>` plus 1 mixed-shape addition (`validateLiquidity` gains optional `error?: string` field per Q10/A10) so consumers see RPC failures instead of fabricated chain values; 14 NON-BREAKING logger-routing additions across 5 files complete the silent-catch-elimination sweep.**

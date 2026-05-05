@@ -102,5 +102,20 @@ export {
   bitmapToAscii,
 } from '@stoachain/dalos-crypto/gen1';
 
+// Schnorr signature surface — added in ouronet-core v3.1.0 (pairs with
+// dalos-crypto v4.0.3). The high-level `primitive.sign(keyPair, msg)`
+// path is unchanged and remains the recommended API; these direct
+// schnorr exports are for advanced consumers (notably OuronetUI's
+// browser path, where the *Async variants yield to the event loop on
+// a fixed cadence so signing keeps INP under the 200 ms budget).
+export {
+  schnorrSign,
+  schnorrVerify,
+  schnorrSignAsync,
+  schnorrVerifyAsync,
+  SchnorrSignError,
+} from '@stoachain/dalos-crypto/gen1';
+export type { SchnorrSignature } from '@stoachain/dalos-crypto/gen1';
+
 export { createOuronetAccount } from './account.js';
 export type { CreateAccountOptions, CreateAccountMode } from './account.js';

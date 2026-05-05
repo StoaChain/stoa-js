@@ -6,10 +6,32 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.0.0` on public npmjs** — **BREAKING** major release closing M3
-from the 2026-04-30 audit cycle (F-CORE-007 fabricated-fallback
-removal + comprehensive HIGH-risk catalog sweep). This is the FIRST
-major bump since **v2.0.0** (2026-05-01) — downstream consumers
+**`3.1.0` on public npmjs** — **MINOR, additive** release that
+upgrades `@stoachain/dalos-crypto` from `^1.2.0` to `^4.0.3` (covering
+the v2.x/v3.x/v4.x line of the upstream package — Schnorr v2 wire
+format, cofactor subgroup-membership hardening, generator-precompute
+matrix cache, async signing surfaces, the v4.0.0 Elliptic-package
+carve-out on the Go side, and the v4.0.3 LOW-band closures), exposes
+the previously-internal **Schnorr signature surface** through the
+`./dalos` subpath (`schnorrSign` / `schnorrVerify` and the browser-
+friendly `schnorrSignAsync` / `schnorrVerifyAsync` async variants
+that yield to the event loop on a fixed cadence; plus the typed
+`SchnorrSignError` exception and the `SchnorrSignature` shape type),
+and ships a small locale-determinism fix in `formatMaxFee` so the
+ANU thousands separator is `,` on every host (was host-locale-
+dependent — silently passed CI on en-US Linux while failing locally
+on a German-locale host). **558/558 tests pass.** No public surface
+from prior versions changes shape; all additions are opt-in. Per
+the upstream v4.0.0 changelog: TypeScript consumers see no breaking
+surface changes across the dalos-crypto v1.2.0 → v4.0.3 jump (the
+v4.0.0 major bump was driven entirely by a Go-reference
+reorganisation that doesn't affect TS consumers). See
+[`CHANGELOG.md`](CHANGELOG.md) for the full v3.1.0 entry.
+
+**`3.0.0`** — **BREAKING** major release closing M3 from the
+2026-04-30 audit cycle (F-CORE-007 fabricated-fallback removal +
+comprehensive HIGH-risk catalog sweep). This was the FIRST major
+bump since **v2.0.0** (2026-05-01) — downstream consumers
 (OuronetUI, AncientHolder HUB) MUST update call sites to handle
 `null` returns. **16 fabricated-fallback widenings** land across 4
 interaction files: 15 functions widen from `Promise<T>` to
@@ -38,13 +60,20 @@ universalSignTransaction), encryption (V1 + V2 + smartDecrypt), guard
 analysis, gas calibration, codex codec, seed-type migration. OuronetUI
 is now a pure consumer.
 
-As of the current **v3.0.0** shipping line (originally introduced in
-**v1.3.0**), OuronetCore integrates
-**[`@stoachain/dalos-crypto@^1.2.0`](https://www.npmjs.com/package/@stoachain/dalos-crypto)**
+As of the current **v3.1.0** shipping line (originally introduced in
+**v1.3.0**, dep range bumped to `^4.0.3` in v3.1.0), OuronetCore
+integrates
+**[`@stoachain/dalos-crypto@^4.0.3`](https://www.npmjs.com/package/@stoachain/dalos-crypto)**
 via the `./dalos` subpath — consumers mint Ouronet accounts locally
 (all six DALOS input modes: random, bitmap, bitstring, base-10,
 base-49, seed words) without touching the retired
-`go.ouronetwork.io/api/generate` endpoint.
+`go.ouronetwork.io/api/generate` endpoint. As of v3.1.0 the `./dalos`
+subpath also re-exports the lower-level **Schnorr signature surface**
+(`schnorrSign`, `schnorrVerify`, plus browser-friendly
+`schnorrSignAsync` / `schnorrVerifyAsync` variants, the typed
+`SchnorrSignError` exception, and the `SchnorrSignature` shape type)
+for advanced consumers who need direct access without going through
+`primitive.sign(...)`.
 
 The per-version paragraphs below are compact deltas; for the full
 authoritative per-version detail (Added / Changed / Fixed sections,
@@ -221,14 +250,42 @@ per-cluster `Before:` / `After:` migration patterns and the locked
 Option B / Approach A / mixed-shape / 3-state-preservation /
 magic-string-removal decisions (Q3..Q11) embedded verbatim.
 
-**558 tests** pass on every commit (up from 500 v2.3.0 baseline;
-+58 new tests across the v3.0.0 fabricated-fallbacks-removal
-surfaces — interactions-pricing widenings, interactions-balance-
-cluster widenings + LPTypeInfo field widening + urStoa trio +
-validateLiquidity mixed shape + magic-string elimination,
-interactions-logger-parity routing). Published to the public npmjs
-registry via `.github/workflows/publish.yml` on every `v*` tag
-(which also creates a GitHub Release).
+**v3.1.0** — dalos-crypto v4.0.3 integration + Schnorr surface
+re-exports + locale-determinism fix. **MINOR, additive.** Bumps the
+`@stoachain/dalos-crypto` dep from `^1.2.0` to `^4.0.3` (per the
+upstream v4.0.0 changelog: TypeScript consumers see no breaking
+surface changes across the v1.2.0 → v4.0.3 jump — the v4.0.0 major
+bump was driven entirely by a Go-reference reorganisation, not the
+TS port). The `./dalos` subpath gains direct re-exports of the
+**Schnorr signature surface** for advanced consumers:
+`schnorrSign` / `schnorrVerify` for synchronous use; the
+browser-friendly `schnorrSignAsync` / `schnorrVerifyAsync` async
+variants that yield to the event loop on a fixed data-independent
+cadence (the upstream package's REQ-14 yield-count constant-time
+test verifies the cadence is data-independent and constant-time);
+the typed `SchnorrSignError` exception class for `instanceof` catch
+blocks; and the `SchnorrSignature` shape type for parameter typing.
+The high-level `primitive.sign(keyPair, message)` path through the
+registry is unchanged (it has always been Schnorr internally for
+DalosGenesis); the new direct-access surface is opt-in and exists
+mainly so OuronetUI's browser path can use the `*Async` variants to
+keep INP under the 200 ms budget during signing. Also fixes
+`formatMaxFee` in `./gas` to pin its `toLocaleString()` call to
+`'en-US'` so the ANU thousands separator is `,` on every host (was
+host-locale-dependent — silently passed CI on en-US Linux while
+failing locally on a German-locale host); the test suite was already
+pinning the en-US shape, so this restores cross-host parity. NO
+public-API removals or shape changes; all changes additive. See the
+v3.1.0 **CHANGELOG.md** entry for the full per-symbol export list,
+the audit-trail of the 18 dalos-crypto symbols verified
+shape-compatible at upgrade time, and the verification-gate results
+(typecheck + 558/558 tests + build all green).
+
+**558 tests** pass on every commit (unchanged from v3.0.0 — the
+v3.1.0 changes are additive re-exports and a 1-line locale fix; no
+new test files). Published to the public npmjs registry via
+`.github/workflows/publish.yml` on every `v*` tag (which also
+creates a GitHub Release).
 
 ```bash
 npm install @stoachain/ouronet-core
@@ -788,7 +845,7 @@ Each is a subpath export of the package: `import { ... } from "@stoachain/ourone
 | `@stoachain/ouronet-core/guard` | **(v2.3.0+)** `UnknownPredicateError` typed class — thrown by `computeThreshold` on unrecognized predicates; `analyzeGuard` catches it and folds it into a `predicateRecognized: false` bit on the returned analysis. Also adds optional `firstSignableButUnsatisfied: number` field on `SmartAccountAuthPathsAnalysis`. |
 | `@stoachain/ouronet-core/pact` | `formatDecimalForPact`, `safeCreationTime`, `filterFreePositionData`, EU locale formatters, and **14 `buildXxxPactCode` builders** for every CFM function the ecosystem ships |
 | `@stoachain/ouronet-core/interactions` | Read helpers (`getXxxInfo`, `getXxxBalance`, `getHibernatedNonces…`) + non-CFM execute helpers (`executeWrapStoa`, `executeWrapUrStoa`, `executeNativeUrStoaTransfer`); **(v2.0.0+)** `simulateTransaction(pactCode, chainId)` (signature change — see Migrating to v2.x); **(v3.0.0+)** 16 fabricated-fallback fabrications widened to `Promise<T \| null>` (BREAKING — see Migrating to v3.x); 14 logger-routing additions across 5 files complete the silent-catch elimination (NON-BREAKING) |
-| `@stoachain/ouronet-core/dalos` | **(v1.3.0+)** thin re-export of `@stoachain/dalos-crypto/registry` + `createOuronetAccount(registry, options)` convenience helper covering all 6 DALOS input modes. One-stop shop for browser-side key-gen; no need to install `dalos-crypto` as a separate dep. |
+| `@stoachain/ouronet-core/dalos` | **(v1.3.0+)** thin re-export of `@stoachain/dalos-crypto/registry` + `createOuronetAccount(registry, options)` convenience helper covering all 6 DALOS input modes. One-stop shop for browser-side key-gen; no need to install `dalos-crypto` as a separate dep. **(v3.1.0+)** dep range bumped to `@stoachain/dalos-crypto@^4.0.3`; re-exports the lower-level Schnorr signature surface (`schnorrSign`, `schnorrVerify`, `schnorrSignAsync`, `schnorrVerifyAsync`, `SchnorrSignError`, `SchnorrSignature`) for advanced consumers — the `*Async` variants yield to the event loop on a fixed data-independent cadence so browser signing keeps INP < 200ms. |
 
 ## Quick start — `/dalos` subpath
 
