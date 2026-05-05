@@ -22,8 +22,18 @@ jobs:
     # "Create GitHub Release for the pushed tag" step with a 403 from
     # the GitHub Releases API. Granting `contents: write` here scopes
     # the token to *just* what the Release-creation step needs.
+    #
+    # `id-token: write` (added in v3.3.1) is required for npm publish's
+    # `--provenance` flag — npm uses the OIDC token GitHub Actions issues
+    # via this permission to mint a SLSA attestation linking the published
+    # tarball to the exact workflow run that produced it. Without this
+    # permission, `npm publish --provenance` silently skips the attestation
+    # step. Pre-v3.3.1 every v3.x release shipped without provenance
+    # attestations (visible as 404 on `npm/-/npm/v1/attestations/{pkg}@{ver}`);
+    # v3.3.1 onwards every release carries verifiable provenance.
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Checkout
@@ -132,8 +142,13 @@ jobs:
           echo "Checking npm whoami..."
           npm whoami || echo "::warning::whoami failed — publish may too"
 
+      # v3.3.1: `--provenance` flag added to attach a SLSA attestation
+      # linking the published tarball to this exact workflow run (npm 9.5+).
+      # Requires `id-token: write` permission at the workflow level (set
+      # above). npmjs.com displays a "Provenance" badge on the package
+      # version page once the attestation is verified.
       - name: Publish to npmjs.org
-        run: npm publish --access public
+        run: npm publish --access public --provenance
 
       # ------------------------------------------------------------------
       # GitHub Release creation
@@ -145,6 +160,17 @@ jobs:
       # auto-authenticates with $GH_TOKEN. The `--notes-from-tag` flag uses
       # the annotated tag's message as the Release body — exactly what was
       # already provided in `git tag -a vX.Y.Z -m "..."`.
+      #
+      # v3.3.1 (workflow patch): the `--repo` flag was DROPPED from both
+      # `gh release create` and `gh release view` calls. Around 2026-04-30
+      # the GitHub-hosted runners' gh CLI image started rejecting the
+      # `gh release create --notes-from-tag --repo X` flag combination
+      # (the exact failure was logged on every v3.0.0..v3.3.0 release; in
+      # each case `/bee:pollinate`'s Step 9c REST-API fallback created the
+      # Release manually). Dropping `--repo` lets gh auto-detect the repo
+      # from the working-directory context (set by `actions/checkout@v4`
+      # at the top of this job), which IS the repo we want anyway. This
+      # eliminates the recurring REST-fallback dependency.
       - name: Create GitHub Release for the pushed tag
         env:
           # Prefer a user-supplied PAT (RELEASE_TOKEN) when present —
@@ -156,11 +182,10 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           # Skip if Release already exists (idempotent — supports manual re-runs).
-          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release for $TAG already exists — skipping."
           else
             gh release create "$TAG" \
-              --repo "${{ github.repository }}" \
               --title "$TAG" \
               --notes-from-tag \
               --latest
@@ -175,19 +200,24 @@ jobs:
       # creates them from the existing annotated-tag messages on every run
       # (idempotent — `gh release view` short-circuits if the Release
       # already exists). Once both are backfilled this becomes a no-op.
+      # v3.3.1 (workflow patch): same `--repo` drop as the main Release
+      # step above. By this point in the workflow the v3.x backfill list
+      # is fully satisfied (verified at every pollinate run via Step 10's
+      # tag-vs-release diff), so the loop body is a no-op for current
+      # tags. Kept in place for future-tag backfill if a Release ever
+      # gets manually deleted from the GitHub UI.
       - name: Backfill GitHub Releases for prior tags (idempotent)
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           for PRIOR_TAG in v1.7.0 v2.0.0 v2.0.1 v2.0.2 v2.0.3; do
-            if gh release view "$PRIOR_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            if gh release view "$PRIOR_TAG" >/dev/null 2>&1; then
               echo "Backfill: $PRIOR_TAG Release already exists — skipping."
             else
               # Verify the tag actually exists in the repo before attempting
               # to create a Release for it.
               if git rev-parse "$PRIOR_TAG" >/dev/null 2>&1; then
                 gh release create "$PRIOR_TAG" \
-                  --repo "${{ github.repository }}" \
                   --title "$PRIOR_TAG" \
                   --notes-from-tag
                 echo "Backfilled GitHub Release for $PRIOR_TAG."

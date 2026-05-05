@@ -2,6 +2,50 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.1 — 2026-05-06
+
+**PATCH, workflow-only.** Closes the two carried-forward follow-ups that have appeared in every pollinate run's "follow-ups" block since v3.0.0: (1) `npm publish` now passes the `--provenance` flag (and the workflow gains the `id-token: write` permission required to mint the OIDC token npm exchanges with npmjs.org), so v3.3.1 onwards every release carries a verifiable SLSA attestation linking the published tarball to the exact GitHub Action run that produced it; and (2) the `gh release create` invocations in both the main Release-creation step and the idempotent backfill step drop the `--repo` flag, eliminating the `gh release create --notes-from-tag --repo X` flag-combination incompatibility that the GitHub-hosted runners' gh CLI image rejected starting around 2026-04-30. Both fixes are workflow-file-only — `.github/workflows/publish.yml` is the only file that ships behaviour change. **NO source-code change**, **NO public API change**, **622/622 tests pass unchanged** (the workflow file isn't in the test scope; verification is the v3.3.1 publish run itself).
+
+### Why this is a workflow-only patch (and why that's load-bearing)
+
+Every v3.x publish since v3.0.0 has produced two recurring artifacts in the pollinate "follow-ups" block:
+
+1. **Missing npm provenance attestation.** `lifecycle.use_provenance: true` in `.bee/config.json` told pollinate to expect a 200 response from `https://registry.npmjs.org/-/npm/v1/attestations/@stoachain/ouronet-core@{version}`, but the actual workflow's `npm publish --access public` call lacked the `--provenance` flag, so npm silently skipped attestation generation. Each v3.x release shipped without the provenance signal that downstream consumers (and npmjs.com's "Provenance" badge) verify against.
+2. **Inline gh-CLI Release creation failed every run.** The `gh release create --notes-from-tag --repo X` invocation in the workflow has hit the same "using `--notes-from-tag` with `--repo` is not supported" failure on every v3.x run since the GitHub-hosted runners' gh-CLI image update on/around 2026-04-30. Pollinate's Step 9c REST-API fallback created the Release manually each time — the user-facing artefact was always present, but a workflow step was failing on every run, leaving a misleading red-X on the workflow run page.
+
+Both are workflow-file fixes that don't require a source-code change, don't break any consumer contract, and don't merit dragging a test-coverage block (v3.3.2/3/4 were lined up as the next coding work) into a release pipeline patch. v3.3.1 is published explicitly to land these two fixes as a clean PATCH release with a clear CHANGELOG audit trail. From v3.3.1 onwards, the workflow's success indicator on each publish IS the green-check we want — no manual-fallback tracking required.
+
+### Added — `id-token: write` to workflow `permissions` block
+
+`.github/workflows/publish.yml`'s `permissions` block extends from `contents: write` (the existing scope, granted at v2.0.2 to fix the GitHub-Releases-403 problem) to also include `id-token: write`. The token is the GitHub-Actions-OIDC-issued credential that `npm publish --provenance` exchanges with npmjs.org's attestation endpoint to produce the SLSA verification trail. Without this permission, `npm publish --provenance` doesn't fail — it silently skips the attestation step and produces a published-but-not-attested package.
+
+### Added — `--provenance` flag on `npm publish`
+
+The Publish-to-npmjs.org step changes from `npm publish --access public` to `npm publish --access public --provenance`. `npm` 9.5+ supports the flag; the `setup-node@v4` action used here installs Node 22 with a recent npm. The first attestation will surface on `npmjs.com/package/@stoachain/ouronet-core/v/3.3.1` via the "Provenance" badge in the version sidebar, plus a 200 response from `https://registry.npmjs.org/-/npm/v1/attestations/@stoachain/ouronet-core@3.3.1`. Pollinate's Step 9a `use_provenance` check (which has been silently failing on every v3.x run) will pass cleanly from v3.3.1 onwards.
+
+### Changed — dropped `--repo` flag from `gh release create` and `gh release view` calls
+
+The main "Create GitHub Release for the pushed tag" step + the idempotent "Backfill GitHub Releases for prior tags" step both used `gh release create $TAG --repo "${{ github.repository }}" ...`. After the GitHub-hosted runners' gh-CLI image update around 2026-04-30, the combination `gh release create --notes-from-tag --repo X` started returning "this flag combination is not supported." Pre-v3.3.1 the workaround was pollinate's own REST-API fallback (Step 9c); v3.3.1's workflow patch fixes the upstream cause: `--repo` is unnecessary in the workflow context because `actions/checkout@v4` (the first step) sets the working directory to the checked-out repo, and the gh CLI auto-detects the repo from that context. Same fix applied to the `gh release view` calls that gate the idempotent skip-if-exists check (no failure mode there pre-v3.3.1, but kept consistent for tooling-symmetry).
+
+### Verified
+
+- **`npm run typecheck` / `npm test` / `npm run build`** — all pass; tests run against the source-code surface which is unchanged in v3.3.1 (only `.github/workflows/publish.yml`, `package.json` version field, and `tests/package-version.test.ts` pin were touched).
+- **Workflow change cannot be verified locally** — the `--provenance` flag requires the GitHub-Actions-OIDC token (only available inside a CI run), and the `gh release create --repo` drop's behaviour change only manifests against GitHub's API. The proof of correctness will arrive when the v3.3.1 publish run finishes: pollinate's Step 9a should report `provenance: present` (was `absent` on every v3.x release), and the gh-CLI Release-creation step should conclude `success` (was `failure` on every v3.x release with REST fallback handling it).
+
+### Migration
+
+No consumer migration. The package's public API surface is byte-identical to v3.3.0. Consumers who track npm provenance attestations (e.g., Sigstore-aware build pipelines) will see v3.3.1 as the first attested release in the v3.x line.
+
+### v3.3.x trajectory ahead (unchanged from v3.3.0's roadmap)
+
+- **v3.3.2** — F-TEST-002 universalSign coverage (chainweaver/eckowallet/foreign branches)
+- **v3.3.3** — F-TEST-005 success-path tests for the 13 v3.0.0 nullable-widened functions
+- **v3.3.4** — F-TEST-006 behavioural tests for `pensionFunctions`/`guardFunctions`/`infoOneFunctions`
+- **v3.3.5+** — Documentation/deprecation cleanups (KADENA_BASE_URL, CreateAccountOptions JSDoc, etc.)
+- **v4.0.0** — Major structural release (monorepo split, god-file decomposition, type consolidation)
+
+---
+
 ## 3.3.0 — 2026-05-06
 
 **MINOR, additive (Logger interface extension) + behaviour change (call-site routing).** First release in the v3.3.x line, opening the second post-audit cleanup track. Closes the consolidated **F-LOGGER-SEAM-001** finding the 2026-05-05 audit flagged across 8 of 8 audit agents at 9 distinct source sites — the highest-redundancy finding in the entire audit. Two of the nine sites were already removed by v3.2.2's deletion of `executeAddLiquidityMultiStepComplete` (`addLiquidityFunctions.ts:642` + `:660`); v3.3.0 closes the remaining seven by extending the `Logger` interface with an `info(...)` method and routing every surviving raw `console.*` call in `src/` through the seam (or deleting debug-leak instrumentation that had no operational value). Post-v3.3.0 invariant: **zero raw `console.*` call sites in `src/` outside the seam's own default-logger implementation in `observability/logger.ts`** — verified by a new regression-lock test in `tests/v3-3-0-logger-seam-completion.test.ts` that greps the entire `src/` tree (excluding JSDoc/comments/the seam file itself) and fails on any future regression. **622/622 tests pass** (was 618 in v3.2.3; +3 new logger-seam contract tests covering the new `info` channel, +1 regression-lock test scanning src/, +1 existing test updated to reflect the new 3-method Logger shape).

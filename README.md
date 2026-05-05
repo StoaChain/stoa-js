@@ -6,7 +6,28 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.0` on public npmjs** — **MINOR, additive (Logger interface
+**`3.3.1` on public npmjs** — **PATCH, workflow-only.** Closes the
+two carried-forward follow-ups that have appeared in every
+pollinate run's "follow-ups" block since v3.0.0: (1) `npm publish`
+now passes `--provenance` (and the workflow gains `id-token:
+write` permission), so v3.3.1 onwards every release carries a
+verifiable SLSA attestation linking the published tarball to the
+exact GitHub Action run that produced it; (2) the `gh release
+create` calls drop the `--repo` flag, eliminating the
+`gh release create --notes-from-tag --repo X` flag-combination
+incompatibility that the GitHub-hosted runners' gh-CLI image
+rejected starting around 2026-04-30 (every v3.x release pre-v3.3.1
+needed pollinate's REST-API fallback at Step 9c to create the
+GitHub Release manually). Both fixes are workflow-file-only —
+`.github/workflows/publish.yml` is the only file with a behaviour
+change. **NO source-code change**, **NO public API change**,
+**622/622 tests pass unchanged**. Consumers see byte-identical
+package contents to v3.3.0; the difference is the v3.3.1
+attestation badge on npmjs.com and a green-check on the GitHub
+Action run page (vs the recurring red-X for the gh-CLI Release
+step that every v3.x release pre-v3.3.1 produced).
+
+**`3.3.0`** — **MINOR, additive (Logger interface
 extension) + behaviour change (call-site routing)** — first release
 in the v3.3.x line. Closes the consolidated **F-LOGGER-SEAM-001**
 finding flagged by all 8 audit agents at 9 distinct source sites
@@ -658,12 +679,40 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
-**622 tests** pass on every commit (up from 618 v3.2.3; +3 new
-logger-seam contract tests + 1 regression-lock scan-test +
-package-version pin updated to 3.3.0; the existing setLogger
-reference-identity test was rewritten in place to reflect the
-v3.3.0 3-method `Logger` shape — it asserts identity now requires
-the input to have all 3 methods). Published to the public npmjs registry via
+**v3.3.1** — workflow-file patch. **PATCH, workflow-only.** Closes
+the two carried-forward follow-ups that appeared in every
+pollinate run's final report from v3.0.0 through v3.3.0: (1) `npm
+publish --provenance` flag added (plus the `id-token: write`
+workflow permission required to mint the GitHub-Actions-OIDC token
+that npm exchanges with npmjs.org's attestation endpoint) — every
+v3.3.1+ release carries a SLSA attestation visible as the
+"Provenance" badge on npmjs.com and a 200 response on
+`https://registry.npmjs.org/-/npm/v1/attestations/@stoachain/ouronet-core@{version}`;
+pre-v3.3.1, every release shipped without provenance because
+`lifecycle.use_provenance: true` in `.bee/config.json` was
+truth-claimed by pollinate but the actual workflow's `npm publish
+--access public` lacked the flag. (2) `gh release create`
+invocations drop the `--repo` flag — the
+`gh release create --notes-from-tag --repo X` flag combination
+started failing on GitHub-hosted runners around 2026-04-30 with
+the gh-CLI image update; every v3.x release pre-v3.3.1 needed
+pollinate's REST-API fallback (Step 9c) to create the GitHub
+Release manually. Dropping `--repo` lets gh auto-detect the repo
+from the working-directory context (set by `actions/checkout@v4`
+at the top of the workflow), which is the same repo we want
+anyway. From v3.3.1 onwards the workflow's gh-Release step
+succeeds inline; pollinate's REST fallback becomes
+idempotency-skip code (Step 9b's "release exists?" check passes,
+Step 9c skips). Workflow-only patch — `.github/workflows/publish.yml`
+is the sole behaviour-change file; source code is byte-identical
+to v3.3.0; **622/622 tests pass unchanged** (workflow files
+aren't in the test scope; verification arrives with the v3.3.1
+publish run itself).
+
+**622 tests** pass on every commit (unchanged from v3.3.0 — the
+v3.3.1 patch is workflow-file-only; the only source-tree changes
+are the `package.json` version field bump 3.3.0 → 3.3.1 and the
+matching pin update in `tests/package-version.test.ts`). Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
