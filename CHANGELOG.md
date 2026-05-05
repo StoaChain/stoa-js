@@ -2,6 +2,67 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.2.1 — 2026-05-05
+
+**MINOR, behaviour change.** Second wave of the v3.2.x audit-cycle close-out. v3.2.0 built the number-hygiene infrastructure (`formatDecimalForPact` with comma support, `formatIntegerForPact`, branded types); v3.2.1 puts those helpers to work at the four chain-call sites the 2026-05-05 audit flagged. Closes audit findings **F-SEC-001** (Pact-code injection via raw `${amount}` interpolation in urStoa stake/unstake) and **F-BUG-003** (`parseFloat(amount).toFixed(N)` silent precision loss + silent rounding in cross-chain transfer + urStoa native transfer). **601/601 tests pass** (was 593 in v3.2.0; +8 new decimal-validation tests pinning the synchronous-throw + comma-normalisation + arbitrary-precision contract at the function boundaries).
+
+### Why this is a behaviour change
+
+Pre-v3.2.1, the four call sites silently corrupted user input:
+
+- `parseFloat("1.9999").toFixed(3)` → `"2.000"` — silent rounding. User typed 1.9999 urStoa, transaction sent 2.000.
+- `parseFloat("1,5").toFixed(3)` → `"1.000"` — silent comma-stripping (parseFloat is lenient). User typed 1,5 KDA, transaction sent 1.0.
+- `parseFloat("garbage").toFixed(12)` → `"NaN"` — gets interpolated into Pact code, chain rejects with confusing error far from the actual cause.
+- Raw `${amount}` interpolation in urStoa stake/unstake accepts `"1.0) (some-injected-form"` as syntactically valid Pact code (Pact-code injection vector).
+
+Post-v3.2.1, all four sites route through `formatDecimalForPact(amount)`, which:
+
+- **Throws synchronously on malformed input** with `Error("Invalid decimal format")` — caller's catch block fires immediately, before any chain interaction begins.
+- **Preserves arbitrary precision** — the formatter never round-trips through float64. A 39-digit-int + 18-digit-fractional decimal that pre-v3.2.1 would have been silently truncated by `.toFixed(12)` is now round-tripped byte-identical.
+- **Accepts EU-locale comma input** (per the v3.2.0 contract) and normalises to period before validation. UI text fields capturing `"1,5"` work without upstream normalisation.
+- **Truncates at 24 decimals** rather than rounding at 3/12, so the chain sees the user's full intent up to the (configurable) cap.
+
+This is classified as MINOR rather than MAJOR because:
+- Any caller relying on the silent-failure paths (`"NaN"` interpolation, silent rounding, silent comma-stripping) was already producing wrong on-chain values; the throw is the audit-mandated diagnostic improvement, not a regression.
+- The function signatures are unchanged (still `(amount: string, ...)` — not yet brand-typed as `ValidatedDecimal`; that's reserved for v4.0.0 since it would force every consumer to migrate).
+- Comma-as-decimal-separator is strictly additive: every previously-rejected EU-locale input now succeeds, and every previously-accepted input continues to produce identical output.
+
+### Changed — 4 chain-call sites adopt `formatDecimalForPact`
+
+- **`src/interactions/crossChainFunctions.ts:92`** (`buildCrossChainTransfer`) — replaced `parseFloat(amount).toFixed(12)` with `formatDecimalForPact(amount)`. The interpolated value in the `coin.transfer-crosschain` Pact code is now arbitrary-precision-safe and EU-locale-friendly.
+- **`src/interactions/urStoaFunctions.ts:206`** (`executeNativeUrStoaTransfer`) — replaced `parseFloat(amount).toFixed(3)` with `formatDecimalForPact(amount)`. The 4-decimal silent-rounding case (`"1.9999"` → `"2.000"`) is fixed: the user's full input precision now reaches `coin.C_UR|Transfer/Transmit/...AnewVariants`.
+- **`src/interactions/urStoaFunctions.ts:441`** (`executeStakeUrStoa`) — wrapped raw `${amount}` interpolation in `coin.C_URV|Stake` Pact code with `formatDecimalForPact(amount)`. The validated string is computed once outside the closure and reused both in the pact-code interpolation AND the `coin.URV|STAKE` capability arg, so the cap-arg and the executed code are guaranteed to agree (was `String(numAmount)` separately, which had the float-precision gap). Closes F-SEC-001 (Pact-code injection vector) and F-BUG-003 (cap-arg precision drift).
+- **`src/interactions/urStoaFunctions.ts:497`** (`executeUnstakeUrStoa`) — same pattern as `executeStakeUrStoa`, applied to `coin.C_URV|Unstake` and `coin.URV|UNSTAKE`.
+
+### Deprecated — `numAmount` field on `StakeUrStoaParams` / `UnstakeUrStoaParams`
+
+The `numAmount: number` field on these two parameter types is no longer read by the executors (the validated `amount: string` is now the single source of truth for both pact-code and cap-arg). The field is **retained on the interfaces for v3.x backwards compatibility** but marked `@deprecated` in JSDoc and changed from required to optional. Will be removed in v4.0.0. Consumers can stop populating it as soon as they bump to v3.2.1.
+
+### Added — 8 new it-blocks in `tests/interactions-decimal-validation.test.ts`
+
+A new test file pinning the v3.2.1 contract:
+
+- 6 tests against `buildCrossChainTransfer` covering: synchronous throw on malformed input, synchronous throw on mixed period+comma, synchronous throw on multi-comma thousand-separator, comma-to-period normalisation in pact-code, 18-decimal-fractional precision preservation past pre-v3.2.1's 12-decimal `.toFixed` truncation, and 39-digit-int amount preservation past `Number.MAX_SAFE_INTEGER`.
+- 2 tests against `executeStakeUrStoa` and `executeUnstakeUrStoa` proving validation happens at function entry: a counting `PactReader` stub asserts the reader is **never invoked** when the amount input is malformed — i.e., the function rejects before any chain interaction starts. This is the strongest assertion of the contract: validation is not somewhere deep in the call stack, it's at the boundary.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The `numAmount` field demotion to optional is correctly typed; the `ValidatedDecimal` return from `formatDecimalForPact` flows into both `string` slots (pact-code interpolation and cap-arg `decimal` field) without explicit casts because `ValidatedDecimal extends string` structurally.
+- `npm test` — **601/601 tests pass** (was 593 in v3.2.0; +8 new decimal-validation tests).
+- `npm run build` — clean tsc emit. The four call-site changes are visible in the published `.d.ts` only via the `@deprecated` JSDoc on the `numAmount` fields (the function signatures themselves are unchanged).
+
+### Migration
+
+For consumers passing well-formed decimal strings (digits, optional period, no comma): **no migration needed**. Same input → same output. The existing call shape continues to work.
+
+For consumers passing comma-decimal EU-locale input: this previously failed with the legacy `parseFloat`-based formatters returning either `NaN` (then `"NaN"` in pact code → chain reject) or `1` (silent comma-strip → wrong amount). Post-v3.2.1, `"1,5"` → `"1.5"` automatically. **No code change needed**, but the previously-broken path now works.
+
+For consumers passing malformed input (garbage strings, mixed separators, scientific notation): pre-v3.2.1 these silently produced `"NaN"` or wrong-on-chain amounts. Post-v3.2.1 they throw `Error("Invalid decimal format")` synchronously at the function entry. **Wrap in try/catch if your consumer can produce malformed input from upstream sources** (e.g., user typing in a text field without UI-side validation). The synchronous throw is the audit-mandated improvement — a legible diagnostic at the right layer beats a confusing chain-side rejection downstream.
+
+For consumers populating `numAmount` on `StakeUrStoaParams` / `UnstakeUrStoaParams`: the field is now optional. You can drop it from your call sites whenever convenient. It will be removed entirely in v4.0.0.
+
+---
+
 ## 3.2.0 — 2026-05-05
 
 **MINOR, additive.** First wave of the v3.2.x audit-cycle close-out — number-hygiene infrastructure for Pact-bound integers and decimals. Pact has arbitrary-precision integers AND arbitrary-precision decimals; JavaScript's number primitive is IEEE-754 float64 (~15-17 significant digits). Round-tripping a chain value through `parseFloat` / `Number()` / `.toFixed()` silently destroys precision for any value beyond float64's range. v3.2.0 closes that loophole at the package level by introducing the validation contract; v3.2.1 will apply it at the existing `parseFloat(...).toFixed(N)` call sites; v3.2.2 will remove the dead multi-step add-liquidity surface; v3.2.3 will land the targeted bug fixes (creationTime, fetchSpvProof failover, setNodeConfig URL validation). **No consumer-visible behaviour changes in v3.2.0** — every existing valid input to `formatDecimalForPact` continues to produce the same output. The additions are: a relaxation of the input contract to accept comma-as-decimal-separator (so European-locale UI text fields work without upstream normalisation), a new sibling helper for integer-typed Pact arguments, and a pair of branded TypeScript types that prove "this string passed the formatter" at the type level. **593/593 tests pass** (was 565 in v3.1.1; +28 = 6 comma-normalisation cases, 4 arbitrary-precision round-trip cases including the explicit truncation-at-maxDecimals lock, 13 `formatIntegerForPact` cases, 3 brand-type compile probes; the 1 pre-v3.2.0 "rejects EU decimal separator" test was removed because the new comma-support contract supersedes it, and the 3 brand-type tests use `@ts-expect-error` probes that count as runtime-asserted compile checks).

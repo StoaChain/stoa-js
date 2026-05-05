@@ -17,7 +17,7 @@ import {
   STOA_AUTONOMIC_OURONETGASSTATION,
 } from "../constants";
 import { universalSignTransaction, fromKeypair } from "../signing";
-import { safeCreationTime } from "../pact";
+import { safeCreationTime, formatDecimalForPact } from "../pact";
 import type { IKadenaKeypair } from "./ouroFunctions";
 import { createSimulationError, logDetailedError } from "../errors";
 import { getLogger } from "../observability";
@@ -203,7 +203,15 @@ export async function executeNativeUrStoaTransfer(params: ExecuteNativeUrStoaPar
     isTransferFamily, receiverExists, receiverKeyset,
   } = params;
 
-  const amountStr = parseFloat(amount).toFixed(3);
+  // v3.2.1: replaced `parseFloat(amount).toFixed(3)` with the validated
+  // formatter to close audit finding F-BUG-003. The old `.toFixed(3)` form
+  // silently rounded fourth-decimal precision (e.g. user typed "1.9999",
+  // transaction sent "2.000" — chain-side accepted the inflated value while
+  // the user's account was debited the wrong amount). The new formatter
+  // preserves the user's full input precision (truncates at 24 decimals
+  // by default rather than rounding at 3) and throws synchronously on
+  // malformed input.
+  const amountStr = formatDecimalForPact(amount);
   const isAnew = !receiverExists;
 
   // Select pact code
@@ -421,16 +429,31 @@ export async function executeNativeUrStoaTransfer(params: ExecuteNativeUrStoaPar
 export interface StakeUrStoaParams {
   paymentKeyAddress: string;
   amount: string;
-  numAmount: number;
+  /**
+   * @deprecated since v3.2.1 — the `amount` string is now the single source
+   * of truth. `numAmount` is retained on the interface for non-breaking
+   * compatibility with v3.x callers but is no longer read by the executor.
+   * Will be removed in v4.0.0.
+   */
+  numAmount?: number;
   gasStationKey: IKadenaKeypair;
 }
 
 export async function executeStakeUrStoa(params: StakeUrStoaParams): Promise<any> {
-  const { paymentKeyAddress, amount, numAmount, gasStationKey } = params;
+  const { paymentKeyAddress, amount, gasStationKey } = params;
+
+  // v3.2.1: validate `amount` ONCE outside the closure so a malformed input
+  // throws before any chain interaction, AND the formatted-decimal string
+  // can be reused both inside the Pact-code interpolation (was raw
+  // `${amount}` — closes F-SEC-001 Pact-code injection vector) and for the
+  // capability arg (was `String(numAmount)` which had the float-precision
+  // gap). The validated string is the single source of truth for both
+  // sites, so the cap-arg and the executed code are guaranteed to agree.
+  const validatedAmount = formatDecimalForPact(amount);
 
   const buildTransaction = (gasLimitOverride?: number) =>
     Pact.builder
-      .execution(`(coin.C_URV|Stake "${paymentKeyAddress}" ${amount})`)
+      .execution(`(coin.C_URV|Stake "${paymentKeyAddress}" ${validatedAmount})`)
       .setMeta({
         senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
@@ -440,7 +463,7 @@ export async function executeStakeUrStoa(params: StakeUrStoaParams): Promise<any
       .setNetworkId(KADENA_NETWORK)
       .addSigner(gasStationKey.publicKey, (w: any) => [
         w(`${KADENA_NAMESPACE}.DALOS.GAS_PAYER`, "", { int: 0 }, { decimal: "0.0" }),
-        w("coin.URV|STAKE", paymentKeyAddress, { decimal: String(numAmount) }),
+        w("coin.URV|STAKE", paymentKeyAddress, { decimal: validatedAmount }),
       ])
       .createTransaction();
 
@@ -449,7 +472,7 @@ export async function executeStakeUrStoa(params: StakeUrStoaParams): Promise<any
   const simTx = buildTransaction();
   const simulation = await dirtyRead(simTx);
   if (simulation.result.status === "failure") {
-    const error = createSimulationError("Stake UrStoa", simulation.result, `Account: ${paymentKeyAddress} | Amount: ${amount}`);
+    const error = createSimulationError("Stake UrStoa", simulation.result, `Account: ${paymentKeyAddress} | Amount: ${validatedAmount}`);
     logDetailedError(error); throw error;
   }
 
@@ -467,16 +490,26 @@ export async function executeStakeUrStoa(params: StakeUrStoaParams): Promise<any
 export interface UnstakeUrStoaParams {
   paymentKeyAddress: string;
   amount: string;
-  numAmount: number;
+  /**
+   * @deprecated since v3.2.1 — same rationale as `StakeUrStoaParams.numAmount`.
+   * Retained for non-breaking compatibility; will be removed in v4.0.0.
+   */
+  numAmount?: number;
   gasStationKey: IKadenaKeypair;
 }
 
 export async function executeUnstakeUrStoa(params: UnstakeUrStoaParams): Promise<any> {
-  const { paymentKeyAddress, amount, numAmount, gasStationKey } = params;
+  const { paymentKeyAddress, amount, gasStationKey } = params;
+
+  // v3.2.1: same single-source-of-truth pattern as `executeStakeUrStoa`.
+  // Validates `amount` once before building, reuses for both pact-code
+  // interpolation (closes F-SEC-001) and capability arg (closes the
+  // float-precision gap in `String(numAmount)`).
+  const validatedAmount = formatDecimalForPact(amount);
 
   const buildTransaction = (gasLimitOverride?: number) =>
     Pact.builder
-      .execution(`(coin.C_URV|Unstake "${paymentKeyAddress}" ${amount})`)
+      .execution(`(coin.C_URV|Unstake "${paymentKeyAddress}" ${validatedAmount})`)
       .setMeta({
         senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
@@ -486,7 +519,7 @@ export async function executeUnstakeUrStoa(params: UnstakeUrStoaParams): Promise
       .setNetworkId(KADENA_NETWORK)
       .addSigner(gasStationKey.publicKey, (w: any) => [
         w(`${KADENA_NAMESPACE}.DALOS.GAS_PAYER`, "", { int: 0 }, { decimal: "0.0" }),
-        w("coin.URV|UNSTAKE", paymentKeyAddress, { decimal: String(numAmount) }),
+        w("coin.URV|UNSTAKE", paymentKeyAddress, { decimal: validatedAmount }),
       ])
       .createTransaction();
 
@@ -495,7 +528,7 @@ export async function executeUnstakeUrStoa(params: UnstakeUrStoaParams): Promise
   const simTx = buildTransaction();
   const simulation = await dirtyRead(simTx);
   if (simulation.result.status === "failure") {
-    const error = createSimulationError("Unstake UrStoa", simulation.result, `Account: ${paymentKeyAddress} | Amount: ${amount}`);
+    const error = createSimulationError("Unstake UrStoa", simulation.result, `Account: ${paymentKeyAddress} | Amount: ${validatedAmount}`);
     logDetailedError(error); throw error;
   }
 

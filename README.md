@@ -6,7 +6,33 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.2.0` on public npmjs** — **MINOR, additive** release that opens
+**`3.2.1` on public npmjs** — **MINOR, behaviour change** release —
+second wave of the v3.2.x audit-cycle close-out track. Puts the
+v3.2.0 number-hygiene helpers (`formatDecimalForPact`,
+`formatIntegerForPact`, `ValidatedDecimal` / `ValidatedInteger`
+brand types) to work at the four chain-call sites the 2026-05-05
+audit flagged: `buildCrossChainTransfer` (`crossChainFunctions:92`),
+`executeNativeUrStoaTransfer` (`urStoaFunctions:206`),
+`executeStakeUrStoa` (`urStoaFunctions:441`), and
+`executeUnstakeUrStoa` (`urStoaFunctions:497`). Closes audit
+findings **F-SEC-001** (Pact-code injection via raw `${amount}`
+interpolation in urStoa stake/unstake) and **F-BUG-003**
+(`parseFloat(amount).toFixed(N)` silent precision loss + silent
+rounding). All four sites now route through the validated
+formatter: malformed input throws synchronously before any chain
+interaction begins; arbitrary-precision decimals (e.g., 39-digit
+integer amounts that would overflow float64) round-trip
+byte-identical; EU-locale comma input (`"1,5"`) is normalised to
+period; and the urStoa stake/unstake cap-arg now reuses the
+validated string so pact-code and cap-arg are guaranteed to agree.
+The `numAmount` field on `StakeUrStoaParams` / `UnstakeUrStoaParams`
+is deprecated (still accepted, no longer read; will be removed in
+v4.0.0). **601/601 tests pass.** v3.2.2 will remove the dead
+multi-step add-liquidity surface; v3.2.3 will land the targeted
+bug fixes (`creationTime`, `fetchSpvProof` failover,
+`setNodeConfig` URL validation).
+
+**`3.2.0`** — **MINOR, additive** release that opened
 the v3.2.x audit-cycle close-out track with number-hygiene
 infrastructure for Pact-bound integers and decimals.
 `formatDecimalForPact` now accepts a single comma as decimal
@@ -389,8 +415,45 @@ the existing `parseFloat(...).toFixed(N)` and raw `${amount}`
 interpolation sites to close the F-SEC-001 / F-BUG-003
 precision-loss vectors that the 2026-05-05 audit flagged.
 
-**593 tests** pass on every commit (up from 565 v3.1.1; +28 across
-the v3.2.0 number-hygiene infrastructure). Published to the public
+**v3.2.1** — applies the v3.2.0 number-hygiene helpers at the four
+chain-call sites flagged by the 2026-05-05 audit. **MINOR,
+behaviour change.** Closes **F-SEC-001** (Pact-code injection vector
+in urStoa stake/unstake's raw `${amount}` interpolation) and
+**F-BUG-003** (`parseFloat(amount).toFixed(N)` silent precision loss
+in `buildCrossChainTransfer:92` and `executeNativeUrStoaTransfer:206`,
+plus silent rounding `1.9999 → 2.000` in the urStoa transfer path).
+All four sites now route through `formatDecimalForPact(amount)`:
+malformed input throws synchronously before any chain interaction
+begins (counting-stub `PactReader` test proves the reader is never
+invoked when the amount is malformed — validation is at the function
+boundary, not deeper); arbitrary-precision decimals round-trip
+byte-identical (39-digit integer amounts and 18-digit-fractional
+decimals that pre-v3.2.1's float-based formatters would have
+truncated or scientific-notation-mangled now reach the chain
+intact); EU-locale comma input is auto-normalised to period (per
+v3.2.0's relaxed input contract); and the urStoa stake/unstake
+cap-args now reuse the **same** validated string as the pact-code
+interpolation, so the `coin.URV|STAKE` / `coin.URV|UNSTAKE` cap-arg
+and the executed `coin.C_URV|Stake` / `coin.C_URV|Unstake` decimal
+literal are guaranteed to agree (was `String(numAmount)` separately
+which had the float-precision drift). The `numAmount: number` field
+on `StakeUrStoaParams` and `UnstakeUrStoaParams` is **deprecated** in
+v3.2.1 (still accepted on the interfaces for v3.x backwards
+compatibility, no longer read by the executors; will be removed in
+v4.0.0). 8 new it-blocks in `tests/interactions-decimal-validation.test.ts`
+pin the contract: synchronous throw on malformed input, pact-code
+contains comma-normalised value, high-precision and 39-digit-int
+amounts preserved past pre-v3.2.1's truncation point, reader-stub
+proves fail-fast at function entry. NO consumer-side migration
+required for callers passing well-formed decimal strings; consumers
+that previously relied on silent `"NaN"` interpolation or
+silent-rounding need to wrap calls in try/catch (the throw is the
+audit-mandated improvement).
+
+**601 tests** pass on every commit (up from 593 v3.2.0; +8 across
+the v3.2.1 decimal-validation enforcement). Published to the public
+npmjs registry via `.github/workflows/publish.yml` on every `v*`
+tag (which also creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
 tag (which also creates a GitHub Release).
 

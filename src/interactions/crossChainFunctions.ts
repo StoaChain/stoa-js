@@ -3,7 +3,7 @@ import { getFailoverClient } from "../network";
 import { KADENA_NETWORK, getPactUrl, getSpvUrl, GAS_STATION, KADENA_NAMESPACE } from "../constants";
 import { GAS_PRICE_MIN_ANU, anuToStoa } from "../gas";
 import { pactRead } from "../reads";
-import { safeCreationTime } from "../pact";
+import { safeCreationTime, formatDecimalForPact } from "../pact";
 import { ChainId } from "@kadena/types";
 
 /**
@@ -89,7 +89,14 @@ export function buildCrossChainTransfer(params: CrossChainTransferParams) {
     senderPublicKey,
   } = params;
 
-  const formattedAmount = parseFloat(amount).toFixed(12);
+  // v3.2.1: replaced `parseFloat(amount).toFixed(12)` with the validated
+  // formatter to close audit finding F-BUG-003. The old form silently
+  // truncated precision on values past float64's ~15-17 significant digits
+  // (a 20-digit-fractional KDA amount would lose ~5 digits of precision)
+  // and silently rounded inputs that exceeded 12 decimals. The formatter
+  // preserves arbitrary precision (truncates at 24 decimals by default) and
+  // throws on malformed input rather than producing "NaN" downstream.
+  const formattedAmount = formatDecimalForPact(amount);
   const receiverKeysetName = `receiver-guard-${Date.now()}`;
 
   const transaction = Pact.builder
