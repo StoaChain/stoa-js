@@ -15,11 +15,11 @@
  * Copyright (C) 2026 AncientHoldings GmbH. All rights reserved.
  */
 
-import type { Bitmap } from '@stoachain/dalos-crypto/gen1';
+import type { Bitmap } from "@stoachain/dalos-crypto/gen1";
 import type {
   CryptographicRegistry,
   FullKey,
-} from '@stoachain/dalos-crypto/registry';
+} from "@stoachain/dalos-crypto/registry";
 
 /**
  * Discriminator for the input mode. Each mode has a matching `data`

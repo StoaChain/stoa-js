@@ -110,8 +110,20 @@ describe("getGasLimitStatus — boundary behaviour", () => {
 describe("formatMaxFee", () => {
   it("multiplies gas price × gas limit for ANU total", () => {
     const result = formatMaxFee(10_000, 1_000);
-    // 10_000 × 1_000 = 10,000,000 ANU
-    expect(result.anu).toMatch(/10,000,000/);
+    // 10_000 × 1_000 = 10,000,000 ANU. Strict equality (was toMatch
+    // substring regex pre-v3.1.1) locks both the en-US thousands
+    // separator AND the absence of trailing/leading characters —
+    // closes audit finding F-TEST-001.
+    expect(result.anu).toBe("10,000,000");
+  });
+
+  it("formats large ANU totals with en-US thousands separators", () => {
+    // Independent en-US-shape lock: a 9-digit value with a different
+    // grouping pattern catches regressions that `10,000,000` (uniform
+    // 3-digit groups) would miss — e.g., a future toLocaleString
+    // ('en-IN') that emits "12,34,56,789" still passes the prior regex.
+    const result = formatMaxFee(123_456_789, 1);
+    expect(result.anu).toBe("123,456,789");
   });
 
   it("returns STOA string as the ANU-to-STOA conversion", () => {

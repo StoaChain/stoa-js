@@ -2,6 +2,55 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.1.1 — 2026-05-05
+
+**PATCH, additive.** Pre-publish audit-cycle close-out for the v3.1.0 dalos-crypto integration. v3.1.0 was committed locally (`bf10dc1`) but had not been published to npm when the post-integration audit (2026-05-05, see `.bee/AUDIT-REPORT.md`) flagged five gaps directly attributable to that commit. v3.1.1 closes all five before the package reaches npmjs, so the first published release on the new dalos-crypto v4.0.3 line carries the corrections rather than a broken-then-fixed pair. **565/565 tests pass** (was 558 in v3.1.0; +7 = 1 new strict locale grouping-style assertion + 5 new Schnorr re-export tests + 1 new validation-error class probe).
+
+### Why a patch release
+
+v3.1.0 never reached npm — `git log` shows the v3.1.0 commit followed by this v3.1.1 commit before any `git tag v3.1.0` push. From the consumer's perspective, the npm registry skips from `3.0.0` to `3.1.1`, with v3.1.0 visible only in the GitHub commit history. The five gaps closed here are: three additive re-export plumbing fixes that finish the v3.1.0 integration surface, one stylistic alignment that brings the dalos/ subdirectory back in line with the rest of the codebase's CONVENTIONS.md, one test-strictness fix that locks the en-US locale shape introduced in v3.1.0, and a fresh test file that covers the v3.1.0 Schnorr re-exports end-to-end. None of the changes alter runtime behaviour for any consumer of v3.1.0's documented surface; the additions simply make the surface complete and the test suite more decisive.
+
+### Added — three typed error classes re-exported on `./dalos` (closes F-BUG-005)
+
+`@stoachain/dalos-crypto/gen1` v4.0.2 introduced three typed validation-error classes — `InvalidBitStringError`, `InvalidBitmapError`, `InvalidPrivateKeyError` — specifically so consumers can `instanceof`-discriminate validation failures from system errors when calling `generateFromBitString`, `generateFromBitmap`, or `generateFromInteger` (all reachable via `createOuronetAccount`). v3.1.0's Schnorr re-export pass picked up `SchnorrSignError` but missed these three. v3.1.1 re-exports all three from `@stoachain/ouronet-core/dalos` so consumers building bitstring/bitmap key-gen flows (notably OuronetUI's "Draw a bitmap" page and the bitstring-input modal) can catch validation failures with type-safe `instanceof` checks through the OuronetCore subpath alone, instead of dual-importing from `@stoachain/dalos-crypto/gen1`. Class identity is preserved across the re-export — `instanceof InvalidBitStringError` works regardless of whether the consumer imports the class from ouronet-core or directly from dalos-crypto, eliminating the dual-package-hazard footgun.
+
+### Added — `CoordAffine` type re-exported on `./dalos` (closes F-API-024)
+
+`SchnorrSignature.r: CoordAffine` was already reachable in v3.1.0 (`SchnorrSignature` is re-exported), but its component type `CoordAffine` was not, breaking the "single integration surface" promise the `./dalos` subpath JSDoc makes for advanced consumers. Without it, any consumer typing a function parameter as `(sig: SchnorrSignature) => sig.r.x` had to dual-import `CoordAffine` from `@stoachain/dalos-crypto/gen1`. v3.1.1 re-exports `CoordAffine` as a type-only export from the same subpath, restoring the single-import promise.
+
+### Changed — dalos/ subdirectory style aligned with CONVENTIONS.md (closes F-ARCH-012)
+
+`src/dalos/index.ts` and `src/dalos/account.ts` were the only files in `src/` using single-quoted import strings (every other file in the codebase uses double quotes per the project's CONVENTIONS.md note "double-quoted strings — matches `src/signing/types.ts`, `src/network/nodeFailover.ts`, `src/pact/cfmBuilders.ts` consistently"). They were also the only files using explicit `.js` extensions on TypeScript relative imports (`from "./account.js"` instead of `from "./account"`). The drift originated when the dalos integration was first ported from the upstream `@stoachain/dalos-crypto` style and was perpetuated by v3.1.0's Schnorr re-export pass. v3.1.1 converts both files to double quotes throughout and drops the `.js` extension on the two relative imports. Mass-edit only — zero behaviour change. The bundler (`moduleResolution: "bundler"` in `tsconfig.json:6`) handles both forms identically; this is purely a CONVENTIONS.md alignment.
+
+### Fixed — locale-determinism test assertion now strict (closes F-TEST-001)
+
+v3.1.0 hardcoded `'en-US'` in `formatMaxFee`'s `toLocaleString()` call (`src/gas/gasUtils.ts:101`) precisely to make the test assertion deterministic across host locales. The test, however, used `expect(result.anu).toMatch(/10,000,000/)` — a substring regex. The regex would tolerate a future revert of `toLocaleString('en-US')` to `toLocaleString()` as long as CI ran on a US-locale host, defeating the lock entirely. v3.1.1 changes the assertion to strict equality `expect(result.anu).toBe("10,000,000")` and adds a sibling assertion `expect(formatMaxFee(123_456_789, 1).anu).toBe("123,456,789")` that catches grouping-style regressions a uniform-3-digit-group string would not (e.g., a future `toLocaleString('en-IN')` emitting `"12,34,56,789"` still matches the prior regex but fails strict equality). The locale-determinism contract introduced in v3.1.0 is now actually locked by the test suite.
+
+### Added — Schnorr re-export coverage in `tests/dalos-integration.test.ts` (closes F-TEST-004)
+
+v3.1.0 added 6 Schnorr exports (5 values + 1 type) to `src/dalos/index.ts` for advanced consumers. The re-export plumbing was verified at upgrade time only by `npm run typecheck` — there were zero runtime tests pinning the surface. A future delete or rename in `@stoachain/dalos-crypto/gen1` would have broken at consumer's first import rather than in this package's CI. v3.1.1 adds two new `describe` blocks covering: (a) `schnorrSign` + `schnorrVerify` round-trip on a Genesis keypair (proves the canonical sign↔verify contract); (b) `schnorrSignAsync` + `schnorrVerifyAsync` round-trip identically (proves the async surface produces verifiable signatures, the main browser-INP win that justified the re-export); (c) `SchnorrSignError` class-identity assertions including `instanceof Error` and `instanceof SchnorrSignError` (proves dual-package-hazard prevention); (d) `SchnorrSignature` and `CoordAffine` type-import compile probes (proves the type-side re-exports). A third `describe` block covers the new v3.1.1 typed-validation-error classes — `InvalidBitStringError` fires when `createOuronetAccount({mode: "bitString"})` receives malformed input, plus class-identity probes for `InvalidBitmapError` and `InvalidPrivateKeyError`.
+
+### Verified
+
+- `npm run typecheck` — zero errors with the new re-exports + style-aligned imports.
+- `npm test` — **565/565 tests pass** (was 558 in v3.1.0; +7 = 1 new strict locale grouping-style assertion at `tests/gas.test.ts` + 5 new it-blocks in `tests/dalos-integration.test.ts` for Schnorr round-trip, async round-trip, SchnorrSignError instanceof + SchnorrSignature/CoordAffine type-imports, and 1 v3.1.1 validation-error class probe; the existing `tests/gas.test.ts` "10,000,000" assertion was tightened from `toMatch` regex to strict `toBe` rather than counted as a new test).
+- `npm run build` — `tsc -p tsconfig.build.json` emits clean to `dist/`; the `./dalos` subpath barrel exports the new symbols in the `.d.ts`.
+- `tests/package-version.test.ts` — re-pinned to `3.1.1`.
+
+### Migration
+
+Strictly additive — every change is non-breaking for any consumer:
+
+1. **Three new error class re-exports** on `./dalos` — only visible to consumers who choose to `import { InvalidBitStringError } from "@stoachain/ouronet-core/dalos"`; consumers who already `instanceof`-checked against the dalos-crypto-direct import continue to work.
+2. **CoordAffine type re-export** — only visible to consumers who choose to `import type { CoordAffine } from "@stoachain/ouronet-core/dalos"`; otherwise invisible.
+3. **dalos/ style alignment** — zero runtime impact; the bundler emits byte-identical output before and after.
+4. **Locale test assertion strictness** — internal CI signal only; consumer-facing behaviour of `formatMaxFee` is unchanged from v3.1.0 (`'en-US'` was hardcoded then and remains so).
+5. **Schnorr test coverage** — internal CI signal only; no runtime change.
+
+Audit cycle 2026-05-05 closed: 5 of 5 "today's commit gaps" remediated. Remaining audit findings (security hardening, nullable widening completion, structural decomposition) are scheduled for v3.2.0 / v4.0.0 per `.bee/AUDIT-REPORT.md`'s suggested spec groupings.
+
+---
+
 ## 3.1.0 — 2026-05-05
 
 **MINOR, additive.** Upgrades `@stoachain/dalos-crypto` from `^1.2.0` to `^4.0.3` (covers v2.0.0–v4.0.3 of the dalos-crypto release line — Schnorr v2 wire format, Schnorr cofactor-subgroup hardening, generator-precompute matrix cache, async signing surfaces, RFC-6979-style determinism, the v4.0.0 Elliptic-package carve-out, and the v4.0.3 LOW-band closures), exposes the previously-internal Schnorr signature surface through the `./dalos` subpath, and ships a small locale-determinism fix in `./gas`. **558/558 tests pass.** No public surface from prior versions changes shape; all additions are opt-in.

@@ -36,12 +36,12 @@
  * import {
  *   createDefaultRegistry,
  *   createOuronetAccount,
- * } from '@stoachain/ouronet-core/dalos';
+ * } from "@stoachain/ouronet-core/dalos";
  *
  * const registry = createDefaultRegistry();
  * const account = createOuronetAccount(registry, {
- *   mode: 'seedWords',
- *   data: ['hello', 'world', 'dalos', 'genesis'],
+ *   mode: "seedWords",
+ *   data: ["hello", "world", "dalos", "genesis"],
  * });
  * console.log(account.standardAddress); // Ѻ.xxxxx...
  * ```
@@ -65,14 +65,14 @@ export type {
   PrimitiveMetadata,
   CryptographicPrimitive,
   DalosGenesisPrimitive,
-} from '@stoachain/dalos-crypto/registry';
+} from "@stoachain/dalos-crypto/registry";
 
 export {
   isDalosGenesisPrimitive,
   DalosGenesis,
   CryptographicRegistry,
   createDefaultRegistry,
-} from '@stoachain/dalos-crypto/registry';
+} from "@stoachain/dalos-crypto/registry";
 
 // Historical-curve primitives + factory — v1.5.0+ (pairs with
 // dalos-crypto v1.2.0). NOT registered in the default registry;
@@ -84,15 +84,15 @@ export {
   Apollo,
   createGen1Primitive,
   DALOS_PREFIXES,
-} from '@stoachain/dalos-crypto/registry';
+} from "@stoachain/dalos-crypto/registry";
 export type {
   Gen1PrimitiveConfig,
   AddressPrefixPair,
-} from '@stoachain/dalos-crypto/registry';
+} from "@stoachain/dalos-crypto/registry";
 
 // Re-export the bitmap type so consumers can construct bitmaps without
 // a separate import from dalos-crypto.
-export type { Bitmap } from '@stoachain/dalos-crypto/gen1';
+export type { Bitmap } from "@stoachain/dalos-crypto/gen1";
 export {
   BITMAP_ROWS,
   BITMAP_COLS,
@@ -100,7 +100,7 @@ export {
   bitmapToBitString,
   parseAsciiBitmap,
   bitmapToAscii,
-} from '@stoachain/dalos-crypto/gen1';
+} from "@stoachain/dalos-crypto/gen1";
 
 // Schnorr signature surface — added in ouronet-core v3.1.0 (pairs with
 // dalos-crypto v4.0.3). The high-level `primitive.sign(keyPair, msg)`
@@ -114,8 +114,28 @@ export {
   schnorrSignAsync,
   schnorrVerifyAsync,
   SchnorrSignError,
-} from '@stoachain/dalos-crypto/gen1';
-export type { SchnorrSignature } from '@stoachain/dalos-crypto/gen1';
+} from "@stoachain/dalos-crypto/gen1";
+export type { SchnorrSignature } from "@stoachain/dalos-crypto/gen1";
 
-export { createOuronetAccount } from './account.js';
-export type { CreateAccountOptions, CreateAccountMode } from './account.js';
+// Typed validation/parse error classes — added in ouronet-core v3.1.1
+// to close audit finding F-BUG-005. Consumers using `bitString` /
+// `bitmap` / `integerBase49` modes can now `instanceof
+// InvalidBitStringError` etc. through the same subpath as the rest of
+// the dalos surface, instead of dual-importing from
+// `@stoachain/dalos-crypto/gen1`. dalos-crypto v4.0.2's F-MED-008
+// introduced these specifically for `instanceof` discrimination.
+export {
+  InvalidBitStringError,
+  InvalidBitmapError,
+  InvalidPrivateKeyError,
+} from "@stoachain/dalos-crypto/gen1";
+
+// Companion type for `SchnorrSignature.r` — added in v3.1.1 to close
+// audit finding F-API-024. `SchnorrSignature.r: CoordAffine` was
+// previously unreachable through this subpath, breaking the "single
+// integration surface" promise for consumers that need to type
+// signature components.
+export type { CoordAffine } from "@stoachain/dalos-crypto/gen1";
+
+export { createOuronetAccount } from "./account";
+export type { CreateAccountOptions, CreateAccountMode } from "./account";

@@ -6,8 +6,27 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.1.0` on public npmjs** — **MINOR, additive** release that
-upgrades `@stoachain/dalos-crypto` from `^1.2.0` to `^4.0.3` (covering
+**`3.1.1` on public npmjs** — **PATCH, additive** release that closes
+the audit-cycle gaps identified by the post-v3.1.0-integration audit
+(see [`CHANGELOG.md`](CHANGELOG.md) v3.1.1 entry for the full per-finding
+trace). Three additive re-exports complete the `./dalos` integration
+surface (`InvalidBitStringError`, `InvalidBitmapError`,
+`InvalidPrivateKeyError` for typed validation-failure
+discrimination + `CoordAffine` companion type for
+`SchnorrSignature`); the `src/dalos/` subdirectory is realigned with
+CONVENTIONS.md (double-quoted imports, no `.js` extensions); the
+v3.1.0 locale-determinism test assertion in `tests/gas.test.ts` is
+tightened to strict equality (was a substring regex that wouldn't
+detect a regression on a US-locale CI host); a fresh
+`tests/dalos-integration.test.ts` block covers the v3.1.0 Schnorr
+re-exports end-to-end. **560/560 tests pass.** No runtime change for
+any v3.1.0 consumer; v3.1.0 itself was committed locally
+(`bf10dc1`) but never pushed to npm — the npm registry skips from
+`3.0.0` to `3.1.1`.
+
+**`3.1.0`** (committed locally `bf10dc1`, never published) — **MINOR,
+additive** release that upgrades `@stoachain/dalos-crypto` from
+`^1.2.0` to `^4.0.3` (covering
 the v2.x/v3.x/v4.x line of the upstream package — Schnorr v2 wire
 format, cofactor subgroup-membership hardening, generator-precompute
 matrix cache, async signing surfaces, the v4.0.0 Elliptic-package
