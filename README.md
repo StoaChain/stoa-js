@@ -6,7 +6,43 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.4` on public npmjs** — **MINOR, additive (test-only).**
+**`3.3.5` on public npmjs** — **MINOR, additive (test-only).**
+Closes audit finding **F-TEST-006** (MEDIUM, testing-auditor) —
+six interaction modules previously had insufficient runtime
+coverage: three with **zero runtime tests at all**
+(`pensionFunctions`, `guardFunctions`, `infoOneFunctions`) and
+three with **compile-only tests** (`coilFunctions`,
+`kpayFunctions`, `activateFunctions` are all type-checked at
+`tests/types.test.ts:44-47` via `expectTypeOf`, but the functions
+never actually execute in the test suite). Compile-only tests
+prove the type signature matches consumer expectations but do
+NOT prove the function executes correctly — a bug that swapped
+two argument-string concatenations, forgot to await a Promise,
+or mis-routed the `pactRead` call would all type-check cleanly
+while producing wrong runtime behaviour. v3.3.5 closes the gap
+with `tests/v3-3-5-smoke.test.ts` — **12 new it-blocks across 6
+describe groups**, one happy-path + one error-path test per
+module, picking the simplest representative read-only function
+from each: `pensionFunctions.getHibernateFee` (the ONLY of the 6
+with a non-null error path — graceful-degradation fallback
+formula `0.12 - 0.000008 * lockDays` clamped non-negative);
+`guardFunctions.getRotateGuardInfo`;
+`infoOneFunctions.getCoilPreviewInfo` (locks the
+`{result: ...}` envelope wrap contract);
+`coilFunctions.getCoilPreviewGeneric` (the ONLY of the 6 that
+rethrows rather than returning `null`/fallback — locks the
+rethrow contract that consumers depend on for try/catch flow);
+`kpayFunctions.getKpayData`;
+`activateFunctions.getDeployStandardAccountInfoOnly`. Strategy
+mirrors v3.3.4: install a stubbed reader via `setPactReader(...)`,
+call SUT, assert. **NO source-code change**, **NO public API
+change**, **672/672 tests pass** (was 660 in v3.3.4; +12 from
+the new test file). With v3.3.5 the **v3.3.x audit-closure track
+is COMPLETE** — all MEDIUM testing findings from the 2026-05-05
+audit are now closed (F-LOGGER-SEAM-001 → v3.3.0; F-TEST-002 →
+v3.3.2; F-TEST-005 → v3.3.4; F-TEST-006 → v3.3.5).
+
+**`3.3.4`** — **MINOR, additive (test-only).**
 Closes audit finding **F-TEST-005** (MEDIUM, testing-auditor) —
 the v3.0.0 nullable-widening sweep widened 16 read-side
 interaction functions from `Promise<T>` → `Promise<T | null>`,
@@ -769,6 +805,36 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
+**v3.3.5** — runtime smoke tests for 6 interaction modules with
+no runtime test coverage prior to this release. **MINOR,
+additive (test-only).** Closes audit finding **F-TEST-006**
+(MEDIUM, testing-auditor). Three modules had **zero runtime
+tests** (`pensionFunctions`, `guardFunctions`,
+`infoOneFunctions`); three more had **compile-only tests**
+(`coilFunctions`, `kpayFunctions`, `activateFunctions`). v3.3.5
+adds `tests/v3-3-5-smoke.test.ts` — **12 new it-blocks across 6
+describe groups**, one happy-path + one error-path test per
+module: `getHibernateFee` parses `{decimal:"0.99"}` → `0.99` and
+catches into local fallback formula on thrown read;
+`getRotateGuardInfo` returns success-path data verbatim, `null`
+on failure-status; `getCoilPreviewInfo` wraps success data in
+`{result: ...}`, returns `null` on failure-status;
+`getCoilPreviewGeneric` parses `"generates 5.0 AURYN"` from
+`pre-text` regex match, **rethrows** on failure-status (the only
+module of the 6 that rethrows); `getKpayData` returns success
+data verbatim, `null` on failure-status;
+`getDeployStandardAccountInfoOnly` returns success data
+verbatim, `null` + `getLogger().error` on thrown read. Read-only
+function smoke is sufficient per F-TEST-006's "function actually
+executes" assertion; transaction-execute coverage requires
+mocking the full `@kadena/client` signing + submit chain and is
+queued for v4.0.0's monorepo split. NO source-code change. **+12
+new tests** bringing the suite to **672/672 passing** (was 660
+in v3.3.4). Closes the v3.3.x audit-closure track —
+F-LOGGER-SEAM-001 (v3.3.0), F-TEST-002 (v3.3.2), F-TEST-005
+(v3.3.4), F-TEST-006 (v3.3.5) all CLOSED; remaining MEDIUM
+findings are performance/architecture, not test coverage.
+
 **v3.3.4** — success-path tests for the 13 v3.0.0 nullable-widened
 functions that previously had only RPC-failure-path coverage.
 **MINOR, additive (test-only).** Closes audit finding
@@ -899,13 +965,15 @@ to v3.3.0; **622/622 tests pass unchanged** (workflow files
 aren't in the test scope; verification arrives with the v3.3.1
 publish run itself).
 
-**660 tests** pass on every commit (up from 647 in v3.3.3; +13
-from the new `tests/v3-3-4-success-paths.test.ts` file added in
-v3.3.4 to close audit finding F-TEST-005 — paired success-path
-tests for the 13 of 16 v3.0.0 nullable-widened functions that
-previously had only RPC-failure-path coverage, locking each
-parsed non-null return value via `setPactReader(successReader(...))`
-seam-mocking). Published to the public npmjs registry via
+**672 tests** pass on every commit (up from 660 in v3.3.4; +12
+from the new `tests/v3-3-5-smoke.test.ts` file added in v3.3.5
+to close audit finding F-TEST-006 — runtime smoke tests for the
+6 interaction modules with insufficient pre-v3.3.5 coverage
+(`pensionFunctions`, `guardFunctions`, `infoOneFunctions` had
+zero; `coilFunctions`, `kpayFunctions`, `activateFunctions` had
+compile-only). With v3.3.5 the v3.3.x audit-closure track is
+COMPLETE — all MEDIUM testing findings from the 2026-05-05
+audit are now CLOSED). Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`

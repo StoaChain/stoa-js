@@ -2,6 +2,69 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.5 — 2026-05-06
+
+**MINOR, additive (test-only).** Closes audit finding **F-TEST-006** (MEDIUM, testing-auditor) — six interaction modules previously had insufficient runtime coverage: three with **zero runtime tests at all** (`pensionFunctions`, `guardFunctions`, `infoOneFunctions`) and three with **compile-only tests** (`coilFunctions`, `kpayFunctions`, `activateFunctions` are all type-checked at `tests/types.test.ts:44-47` via `expectTypeOf`, but the functions never actually execute in the test suite). v3.3.5 closes the gap with `tests/v3-3-5-smoke.test.ts` — **12 new it-blocks across 6 describe groups**, one happy-path + one error-path test per module, picking the simplest representative read-only function from each. **NO source-code change**, **NO public API change**, **672/672 tests pass** (was 660 in v3.3.4; +12 from the new test file).
+
+### Why this is MEDIUM-severity even though no current bug
+
+Compile-only tests (`expectTypeOf<typeof fn>().toEqualTypeOf<...>()`) prove the function's TYPE SIGNATURE matches consumer expectations but do NOT prove the function executes correctly. A bug that swapped two argument-string concatenations, forgot to await a Promise, or mis-routed the `pactRead` call would all type-check cleanly while producing wrong runtime behaviour — the tests pass, the chain rejects the malformed Pact code at consumer runtime, the failure surfaces as "transaction reverted" with no clear linkage back to the broken function. v3.3.5 makes that class of regression catchable in CI: a single happy-path runtime test per module asserts "function actually executes against a stubbed `pactRead`," and a single error-path runtime test asserts "graceful-degradation contract holds" (which for 5 of the 6 modules is `null`, and for `pensionFunctions.getHibernateFee` is a locally-computed fallback formula).
+
+The audit's testing-auditor flagged this as MEDIUM because the gap was structural — three full modules had zero runtime tests, and three more had only type-level coverage despite shipping production interaction code. Landing this BEFORE v4.0.0's monorepo restructure means the v4.0.0 file-relocation refactor (which moves `src/interactions/*` into `packages/stoa-core/`) cannot accidentally break any of the 6 modules' runtime contracts — the regression-lock travels with the test file.
+
+### Added — `tests/v3-3-5-smoke.test.ts` (12 it-blocks across 6 describe groups)
+
+| Module | Function tested | Happy path | Error path |
+|---|---|---|---|
+| **`pensionFunctions`** | `getHibernateFee("pool", 100)` | `{decimal:"0.99"}` → `0.99` | thrown read → catch's local fallback formula `0.12 - 0.000008 * lockDays` clamped non-negative → `0.1192` (the ONLY one of the 6 modules with a non-null error path — graceful-degradation contract that lets pension UI show a sensible default fee even when the chain function isn't deployed yet) |
+| **`guardFunctions`** | `getRotateGuardInfo("k:p", "k:a")` | success-path data returned verbatim | failure-status reader → `null`, `getLogger().error` not called (chain-failure-status path is silent by design — only the catch block routes through the logger) |
+| **`infoOneFunctions`** | `getCoilPreviewInfo(p, c, ats, t, "100")` | `{previewField:1, ...}` → `{result: {previewField:1, ...}}` (the `{result: ...}` envelope is the function's defining shape — locks the wrap-in-envelope contract) | failure-status reader → `null` |
+| **`coilFunctions`** | `getCoilPreviewGeneric("100", COIL_CONFIGS.ouroToAuryn)` | data with `pre-text: ["...generates 5.0 AURYN tokens"]` + `kadena: {...}` → parsed `{targetAmount: 5.0, fee: 0, kadenaInfo: {...}}` (locks the regex-based pre-text parse against the v2.x token-name patterns) | failure-status reader → **rethrows** with `/Failed to get coil preview/` (the ONLY module of the 6 that rethrows rather than returning `null`/fallback — locks the rethrow contract that consumers depend on for try/catch flow) |
+| **`kpayFunctions`** | `getKpayData("k:abc")` | success-path data returned verbatim | failure-status reader → `null` |
+| **`activateFunctions`** | `getDeployStandardAccountInfoOnly("k:abc")` | success-path data returned verbatim | thrown read → `null` AND `getLogger().error("Error in getDeployStandardAccountInfoOnly:", error)` routed through the seam (cross-checks v3.3.0's logger-seam completion is intact for this module) |
+
+The strategy mirrors v3.3.4's `tests/v3-3-4-success-paths.test.ts`: install a `successReader` / `failureStatusReader` / `throwingReader` stub via `setPactReader(...)`, exercise the SUT, assert the parsed result. `afterEach` restores `rawCalibratedDirtyRead` so cross-file tests aren't polluted by the seam-mocking. Logger spies use `setLogger({warn, error, info})` matching v3.3.0's extended seam contract — `info` is included for forwards-compat even though none of the 6 SUTs invoke it.
+
+### Why "minimal" is the right scope (and why we don't smoke-test the execute-class functions)
+
+Each of the 6 modules exports a mix of read-only functions (`pactRead`-based — easy to mock via `setPactReader`) and transaction-execute functions (require signing via `CodexSigningStrategy` + `submit` to the chain + `listenForCompletion`-style polling). Smoke-testing the read-only one is cheap; smoke-testing the execute function would require mocking the full `@kadena/client` signing + submit + status-polling chain, which is a much bigger surface and out-of-scope for a MEDIUM audit-closure release. The read-only smoke is sufficient to satisfy F-TEST-006's "function actually executes against the stubbed seam" assertion. The execute-path coverage is queued for v4.0.0's monorepo split where the `CodexSigningStrategy` seam will land properly tested as part of the `packages/stoa-core/` extraction.
+
+### Why a dedicated v3.3.5 file rather than appending to existing files
+
+Same rationale as v3.3.4: (1) **audit-finding traceability** — F-TEST-006 closure lives in one greppable place, mirroring v3.3.2 (F-TEST-002 → `universal-sign.test.ts`), v3.3.3 (new public surface → `partial-sig.test.ts`), and v3.3.4 (F-TEST-005 → `v3-3-4-success-paths.test.ts`); (2) **per-file scope clarity** — appending across 6 different modules' existing test homes would scatter the F-TEST-006 closure across 6 places and muddy each file's per-module scope statement.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The new test file imports from `../src/reads`, `../src/observability`, and 6 stable interaction subpaths; all types resolve cleanly.
+- `npm test` — **672/672 tests pass** (was 660 in v3.3.4; +12 from `tests/v3-3-5-smoke.test.ts`).
+- `npm run build` — clean tsc emit. No source-code change; every module under test is byte-identical to v3.3.4.
+
+### Migration
+
+No consumer migration. The package's public API surface is byte-identical to v3.3.4. This release adds tests that lock existing module behaviour against future regressions; consumers see no observable difference.
+
+### v3.3.x trajectory ahead
+
+- **v3.3.6+** — Documentation/deprecation cleanups (KADENA_BASE_URL deprecation marker, `CreateAccountOptions` JSDoc, etc.); possibly a small dependency-hygiene release (pin exact versions of `@kadena/*` peerDeps + vendor `@kadena/types` per the supply-chain risk discussion deferred from earlier in the v3.3.x cycle).
+- **v4.0.0** — Major structural release (monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`, god-file decomposition including `infoOneFunctions`'s 23 exports → multi-file split, type consolidation, and the bigger fork-into-stoachain-scope work for `@kadena/cryptography-utils` / `@kadena/client` / `@kadena/hd-wallet`). The v3.3.x test-coverage track (`universal-sign`, `partial-sig`, `v3-3-4-success-paths`, `v3-3-5-smoke`) all relocate to `packages/stoa-core/tests/` since the SUTs they cover are StoaChain-generic infrastructure.
+
+### v3.3.x audit-closure track — COMPLETE
+
+This release closes the last MEDIUM testing-auditor finding from the 2026-05-05 audit. The full v3.3.x audit-closure track:
+
+| Release | Audit finding | Severity | What it closed |
+|---|---|---|---|
+| v3.3.0 | F-LOGGER-SEAM-001 | (consolidated, 8 of 8 agents) | Logger seam completion + 7 routed sites + regression-lock |
+| v3.3.1 | (workflow follow-ups from v3.0.0..v3.3.0 pollinate runs) | n/a | npm provenance + gh-CLI `--repo` flag drop |
+| v3.3.2 | F-TEST-002 | HIGH | Direct test coverage for `universalSignTransaction` (3 seedType branches + foreign-key + multi-signer + partial-sig primitive) |
+| v3.3.3 | (new public surface — not an audit finding) | n/a | Multi-party partial-signature workflow for OuronetUI's "AnyOne v2" |
+| v3.3.4 | F-TEST-005 | MEDIUM | Success-path tests for the 13 of 16 v3.0.0 nullable-widened functions |
+| v3.3.5 | F-TEST-006 | MEDIUM | Smoke tests for 6 modules (3 zero-runtime + 3 compile-only) |
+
+All MEDIUM testing findings from the 2026-05-05 audit are now CLOSED. Remaining MEDIUM findings are non-test (`F-PERF-008` sideEffects, `F-PERF-003` regex hoisting, `F-PERF-004` Promise.all, etc.) — those remain as the Short-term Actions queue per the audit roadmap.
+
+---
+
 ## 3.3.4 — 2026-05-06
 
 **MINOR, additive (test-only).** Closes audit finding **F-TEST-005** (MEDIUM, testing-auditor) — the v3.0.0 nullable-widening sweep widened 16 read-side interaction functions from `Promise<T>` → `Promise<T | null>`, replacing each fabricated sentinel (`1.0` / `8` / `0` / `"0"` / `"N/A"`) with `null` on RPC failure. v3.0.0 added null-path tests for all 16 (proving each returns `null` when `pactRead` throws or returns `failure` status), but **only 3 of the 16 had a paired success-path test** — `getStoaPriceUSD` in `tests/interactions-pricing.test.ts:80`, `getLPTypeInfo`'s per-flag mixed-state lock in `tests/interactions-balance-cluster.test.ts:137`, and `getUrStoaGuard`'s 3-state contract at the same file:207. The remaining 13 could not distinguish "always returns null" (silent regression) from "returns null only on RPC failure" (correct contract). v3.3.4 closes that gap with `tests/v3-3-4-success-paths.test.ts` — **13 new it-blocks across 6 describe groups**, one per missing function, each installing a `successReader` stub via `setPactReader(...)` that resolves to `{result: {status: "success", data: <stub>}}`, exercising the SUT, and asserting the parsed non-null return. **NO source-code change**, **NO public API change**, **660/660 tests pass** (was 647 in v3.3.3; +13 from the new test file).
