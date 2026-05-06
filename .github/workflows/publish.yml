@@ -2,11 +2,27 @@ name: Publish to npmjs.org
 
 # Triggered by pushing a version tag (e.g. v4.0.0).
 #
-# v4.0.0 (monorepo split): this workflow now publishes BOTH packages
-# from a single tag — `@stoachain/stoa-core` first, then
-# `@stoachain/ouronet-core` (which has a peer-dep on the former). The
-# two packages share a version: a `vX.Y.Z` tag publishes both at
-# `X.Y.Z`. The version-parity gate below enforces that.
+# v4.0.0 (monorepo split): smart per-package publish. A single shared
+# tag `vX.Y.Z` triggers this workflow, which then detects which
+# packages have a `package.json` version matching the tag and publishes
+# only those. Use cases:
+#
+#   - Atomic release (BOTH packages bump): tag both at vX.Y.Z, both
+#     publish. v4.0.0 is exactly this (the monorepo split itself).
+#   - stoa-core-only release: bump only `packages/stoa-core/package.
+#     json` to vX.Y.Z, leave ouronet-core at the previous version,
+#     tag vX.Y.Z. Only stoa-core publishes. Example: v4.1.0 (the
+#     selective `@kadena/client` vendoring) is expected to look like
+#     this — the ouronet-core consumer surface doesn't change.
+#   - ouronet-core-only release: same shape, mirrored.
+#
+# At least one package MUST match the tag — otherwise the tag is wrong
+# and the workflow fails before npm sees a single byte.
+#
+# Doc gates (README + CHANGELOG version-parity) only apply to packages
+# in the publish queue. A non-published package's docs are untouched
+# — they continue to reflect the version that IS on npmjs.com for that
+# package.
 
 on:
   push:
@@ -15,7 +31,7 @@ on:
 
 jobs:
   publish:
-    name: Build & Publish (stoa-core + ouronet-core)
+    name: Smart per-package publish
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -70,37 +86,70 @@ jobs:
           npm run build
 
       # ------------------------------------------------------------------
-      # Version-parity gate (BOTH packages must match the tag)
+      # Per-package publish-queue detection (the smart bit)
       # ------------------------------------------------------------------
-      # v4.0.0 ships both packages from one tag. Each package.json is
-      # checked independently — drift on either side fails the workflow
-      # before npm sees a single byte.
-      - name: Verify tag matches both package.json versions
+      # Build a queue of packages whose `package.json` version equals the
+      # tag. Subsequent steps run for each queued package only. The queue
+      # is exposed via step outputs:
+      #   - PUBLISH_STOA_CORE   ("true" | "false")
+      #   - PUBLISH_OURONET_CORE ("true" | "false")
+      #
+      # If neither matches, fail the workflow — the tag is wrong.
+      - name: Detect publish queue (which packages match the tag?)
+        id: queue
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
           STOA_VERSION=$(node -p "require('./packages/stoa-core/package.json').version")
           OURO_VERSION=$(node -p "require('./packages/ouronet-core/package.json').version")
-          if [ "$TAG_VERSION" != "$STOA_VERSION" ]; then
-            echo "::error::Tag $TAG_VERSION does not match packages/stoa-core/package.json version $STOA_VERSION"
+          echo "Tag version: $TAG_VERSION"
+          echo "stoa-core version: $STOA_VERSION"
+          echo "ouronet-core version: $OURO_VERSION"
+
+          PUBLISH_STOA="false"
+          PUBLISH_OURO="false"
+
+          if [ "$TAG_VERSION" = "$STOA_VERSION" ]; then
+            PUBLISH_STOA="true"
+          fi
+          if [ "$TAG_VERSION" = "$OURO_VERSION" ]; then
+            PUBLISH_OURO="true"
+          fi
+
+          if [ "$PUBLISH_STOA" = "false" ] && [ "$PUBLISH_OURO" = "false" ]; then
+            echo "::error::Tag $TAG_VERSION matches NEITHER package.json version (stoa-core=$STOA_VERSION, ouronet-core=$OURO_VERSION)"
+            echo "::error::Tags must match at least one package's version. Bump packages/{stoa-core,ouronet-core}/package.json to $TAG_VERSION before tagging."
             exit 1
           fi
-          if [ "$TAG_VERSION" != "$OURO_VERSION" ]; then
-            echo "::error::Tag $TAG_VERSION does not match packages/ouronet-core/package.json version $OURO_VERSION"
-            exit 1
-          fi
-          echo "Tag $TAG_VERSION matches both packages — proceeding"
+
+          echo "PUBLISH_STOA_CORE=$PUBLISH_STOA"     >> "$GITHUB_OUTPUT"
+          echo "PUBLISH_OURONET_CORE=$PUBLISH_OURO"  >> "$GITHUB_OUTPUT"
+          echo "TAG_VERSION=$TAG_VERSION"            >> "$GITHUB_OUTPUT"
+
+          echo ""
+          echo "── Publish queue ──"
+          echo "  @stoachain/stoa-core:    $PUBLISH_STOA"
+          echo "  @stoachain/ouronet-core: $PUBLISH_OURO"
 
       # ------------------------------------------------------------------
-      # Per-package README + CHANGELOG version-parity gate
+      # Per-queued-package README + CHANGELOG version-parity gate
       # ------------------------------------------------------------------
       # The v3.x lessons (v2.1.0/v2.1.1/v2.1.2 README staleness) carry
       # forward into the dual-package world. Each package has its own
       # README + CHANGELOG visible on npmjs.com — both must reference
-      # the version being shipped, on each package independently.
-      - name: Verify per-package README + CHANGELOG mention the publish version
+      # the version being shipped, ON THE PACKAGE THAT IS SHIPPING. A
+      # package not in the publish queue is skipped (its docs still
+      # reflect the version that IS on npmjs.com).
+      - name: Verify README + CHANGELOG of queued packages mention the publish version
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          for PKG_DIR in packages/stoa-core packages/ouronet-core; do
+          TAG_VERSION="${{ steps.queue.outputs.TAG_VERSION }}"
+          PUBLISH_STOA="${{ steps.queue.outputs.PUBLISH_STOA_CORE }}"
+          PUBLISH_OURO="${{ steps.queue.outputs.PUBLISH_OURONET_CORE }}"
+
+          QUEUED=()
+          [ "$PUBLISH_STOA" = "true" ] && QUEUED+=("packages/stoa-core")
+          [ "$PUBLISH_OURO" = "true" ] && QUEUED+=("packages/ouronet-core")
+
+          for PKG_DIR in "${QUEUED[@]}"; do
             PKG_NAME=$(node -p "require('./${PKG_DIR}/package.json').name")
             echo "── Validating ${PKG_NAME} ──"
 
@@ -128,36 +177,56 @@ jobs:
             fi
             echo "✓ ${PKG_DIR}/CHANGELOG.md leads with: ${FIRST_HEADING}"
           done
-          echo "All documentation gates passed for v${TAG_VERSION} — proceeding to publish."
+          echo "All documentation gates passed for queued packages at v${TAG_VERSION}."
 
       - name: Verify npm auth
         run: |
           echo "Checking npm whoami..."
           npm whoami || echo "::warning::whoami failed — publish may too"
 
-      # v3.3.1: `--provenance` flag added to attach a SLSA attestation
-      # linking the published tarball to this exact workflow run (npm
-      # 9.5+). Requires `id-token: write` permission at the workflow
-      # level (set above). npmjs.com displays a "Provenance" badge on
-      # the package version page once the attestation is verified.
+      # ------------------------------------------------------------------
+      # Idempotent publish — skip if the version already exists on npm
+      # ------------------------------------------------------------------
+      # If pollinate (or a manual re-tag-push) re-runs this workflow
+      # after a partial failure, `npm publish` would fail with
+      # "version already published". Pre-check via `npm view` and skip
+      # — the registry is the source of truth.
       #
       # ORDER MATTERS: stoa-core first because ouronet-core has a
       # peer-dep on it. If stoa-core publish fails, ouronet-core
-      # publish never starts (set -e via the run-step contract).
+      # publish never starts (set -e via the run-step contract). When
+      # stoa-core is NOT in the queue (ouronet-core-only release), the
+      # peer-dep version is already on npm by definition — we wouldn't
+      # have skipped it from the queue otherwise.
+
       - name: Publish @stoachain/stoa-core to npmjs.org
-        run: npm publish --workspace=@stoachain/stoa-core --access public --provenance
+        if: steps.queue.outputs.PUBLISH_STOA_CORE == 'true'
+        run: |
+          TAG_VERSION="${{ steps.queue.outputs.TAG_VERSION }}"
+          if npm view @stoachain/stoa-core@${TAG_VERSION} version >/dev/null 2>&1; then
+            echo "@stoachain/stoa-core@${TAG_VERSION} already on npm — skipping (idempotent)."
+          else
+            npm publish --workspace=@stoachain/stoa-core --access public --provenance
+          fi
 
       - name: Publish @stoachain/ouronet-core to npmjs.org
-        run: npm publish --workspace=@stoachain/ouronet-core --access public --provenance
+        if: steps.queue.outputs.PUBLISH_OURONET_CORE == 'true'
+        run: |
+          TAG_VERSION="${{ steps.queue.outputs.TAG_VERSION }}"
+          if npm view @stoachain/ouronet-core@${TAG_VERSION} version >/dev/null 2>&1; then
+            echo "@stoachain/ouronet-core@${TAG_VERSION} already on npm — skipping (idempotent)."
+          else
+            npm publish --workspace=@stoachain/ouronet-core --access public --provenance
+          fi
 
       # ------------------------------------------------------------------
-      # GitHub Release creation (single Release per tag — both packages)
+      # GitHub Release creation (single Release per tag, regardless of
+      # which packages it shipped)
       # ------------------------------------------------------------------
-      # The Release covers BOTH packages atomically — its body is the
-      # annotated-tag message, which the release-author should write to
-      # cover both stoa-core and ouronet-core changes. Per-package
-      # changelogs live in packages/{pkg}/CHANGELOG.md and on npmjs.com
-      # for granular version history.
+      # The Release body is the annotated-tag message, which the
+      # release-author writes to cover whichever packages this tag
+      # ships. Per-package granular history lives in
+      # `packages/{pkg}/CHANGELOG.md` and on npmjs.com.
       - name: Create GitHub Release for the pushed tag
         env:
           # Prefer a user-supplied PAT (RELEASE_TOKEN) when present —
