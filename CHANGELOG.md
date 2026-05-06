@@ -2,6 +2,53 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.4 — 2026-05-06
+
+**MINOR, additive (test-only).** Closes audit finding **F-TEST-005** (MEDIUM, testing-auditor) — the v3.0.0 nullable-widening sweep widened 16 read-side interaction functions from `Promise<T>` → `Promise<T | null>`, replacing each fabricated sentinel (`1.0` / `8` / `0` / `"0"` / `"N/A"`) with `null` on RPC failure. v3.0.0 added null-path tests for all 16 (proving each returns `null` when `pactRead` throws or returns `failure` status), but **only 3 of the 16 had a paired success-path test** — `getStoaPriceUSD` in `tests/interactions-pricing.test.ts:80`, `getLPTypeInfo`'s per-flag mixed-state lock in `tests/interactions-balance-cluster.test.ts:137`, and `getUrStoaGuard`'s 3-state contract at the same file:207. The remaining 13 could not distinguish "always returns null" (silent regression) from "returns null only on RPC failure" (correct contract). v3.3.4 closes that gap with `tests/v3-3-4-success-paths.test.ts` — **13 new it-blocks across 6 describe groups**, one per missing function, each installing a `successReader` stub via `setPactReader(...)` that resolves to `{result: {status: "success", data: <stub>}}`, exercising the SUT, and asserting the parsed non-null return. **NO source-code change**, **NO public API change**, **660/660 tests pass** (was 647 in v3.3.3; +13 from the new test file).
+
+### Why this is MEDIUM-severity even though no current bug
+
+A future regression that returned `null` unconditionally — e.g. a flipped `if (response?.result?.status === "success")` to `!== "success"`, or a `return null;` accidentally inserted before the parse logic — would slip past every existing test in the v3.0.0 fabricated-fallback regression suite. The null-path tests would still pass (the stubbed throwing/failure-status reader still returns `null`, just for the wrong reason). The bug would surface only at consumer runtime, where the OuronetUI balance/price banners would silently switch to "RPC error" UI for legitimate non-zero values — a hard-to-reproduce, intermittently-correlated failure mode. v3.3.4's success-path lock makes this regression class **physically impossible** to ship without tripping CI.
+
+The audit's testing-auditor flagged this as MEDIUM because the gap was structural (every widened function had the same gap in the same way), and the closure is mechanical (one stub per function, ~5 lines each). Landing this BEFORE v4.0.0's monorepo restructure means the v4.0.0 file-relocation refactor (which moves `src/interactions/*` into `packages/stoa-core/`) cannot accidentally regress any of the 13 success paths — the regression-lock travels with the test file.
+
+### Added — `tests/v3-3-4-success-paths.test.ts` (13 it-blocks across 6 describe groups)
+
+| Group | Tests | Functions covered | Locks |
+|---|---|---|---|
+| **Pricing-quartet** (REQ-01..REQ-04) | 3 | `getTokenDecimals`, `getPoolTotalFee`, `getDPTFMinMove` | `{int: "12"}` → `12` (parseInt path); `{decimal: "0.003"}` → `0.003` (parseFloat path); `{decimal: "0.0001"}` → `0.0001` (mayComeWithDeimal path). All three locks verify `Number.isFinite()` accepts the parsed value. (`getStoaPriceUSD` already covered at `interactions-pricing.test.ts:80`.) |
+| **String-balance cluster** (REQ-05) | 4 | `getIgnisBalance`, `getAccountTokenSupply`, `getOuroDispoCapacity`, `getVirtualOuro` | All four unwrap a Pact `{decimal: "..."}` payload via `mayComeWithDeimal` to the underlying string. Locks the v3.0.0 contract that a successful read with a non-zero decimal returns the parsed string — NOT `null` (RPC failure), NOT `"0"` (which v2.x's fabricated sentinel collapsed both cases onto). |
+| **urStoa pair** (REQ-07) | 2 | `getUrStoaBalance`, `checkCoinAccountExists` (urStoa) | `{decimal: "42.5"}` → `42.5` for the balance read; `data: true` → `true` for the urStoa account-existence probe. Test-block JSDoc explicitly cites the inverted-typeof Pact gymnastics in `urStoaFunctions.ts:567` (out of scope for this release; locked-as-is so a future fix can be measured against the current contract). (`getUrStoaGuard`'s 3-state lock at `interactions-balance-cluster.test.ts:207` already counts as success-path.) |
+| **validateLiquidity mixed-shape** (REQ-08) | 1 | `validateLiquidity` | The ONLY one of the 16 widenings where the success path shape differs from the failure path shape. Stub: chain returns `[{decimal:"0.05"}, {decimal:"0.10"}]`. Asserts function returns `{valid: true, computed: "0.05", max: "0.10"}` AND `error` field is `undefined` — the v3.0.0 locked-decision mutual exclusion between `valid:true` and `error` (otherwise consumer's `if (out.error)` branch mis-fires and shows RPC-failure UI for a successful liquidity check). |
+| **getMaxBuyMovieBooster** (REQ-08) | 1 | `getMaxBuyMovieBooster` | `{int: "5000"}` → `5000`. Locks `Number.isFinite` guard against the v2.x fabricated-`0` (which collapsed sold-out and RPC-fail onto the same return value). |
+| **Magic-string elimination** (REQ-09) | 2 | `getSWPSpawnLimit`, `getSWPInactiveLimit` | Both unwrap `{decimal: "..."}` to the underlying string. Belt-and-suspenders assertion: `expect(out).not.toBe("N/A")` — proves the v3.0.0 BREAKING `"N/A"` → `null` swap is intact at the success path, so a regression that re-introduced the magic string would fail the not-`"N/A"` assertion even if it satisfied the toBe-string check. |
+
+The strategy mirrors the pre-existing pattern at `tests/interactions-pricing.test.ts:80-88` (the one success-path test that existed pre-v3.3.4): `setPactReader(successReader({...}))` → call SUT → assert. `afterEach` restores `rawCalibratedDirtyRead` so cross-file tests aren't polluted by the seam-mocking. No global state lives across the 13 it-blocks.
+
+### Why a dedicated v3.3.4 file rather than appending to existing files
+
+(1) **Audit-finding traceability** — F-TEST-005 closure lives in one greppable place, mirroring v3.3.2's `tests/universal-sign.test.ts` (F-TEST-002 closure) and v3.3.3's `tests/partial-sig.test.ts` (new public surface). Future contributors who grep for `F-TEST-005` find the audit citation, the per-function rationale, and the success-path lock all in one file.
+
+(2) **Per-file scope clarity** — the existing files (`interactions-pricing.test.ts`, `interactions-balance-cluster.test.ts`) document themselves as Phase-1 / Phase-2 fabricated-fallback regression locks. Appending post-v3.0.0 audit-closure work to them would muddy the per-file scope statement. The dedicated file keeps the v3.3.4 audit citation visible to future contributors AND keeps the existing files focused on their original v3.0.0-ship purpose.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The new test file imports types from `../src/reads` (`PactReader`), `../src/interactions/ouroFunctions`, `../src/interactions/dexFunctions`, `../src/interactions/urStoaFunctions`, `../src/interactions/addLiquidityFunctions` — all stable subpaths from v3.0.0+.
+- `npm test` — **660/660 tests pass** (was 647 in v3.3.3; +13 from `tests/v3-3-4-success-paths.test.ts`).
+- `npm run build` — clean tsc emit. No source-code change; every interaction function is byte-identical to v3.3.3.
+
+### Migration
+
+No consumer migration. The package's public API surface is byte-identical to v3.3.3. This release adds tests that lock existing v3.0.0 behaviour against future regressions; consumers see no observable difference.
+
+### v3.3.x trajectory ahead
+
+- **v3.3.5** — F-TEST-006 behavioural tests for `pensionFunctions`/`guardFunctions`/`infoOneFunctions` (3 modules with zero tests; 3 more compile-only).
+- **v3.3.6+** — Documentation/deprecation cleanups; possibly a small dependency-hygiene release (pin exact versions of `@kadena/*` peerDeps + vendor `@kadena/types` per the supply-chain risk discussion deferred from earlier in the v3.3.x cycle).
+- **v4.0.0** — Major structural release (monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`, god-file decomposition, type consolidation, and the bigger fork-into-stoachain-scope work for `@kadena/cryptography-utils` / `@kadena/client` / `@kadena/hd-wallet`). The test files added across v3.3.2/3/4 (`universal-sign`, `partial-sig`, `v3-3-4-success-paths`) all relocate to `packages/stoa-core/tests/` since the SUTs they cover are StoaChain-generic infrastructure.
+
+---
+
 ## 3.3.3 — 2026-05-03
 
 **MINOR, additive (NEW PUBLIC SURFACE — not a bug fix).** Ships the multi-party partial-signature workflow OuronetUI has been blocked on: "Person A signs → exports → Person B imports → signs → exports → Person C imports → signs → submits", with cross-party tamper detection at every handoff. Builds on v3.3.2's locked partial-signing primitive (signing with a subset of declared signers fills only those slots; pre-existing slots stay intact across re-signing passes) by wrapping it in a versioned export envelope + slot-status helpers + Ed25519 sig-verification helper. New `src/signing/partialSig.ts` module, re-exported from `@stoachain/ouronet-core/signing`. **NO existing API changed**, **NO source-side behaviour change** outside the new module, **647/647 tests pass** (was 631 in v3.3.2; +16 from the new `tests/partial-sig.test.ts`).

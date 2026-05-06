@@ -6,7 +6,41 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.3` on public npmjs** — **MINOR, additive (NEW PUBLIC
+**`3.3.4` on public npmjs** — **MINOR, additive (test-only).**
+Closes audit finding **F-TEST-005** (MEDIUM, testing-auditor) —
+the v3.0.0 nullable-widening sweep widened 16 read-side
+interaction functions from `Promise<T>` → `Promise<T | null>`,
+but only **3 of the 16** had a paired success-path test
+(`getStoaPriceUSD` at `tests/interactions-pricing.test.ts:80`,
+`getLPTypeInfo`'s mixed-state lock at
+`interactions-balance-cluster.test.ts:137`, and
+`getUrStoaGuard`'s 3-state contract at the same file:207). The
+other 13 could not distinguish "always returns null" (silent
+regression) from "returns null only on RPC failure" (correct
+contract) — a future bug that returned `null` unconditionally
+would slip past every existing test, surface only at consumer
+runtime, and be caught only by chain-side breakage. v3.3.4
+closes the gap with `tests/v3-3-4-success-paths.test.ts` —
+**13 new it-blocks across 6 describe groups**, one per missing
+function, each installing a `successReader` stub via
+`setPactReader(...)` and asserting the parsed non-null return
+value. The 13 functions: `getTokenDecimals`, `getPoolTotalFee`,
+`getDPTFMinMove` (pricing-quartet missing 3); `getIgnisBalance`,
+`getAccountTokenSupply`, `getOuroDispoCapacity`, `getVirtualOuro`
+(string-balance cluster — none previously covered);
+`getUrStoaBalance` and `checkCoinAccountExists` (urStoa pair);
+`validateLiquidity` (mixed-shape success — locks the
+`valid:true` ↔ `error:undefined` mutual exclusion that
+distinguishes a successful liquidity check from an RPC-failure
+one); `getMaxBuyMovieBooster` (locks `Number.isFinite` guard
+against v2.x fabricated-`0`); `getSWPSpawnLimit` and
+`getSWPInactiveLimit` (magic-string elimination — also asserts
+`expect(out).not.toBe("N/A")` so the v3.0.0 BREAKING swap
+cannot regress unnoticed). **NO source-code change**, **NO
+public API change**, **660/660 tests pass** (was 647 in v3.3.3;
++13 from the new test file).
+
+**`3.3.3`** — **MINOR, additive (NEW PUBLIC
 SURFACE — not a bug fix).** Ships the multi-party
 partial-signature workflow OuronetUI has been blocked on:
 "Person A signs → exports → Person B imports → signs → exports →
@@ -735,6 +769,39 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
+**v3.3.4** — success-path tests for the 13 v3.0.0 nullable-widened
+functions that previously had only RPC-failure-path coverage.
+**MINOR, additive (test-only).** Closes audit finding
+**F-TEST-005** (MEDIUM, testing-auditor). Pre-v3.3.4, only 3 of
+the 16 v3.0.0 widenings had a paired success-path test —
+`getStoaPriceUSD`, `getLPTypeInfo` mixed-state, and
+`getUrStoaGuard` 3-state. The remaining 13 could not distinguish
+"always returns null" (silent regression) from "returns null
+only on RPC failure" (correct contract). v3.3.4 adds
+`tests/v3-3-4-success-paths.test.ts` — **13 new it-blocks
+across 6 describe groups**: pricing-quartet (3 — int/decimal
+parse paths for `getTokenDecimals`/`getPoolTotalFee`/`getDPTFMinMove`);
+string-balance cluster (4 — `getIgnisBalance` /
+`getAccountTokenSupply` / `getOuroDispoCapacity` /
+`getVirtualOuro` all unwrap `{decimal:"..."}` to the
+underlying string via `mayComeWithDeimal`); urStoa pair (2 —
+`getUrStoaBalance` parses `{decimal:"42.5"}` → `42.5`,
+`checkCoinAccountExists` (urStoa) returns `true` when chain
+data is `true`); `validateLiquidity` mixed-shape success (1 —
+chain returns `[{decimal:"0.05"}, {decimal:"0.10"}]` →
+function returns `{valid:true, computed:"0.05", max:"0.10"}`
+AND `error` is `undefined`, locking the v3.0.0 mutual
+exclusion); `getMaxBuyMovieBooster` (1 — `{int:"5000"}` →
+`5000`); magic-string elimination (2 — `getSWPSpawnLimit` and
+`getSWPInactiveLimit` return the decimal string AND
+`expect(out).not.toBe("N/A")` so the v3.0.0 BREAKING swap
+cannot regress unnoticed). Strategy mirrors the pre-existing
+`tests/interactions-pricing.test.ts:80-88` success-path lock:
+`setPactReader(successReader({...}))` → call SUT → assert. NO
+source-code change; every interaction function is byte-identical
+to v3.3.3. **+13 new tests** bringing the suite to **660/660
+passing** (was 647 in v3.3.3).
+
 **v3.3.3** — multi-party partial-signature public surface for
 cross-party signing handoffs. **MINOR, additive (NEW PUBLIC
 SURFACE — not a bug fix).** Ships the OuronetUI-requested
@@ -832,12 +899,13 @@ to v3.3.0; **622/622 tests pass unchanged** (workflow files
 aren't in the test scope; verification arrives with the v3.3.1
 publish run itself).
 
-**647 tests** pass on every commit (up from 631 in v3.3.2; +16
-from the new `tests/partial-sig.test.ts` file added in v3.3.3 to
-ship the multi-party partial-signature public surface — 7
-functions + 2 typed errors + envelope interface, with end-to-end
-3-party round-trip coverage via serialize/deserialize handoffs
-and Ed25519 sig-verification on every filled slot). Published to the public npmjs registry via
+**660 tests** pass on every commit (up from 647 in v3.3.3; +13
+from the new `tests/v3-3-4-success-paths.test.ts` file added in
+v3.3.4 to close audit finding F-TEST-005 — paired success-path
+tests for the 13 of 16 v3.0.0 nullable-widened functions that
+previously had only RPC-failure-path coverage, locking each
+parsed non-null return value via `setPactReader(successReader(...))`
+seam-mocking). Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
