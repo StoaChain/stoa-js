@@ -2,6 +2,45 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
+
+## 4.0.0 — 2026-05-06
+
+**MAJOR, breaking (monorepo split + deprecated-alias removal).** v4.0.0 is the structural refactor that v3.3.8 set up. The single `@stoachain/ouronet-core` package was split into two atomic-release npm packages under the new `StoaChain/stoa-js` GitHub monorepo:
+
+  - **[`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core)** — chain-generic StoaChain foundation (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format).
+  - **`@stoachain/ouronet-core`** (this package) — Ouronet protocol business logic (codex codec, interactions/* function library, `KADENA_NAMESPACE`, `STOA_AUTONOMIC_*` accounts, cfm Pact builders).
+
+Both packages release atomically out of the monorepo at the same version — a single `vX.Y.Z` git tag publishes both.
+
+### What this means for consumers
+
+If you imported _only_ Ouronet-specific surfaces (codex, interactions, the `ouronet-ns` namespace), you can keep `@stoachain/ouronet-core` and just bump the version. If you imported chain-generic surfaces (signing, wallet, crypto, network, etc.), those moved to `@stoachain/stoa-core` — install both packages and update the import paths. See `MIGRATION-v4.md` at the monorepo root for the full upgrade map.
+
+### Breaking removals
+
+The deprecated aliases marked `@deprecated` in v3.3.8 were removed:
+
+  - `KADENA_BASE_URL` — pinned to `node2.stoachain.com` and bypassed the v2.1.0 failover layer. Migration: `import { getPactUrl, getSpvUrl } from "@stoachain/stoa-core/constants"` (failover-aware, takes a chainId argument).
+  - `PACT_URL` — same reasoning. Migration: `getPactUrl("0")`.
+  - `GAS_STATION` — alias for `STOA_AUTONOMIC_OURONETGASSTATION`. Migration: rename consumer references to the canonical `STOA_AUTONOMIC_OURONETGASSTATION` (still exported from `@stoachain/ouronet-core/constants`).
+  - `NATIVE_TOKEN_VAULT` — alias for `STOA_AUTONOMIC_LIQUIDPOT`. Migration: `STOA_AUTONOMIC_LIQUIDPOT`.
+
+The `IKadenaKeypair` interface duplicate that lived in `interactions/ouroFunctions.ts` (Phase-2b backwards-compat copy) was also removed. The canonical source is `@stoachain/stoa-core/signing`. Migration: `import type { IKadenaKeypair } from "@stoachain/stoa-core/signing"`.
+
+### Internal moves (transparent to consumers using subpath imports)
+
+  - Chain-generic constants (`KADENA_NETWORK`, `KADENA_CHAIN_ID`, `STOA_CHAINS`, `STOA_CHAIN_COUNT`, `KADENA_CHAINS`, `getPactUrl`, `getSpvUrl`) moved to `@stoachain/stoa-core/constants`. Re-exported through `@stoachain/ouronet-core/constants` for source-level back-compat with internal `../constants` imports — direct `@stoachain/ouronet-core/constants` consumers continue to work, but new code SHOULD import them from `@stoachain/stoa-core/constants` to make the chain-generic vs Ouronet-specific boundary explicit.
+  - `pact/cfmBuilders.ts` (the cfm Pact-code string assembler) stays under the `@stoachain/ouronet-core/pact` subpath because it uses `KADENA_NAMESPACE` (Ouronet-specific). The chain-generic `formatDecimalForPact` / `formatIntegerForPact` / `mayComeWithDeimal` / `filterFreePositionData` / `formatEU` / `safeCreationTime` helpers now live in `@stoachain/stoa-core/pact`. Consumers of the chain-generic helpers should import from `@stoachain/stoa-core/pact`; consumers of cfm builders continue to import from `@stoachain/ouronet-core/pact`.
+
+### Dependency hardening
+
+All `@kadena/*` peer/dev deps + `@noble/curves` + `@scure/bip39` + `@stoachain/dalos-crypto` pinned to exact versions (no `^` ranges). This is the prep work for v4.1.0's selective `@kadena/client` vendoring (supply-chain hardening after Kadena LLC's dissolution) — pinning first means we can audit the exact bytes a consumer pulls in.
+
+### Tests
+
+703/703 passing across the two packages (485 in `@stoachain/stoa-core`, 218 in `@stoachain/ouronet-core`). The v3.3.8 regression-lock test file split — F-ARCH-011/F-ARCH-012 locks now live in `@stoachain/stoa-core/tests/v3-3-8-doc-cleanup.test.ts` (their SUTs are stoa-core-side); F-API-016 lock stays in `@stoachain/ouronet-core/tests/v3-3-8-doc-cleanup.test.ts` (CoilConfig is ouronet-core-side).
+
 ## 3.3.8 — 2026-05-06
 
 **MINOR, additive (documentation/deprecation cleanup pass).** Closes 5 LOW-severity findings from the 2026-05-05 audit's `"v3.x deprecation cleanup"` + `"v3.x conventions alignment"` + `"v3.x API hygiene"` themes in a single bundled release. **One new public-API export** (`CoilConfig` interface, previously consumed but un-exported), **one `@deprecated` marker** (`KADENA_BASE_URL` redirecting consumers to the failover-aware reader), **two doc fixes** (stale JSDoc + import-discipline cleanup), **one stylistic cleanup** (single-quote → double-quote drift in dalos/account.ts). **NO breaking change**, **NO observable runtime behavior change**, **698/698 tests pass** (was 695 in v3.3.7; +3 from the new `tests/v3-3-8-doc-cleanup.test.ts` regression-lock file).
