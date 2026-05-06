@@ -1,9 +1,12 @@
 name: Publish to npmjs.org
 
-# Triggered by pushing a version tag (e.g. v1.2.0).
-# Publishes this package to the public npmjs.org registry under the
-# @stoachain scope so OuronetUI, HUB, and any other consumer can
-# `npm install @stoachain/ouronet-core@^X.Y.Z` without auth.
+# Triggered by pushing a version tag (e.g. v4.0.0).
+#
+# v4.0.0 (monorepo split): this workflow now publishes BOTH packages
+# from a single tag — `@stoachain/stoa-core` first, then
+# `@stoachain/ouronet-core` (which has a peer-dep on the former). The
+# two packages share a version: a `vX.Y.Z` tag publishes both at
+# `X.Y.Z`. The version-parity gate below enforces that.
 
 on:
   push:
@@ -12,25 +15,16 @@ on:
 
 jobs:
   publish:
-    name: Build & Publish
+    name: Build & Publish (stoa-core + ouronet-core)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     # The default GITHUB_TOKEN has read-only `contents` scope. Creating
     # a Release via `gh release create` requires `contents: write`.
-    # Without this block the v2.0.1 publish-workflow run failed at the
-    # "Create GitHub Release for the pushed tag" step with a 403 from
-    # the GitHub Releases API. Granting `contents: write` here scopes
-    # the token to *just* what the Release-creation step needs.
-    #
-    # `id-token: write` (added in v3.3.1) is required for npm publish's
-    # `--provenance` flag — npm uses the OIDC token GitHub Actions issues
-    # via this permission to mint a SLSA attestation linking the published
-    # tarball to the exact workflow run that produced it. Without this
-    # permission, `npm publish --provenance` silently skips the attestation
-    # step. Pre-v3.3.1 every v3.x release shipped without provenance
-    # attestations (visible as 404 on `npm/-/npm/v1/attestations/{pkg}@{ver}`);
-    # v3.3.1 onwards every release carries verifiable provenance.
+    # `id-token: write` is required for npm publish's `--provenance`
+    # flag — npm uses the OIDC token GitHub Actions issues via this
+    # permission to mint a SLSA attestation linking the published
+    # tarball to the exact workflow run that produced it.
     permissions:
       contents: write
       id-token: write
@@ -41,7 +35,7 @@ jobs:
 
       # Plain Node setup — no registry-url here so setup-node doesn't
       # write its own scoped .npmrc. We write the root .npmrc ourselves
-      # in the next step (more reliable than setup-node's scope flag).
+      # in the next step.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -66,75 +60,74 @@ jobs:
         run: npm install --prefer-offline --no-audit --no-fund
 
       # Belt-and-suspenders: tests + build gate the publish so a broken
-      # core never makes it to the registry.
-      - name: Typecheck + Test + Build
+      # core never makes it to the registry. The root scripts iterate
+      # over both workspaces (build is ordered: stoa-core first, then
+      # ouronet-core, matching the publish order below).
+      - name: Typecheck + Test + Build (both packages)
         run: |
           npm run typecheck
           npm test
           npm run build
 
-      - name: Verify tag matches package.json version
+      # ------------------------------------------------------------------
+      # Version-parity gate (BOTH packages must match the tag)
+      # ------------------------------------------------------------------
+      # v4.0.0 ships both packages from one tag. Each package.json is
+      # checked independently — drift on either side fails the workflow
+      # before npm sees a single byte.
+      - name: Verify tag matches both package.json versions
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag $TAG_VERSION does not match package.json version $PKG_VERSION"
+          STOA_VERSION=$(node -p "require('./packages/stoa-core/package.json').version")
+          OURO_VERSION=$(node -p "require('./packages/ouronet-core/package.json').version")
+          if [ "$TAG_VERSION" != "$STOA_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match packages/stoa-core/package.json version $STOA_VERSION"
             exit 1
           fi
-          echo "Tag $TAG_VERSION matches package.json — proceeding"
+          if [ "$TAG_VERSION" != "$OURO_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match packages/ouronet-core/package.json version $OURO_VERSION"
+            exit 1
+          fi
+          echo "Tag $TAG_VERSION matches both packages — proceeding"
 
       # ------------------------------------------------------------------
-      # README + CHANGELOG version-parity gate (bulletproof against stale docs)
+      # Per-package README + CHANGELOG version-parity gate
       # ------------------------------------------------------------------
-      # Reason: the v2.1.0 → v2.1.1 cycle and the v2.1.2 cycle both surfaced
-      # README staleness — README ## Status block lagging behind the version
-      # being shipped. The npm package page shows the README as primary
-      # consumer-facing documentation, so a stale Status block on a fresh
-      # publish leaves consumers reading documentation that contradicts the
-      # version they just installed. v2.1.1 was a dedicated catch-up patch
-      # for exactly this drift class.
-      #
-      # This step is the structural fix: before `npm publish` runs, fail
-      # the workflow if README.md or CHANGELOG.md don't reference the
-      # version being shipped. Stale-README ships become physically
-      # impossible — the publish never happens.
-      - name: Verify README + CHANGELOG mention the publish version
+      # The v3.x lessons (v2.1.0/v2.1.1/v2.1.2 README staleness) carry
+      # forward into the dual-package world. Each package has its own
+      # README + CHANGELOG visible on npmjs.com — both must reference
+      # the version being shipped, on each package independently.
+      - name: Verify per-package README + CHANGELOG mention the publish version
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          echo "Validating that README.md and CHANGELOG.md reference v${TAG_VERSION}..."
+          for PKG_DIR in packages/stoa-core packages/ouronet-core; do
+            PKG_NAME=$(node -p "require('./${PKG_DIR}/package.json').name")
+            echo "── Validating ${PKG_NAME} ──"
 
-          # Check 1: README.md's ## Status block must reference the version.
-          # The convention (visible in v2.1.0+ history) is the Status block's
-          # opening paragraph leads with backtick-quoted version.
-          if ! grep -qE "\`${TAG_VERSION}\`[[:space:]]+on public npmjs" README.md; then
-            echo "::error::README.md ## Status block does not lead with version ${TAG_VERSION}"
-            echo "::error::Expected: a line containing \`${TAG_VERSION}\` on public npmjs"
-            echo "::error::Bump the README ## Status block before tagging the next release."
-            grep -nE 'on public npmjs' README.md || echo "(no Status-block match found at all)"
-            exit 1
-          fi
-          echo "✓ README.md ## Status block references ${TAG_VERSION}"
+            # README: ## Status block must reference the version
+            if ! grep -qE "\`${TAG_VERSION}\`[[:space:]]+on public npmjs" "${PKG_DIR}/README.md"; then
+              echo "::error::${PKG_DIR}/README.md ## Status block does not lead with version ${TAG_VERSION}"
+              echo "::error::Expected: a line containing \`${TAG_VERSION}\` on public npmjs"
+              exit 1
+            fi
+            echo "✓ ${PKG_DIR}/README.md ## Status block references ${TAG_VERSION}"
 
-          # Check 2: README.md version history must contain a v${TAG_VERSION}
-          # paragraph (e.g., "**v2.1.2** — ..."). This is the per-version
-          # entry consumers read for what changed.
-          if ! grep -qE "^\*\*v${TAG_VERSION}\*\*[[:space:]]" README.md; then
-            echo "::error::README.md version history is missing a **v${TAG_VERSION}** paragraph"
-            echo "::error::Add a v${TAG_VERSION} entry to the version history section before tagging."
-            exit 1
-          fi
-          echo "✓ README.md version history contains **v${TAG_VERSION}** entry"
+            # README: version history must contain a **vX.Y.Z** entry
+            if ! grep -qE "^\*\*v${TAG_VERSION}\*\*[[:space:]]" "${PKG_DIR}/README.md"; then
+              echo "::error::${PKG_DIR}/README.md version history is missing a **v${TAG_VERSION}** paragraph"
+              exit 1
+            fi
+            echo "✓ ${PKG_DIR}/README.md version history contains **v${TAG_VERSION}** entry"
 
-          # Check 3: CHANGELOG.md's first heading must be the version.
-          FIRST_HEADING=$(grep -m1 '^## ' CHANGELOG.md)
-          if ! echo "$FIRST_HEADING" | grep -qE "^## ${TAG_VERSION}[[:space:]]"; then
-            echo "::error::CHANGELOG.md's first ## heading does not match version ${TAG_VERSION}"
-            echo "::error::First heading found: ${FIRST_HEADING}"
-            echo "::error::Expected first heading: ## ${TAG_VERSION} — YYYY-MM-DD"
-            exit 1
-          fi
-          echo "✓ CHANGELOG.md leads with: ${FIRST_HEADING}"
-
+            # CHANGELOG: first ## heading must be the version
+            FIRST_HEADING=$(grep -m1 '^## ' "${PKG_DIR}/CHANGELOG.md")
+            if ! echo "$FIRST_HEADING" | grep -qE "^## ${TAG_VERSION}[[:space:]]"; then
+              echo "::error::${PKG_DIR}/CHANGELOG.md's first ## heading does not match version ${TAG_VERSION}"
+              echo "::error::First heading found: ${FIRST_HEADING}"
+              exit 1
+            fi
+            echo "✓ ${PKG_DIR}/CHANGELOG.md leads with: ${FIRST_HEADING}"
+          done
           echo "All documentation gates passed for v${TAG_VERSION} — proceeding to publish."
 
       - name: Verify npm auth
@@ -143,34 +136,28 @@ jobs:
           npm whoami || echo "::warning::whoami failed — publish may too"
 
       # v3.3.1: `--provenance` flag added to attach a SLSA attestation
-      # linking the published tarball to this exact workflow run (npm 9.5+).
-      # Requires `id-token: write` permission at the workflow level (set
-      # above). npmjs.com displays a "Provenance" badge on the package
-      # version page once the attestation is verified.
-      - name: Publish to npmjs.org
-        run: npm publish --access public --provenance
+      # linking the published tarball to this exact workflow run (npm
+      # 9.5+). Requires `id-token: write` permission at the workflow
+      # level (set above). npmjs.com displays a "Provenance" badge on
+      # the package version page once the attestation is verified.
+      #
+      # ORDER MATTERS: stoa-core first because ouronet-core has a
+      # peer-dep on it. If stoa-core publish fails, ouronet-core
+      # publish never starts (set -e via the run-step contract).
+      - name: Publish @stoachain/stoa-core to npmjs.org
+        run: npm publish --workspace=@stoachain/stoa-core --access public --provenance
+
+      - name: Publish @stoachain/ouronet-core to npmjs.org
+        run: npm publish --workspace=@stoachain/ouronet-core --access public --provenance
 
       # ------------------------------------------------------------------
-      # GitHub Release creation
+      # GitHub Release creation (single Release per tag — both packages)
       # ------------------------------------------------------------------
-      # Reason: a git tag is just a commit pointer — it does NOT create a
-      # user-facing GitHub Release. Without this step the Releases page
-      # stays empty and consumers have no discoverable changelog on GitHub.
-      # We use the `gh` CLI (pre-installed on ubuntu-latest runners) which
-      # auto-authenticates with $GH_TOKEN. The `--notes-from-tag` flag uses
-      # the annotated tag's message as the Release body — exactly what was
-      # already provided in `git tag -a vX.Y.Z -m "..."`.
-      #
-      # v3.3.1 (workflow patch): the `--repo` flag was DROPPED from both
-      # `gh release create` and `gh release view` calls. Around 2026-04-30
-      # the GitHub-hosted runners' gh CLI image started rejecting the
-      # `gh release create --notes-from-tag --repo X` flag combination
-      # (the exact failure was logged on every v3.0.0..v3.3.0 release; in
-      # each case `/bee:pollinate`'s Step 9c REST-API fallback created the
-      # Release manually). Dropping `--repo` lets gh auto-detect the repo
-      # from the working-directory context (set by `actions/checkout@v4`
-      # at the top of this job), which IS the repo we want anyway. This
-      # eliminates the recurring REST-fallback dependency.
+      # The Release covers BOTH packages atomically — its body is the
+      # annotated-tag message, which the release-author should write to
+      # cover both stoa-core and ouronet-core changes. Per-package
+      # changelogs live in packages/{pkg}/CHANGELOG.md and on npmjs.com
+      # for granular version history.
       - name: Create GitHub Release for the pushed tag
         env:
           # Prefer a user-supplied PAT (RELEASE_TOKEN) when present —
@@ -195,17 +182,12 @@ jobs:
       # ------------------------------------------------------------------
       # Retroactive Release backfill (idempotent)
       # ------------------------------------------------------------------
-      # Reason: v1.7.0 and v2.0.0 shipped to npm before the auto-Release
-      # step existed, so their GitHub Releases pages are missing. This step
-      # creates them from the existing annotated-tag messages on every run
-      # (idempotent — `gh release view` short-circuits if the Release
-      # already exists). Once both are backfilled this becomes a no-op.
-      # v3.3.1 (workflow patch): same `--repo` drop as the main Release
-      # step above. By this point in the workflow the v3.x backfill list
-      # is fully satisfied (verified at every pollinate run via Step 10's
-      # tag-vs-release diff), so the loop body is a no-op for current
-      # tags. Kept in place for future-tag backfill if a Release ever
-      # gets manually deleted from the GitHub UI.
+      # Pre-stoa-js the v1.7.0/v2.0.0/v2.0.1/v2.0.2/v2.0.3 tags shipped
+      # before the auto-Release step existed. This loop creates them
+      # from the existing annotated-tag messages on every workflow run
+      # (idempotent — `gh release view` short-circuits when the
+      # Release already exists). All v3.x tags carry their Releases
+      # already; this list is finalised history.
       - name: Backfill GitHub Releases for prior tags (idempotent)
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
@@ -214,8 +196,6 @@ jobs:
             if gh release view "$PRIOR_TAG" >/dev/null 2>&1; then
               echo "Backfill: $PRIOR_TAG Release already exists — skipping."
             else
-              # Verify the tag actually exists in the repo before attempting
-              # to create a Release for it.
               if git rev-parse "$PRIOR_TAG" >/dev/null 2>&1; then
                 gh release create "$PRIOR_TAG" \
                   --title "$PRIOR_TAG" \
