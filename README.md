@@ -735,6 +735,40 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
+**v3.3.3** — multi-party partial-signature public surface for
+cross-party signing handoffs. **MINOR, additive (NEW PUBLIC
+SURFACE — not a bug fix).** Ships the OuronetUI-requested
+"Person A signs → exports → Person B imports → signs → exports
+→ Person C imports → signs → submits" workflow as shared core,
+with cross-party tamper detection at every handoff. Builds on
+v3.3.2's locked partial-signing primitive (signing with a subset
+of declared signers fills only those slots; pre-existing slots
+stay intact across re-signing passes) by wrapping it in a
+versioned export envelope + slot-status helpers + Ed25519
+sig-verification helper. New `src/signing/partialSig.ts` module
+re-exported from `@stoachain/ouronet-core/signing`, exposing
+**7 functions** (`signPartial`, `serializePartialTransaction`,
+`deserializePartialTransaction`, `getMissingSigners`,
+`getFilledSigners`, `isFullySigned`,
+`verifyExistingSignatures`), **2 typed errors**
+(`InvalidEnvelopeError`, `TamperedHashError`), and the
+`PartialSigEnvelope` interface. Two-layer tamper defence: (1)
+`deserializePartialTransaction` recomputes blake2b-256(cmd) and
+rejects mismatch with `TamperedHashError` carrying both
+`expected` and `actual` for operator diagnosability; (2)
+`verifyExistingSignatures` runs `nacl.sign.detached.verify` on
+every filled slot — works for both nacl-direct (koala/foreign)
+and BIP32-WASM (chainweaver/eckowallet) sigs since both produce
+standard Ed25519 over the same canonical hash bytes; catches
+the "tampered cmd + tampered hash to match" attack the
+hash-integrity gate alone misses (any cmd modification
+invalidates every prior signature against the new hash). NO
+existing API changed; NO source-side behaviour change outside
+the new module. **+16 new tests** (`tests/partial-sig.test.ts`
+— 16 it-blocks across 7 describe groups including end-to-end
+3-party round-trip via serialize/deserialize handoffs), bringing
+the suite to **647/647 passing** (was 631 in v3.3.2; +16).
+
 **v3.3.2** — direct test coverage for `universalSignTransaction`
 (closes audit finding **F-TEST-002** HIGH). **MINOR, additive
 (test-only).** Pre-v3.3.2, the central signing entry point in
@@ -798,12 +832,12 @@ to v3.3.0; **622/622 tests pass unchanged** (workflow files
 aren't in the test scope; verification arrives with the v3.3.1
 publish run itself).
 
-**631 tests** pass on every commit (up from 622 v3.3.1; +9 from
-the new `tests/universal-sign.test.ts` file added in v3.3.2 to
-close audit finding F-TEST-002 — the central signing entry point
-finally has direct test coverage of all 3 seedType branches plus
-the foreign-key onMissingKey path, multi-signer, partial-signing,
-and silent-skip-when-not-in-signers contracts). Published to the public npmjs registry via
+**647 tests** pass on every commit (up from 631 in v3.3.2; +16
+from the new `tests/partial-sig.test.ts` file added in v3.3.3 to
+ship the multi-party partial-signature public surface — 7
+functions + 2 typed errors + envelope interface, with end-to-end
+3-party round-trip coverage via serialize/deserialize handoffs
+and Ed25519 sig-verification on every filled slot). Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
