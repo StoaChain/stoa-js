@@ -1798,9 +1798,9 @@ To hot-reload changes into OuronetUI (which now depends on the published
 registry version), use `npm link`:
 
 ```bash
-cd OuronetCore && npm link
-cd OuronetUI  && npm link @stoachain/ouronet-core
-# Edit core, run `npm run build` in OuronetCore, UI picks up the change.
+cd stoa-js && npm link
+cd OuronetUI && npm link @stoachain/ouronet-core
+# Edit core, run `npm run build` in stoa-js, UI picks up the change.
 # npm unlink @stoachain/ouronet-core  # restores registry resolution
 ```
 
