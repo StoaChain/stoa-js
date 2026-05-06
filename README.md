@@ -6,7 +6,36 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.2` on public npmjs** — **MINOR, additive (test-only).**
+**`3.3.3` on public npmjs** — **MINOR, additive (NEW PUBLIC
+SURFACE — not a bug fix).** Ships the multi-party
+partial-signature workflow OuronetUI has been blocked on:
+"Person A signs → exports → Person B imports → signs → exports →
+Person C imports → signs → submits", with cross-party tamper
+detection at every handoff. Builds on v3.3.2's locked
+partial-signing primitive (signing with a subset of declared
+signers fills only those slots; pre-existing slots stay intact
+across re-signing passes) by wrapping it in a versioned export
+envelope + slot-status helpers + Ed25519 sig-verification helper.
+New `src/signing/partialSig.ts` module re-exported from
+`@stoachain/ouronet-core/signing`, exposing 7 functions
+(`signPartial`, `serializePartialTransaction`,
+`deserializePartialTransaction`, `getMissingSigners`,
+`getFilledSigners`, `isFullySigned`, `verifyExistingSignatures`)
++ 2 typed errors (`InvalidEnvelopeError`, `TamperedHashError`) +
+the `PartialSigEnvelope` interface. The envelope embeds both
+`cmd` and `hash` so importers can verify integrity; if the cmd
+was tampered mid-flight, `deserializePartialTransaction` rejects
+with `TamperedHashError` carrying both `expected` and `actual` for
+operator diagnosability. As a second layer,
+`verifyExistingSignatures` runs `nacl.sign.detached.verify` on
+every filled slot — works for both nacl-direct (koala/foreign)
+and BIP32-WASM (chainweaver/eckowallet) sigs since both produce
+standard Ed25519 over the same canonical hash bytes. **NO
+existing API changed**, **NO source-side behaviour change**
+outside the new module, **647/647 tests pass** (was 631 in
+v3.3.2; +16 from the new `tests/partial-sig.test.ts`).
+
+**`3.3.2`** — **MINOR, additive (test-only).**
 Closes audit finding **F-TEST-002** (HIGH) — the central signing
 entry point `universalSignTransaction` in
 `src/signing/universalSign.ts` had ZERO direct tests pre-v3.3.2.
@@ -27,7 +56,7 @@ all three seedType branches with real-keypair round-trips
 `KadenaWalletBuilder.createWalletPairFromMnemonic`), the
 foreign-key `onMissingKey` callback (success and key-mismatch
 error cases), the multi-signer mixed-seedType case, the
-partial-signing primitive (foundation lock for v3.3.3's planned
+partial-signing primitive (foundation lock for v3.3.3's
 multi-party signing public surface), and the
 silent-skip-when-not-in-signers contract. **NO source-code
 change**, **NO public API change**, **631/631 tests pass** (was

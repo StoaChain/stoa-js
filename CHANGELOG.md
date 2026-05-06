@@ -2,6 +2,106 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.3 — 2026-05-03
+
+**MINOR, additive (NEW PUBLIC SURFACE — not a bug fix).** Ships the multi-party partial-signature workflow OuronetUI has been blocked on: "Person A signs → exports → Person B imports → signs → exports → Person C imports → signs → submits", with cross-party tamper detection at every handoff. Builds on v3.3.2's locked partial-signing primitive (signing with a subset of declared signers fills only those slots; pre-existing slots stay intact across re-signing passes) by wrapping it in a versioned export envelope + slot-status helpers + Ed25519 sig-verification helper. New `src/signing/partialSig.ts` module, re-exported from `@stoachain/ouronet-core/signing`. **NO existing API changed**, **NO source-side behaviour change** outside the new module, **647/647 tests pass** (was 631 in v3.3.2; +16 from the new `tests/partial-sig.test.ts`).
+
+### Why this is a NEW ADDITION, not a bug fix
+
+Pre-v3.3.3 the underlying primitive existed (since `universalSignTransaction`'s loop has always been "iterate keypairs, sign matching slots, leave others alone" — locked under runtime test in v3.3.2's "partial-signing primitive (v3.3.3 foundation)" describe group), but the multi-party flow required consumers to:
+
+1. Manually serialise an `IUnsignedCommand` to JSON (no envelope, no version, no transport metadata).
+2. Manually parse + cast the JSON back into an `IUnsignedCommand` on import.
+3. Implement their own hash-recompute-and-compare for tamper detection.
+4. Implement their own Ed25519 sig-verification loop to catch tampered signatures.
+
+OuronetUI's pending "AnyOne v2" multi-sig flow needed all four. v3.3.3 ships the public surface so the workflow lives in shared core (one implementation, one set of locked tests) rather than getting reinvented per-consumer.
+
+### Added — `src/signing/partialSig.ts` (7 functions + 2 typed errors + envelope interface)
+
+| Symbol | Kind | Purpose |
+|---|---|---|
+| `signPartial(tx, keypairs)` | function | Thin wrapper around `universalSignTransaction` that drops `onMissingKey` on purpose. In the multi-party flow each signer commits only their OWN keys; "missing" keys mean "another party will sign in their next pass" — not "paste-resolve a foreign key now." Consumers wanting foreign-key paste resolution still call `universalSignTransaction` directly. |
+| `serializePartialTransaction(tx, metadata?)` | function | Wrap the `IUnsignedCommand` in a versioned `PartialSigEnvelope` (`format: "ouronet-partial-sig"`, `version: 1`) and stringify with 2-space indent (mirrors `serializeCodex`'s human-eyeballable choice). `metadata.exportedAt` / `metadata.exportedBy` / `metadata.note` optional, freeform-ish; readers ignore unknowns (forwards-compat). |
+| `deserializePartialTransaction(json)` | function | Parse + format/version literal check + transaction-shape check (`cmd` string, `hash` string, `sigs` array) + **hash-integrity check via `kadenaHash(cmd) === transaction.hash`**. Throws `InvalidEnvelopeError` on shape problems, `TamperedHashError` on hash mismatch. Returns the unwrapped `IUnsignedCommand` ready for the next signer. |
+| `getMissingSigners(tx)` | function | Pubkeys of `cmd.signers` whose parallel `sigs[i]?.sig` slot is empty. Drives "who needs to sign next" UI. |
+| `getFilledSigners(tx)` | function | Inverse of `getMissingSigners` — pubkeys with a filled sig slot. Drives "X of Y signers complete" status. |
+| `isFullySigned(tx)` | function | `getMissingSigners(tx).length === 0`. Cheap pre-check before submitting to chain. |
+| `verifyExistingSignatures(tx)` | function | Verifies every filled `sigs[i]` against `cmd.signers[i].pubKey` over the canonical hash via `nacl.sign.detached.verify`. Empty slots are skipped (not failures). Returns `{allValid, invalid: [{publicKey, reason}]}`. Catches the "tampered cmd + tampered hash to match" attack the envelope's hash-integrity gate alone misses (any cmd modification invalidates every prior signature against any hash, original or rewritten). |
+| `InvalidEnvelopeError` | class | ES2022 `cause` chaining for the JSON-parse path. Message names the offending FIELD but never the field VALUE — an envelope can carry a Pact cmd with embedded data, and surfacing those into telemetry/logs would breach the export's information-disclosure boundary (mirrors `deserializeCodex`'s discipline). |
+| `TamperedHashError` | class | Carries `expected` (what the envelope embedded) and `actual` (what `kadenaHash(cmd)` recomputed). Operator can decide whether the divergence is a UI bug, transport corruption, or malicious modification. |
+| `PartialSigEnvelope` | interface | The v1 export shape. `transaction` is the `IUnsignedCommand` verbatim (no field rename); `metadata` is optional and free-form-ish. |
+| `PARTIAL_SIG_FORMAT` / `PARTIAL_SIG_VERSION` | const | The `"ouronet-partial-sig"` and `1` literals exposed for tooling sanity-checks. |
+
+### Added — `tests/partial-sig.test.ts` (16 it-blocks across 7 describe groups)
+
+| Group | Test count | What it locks |
+|---|---|---|
+| **`signPartial` — fills only matching slots** | 2 | (a) 3-signer tx + 1 keypair fills only that slot, others empty (regression-lock for the wrapper level — v3.3.2 locked this at the `universalSignTransaction` level); (b) re-signing on TOP of a previously partially-signed tx preserves the existing sig byte-for-byte and adds the new one — the load-bearing handoff invariant. |
+| **serialize / deserialize round-trip** | 2 | (a) full envelope round-trip preserves cmd/hash/sigs byte-for-byte; (b) `metadata` is optional — serialising without it produces a valid envelope. |
+| **`deserializePartialTransaction` — rejection cases** | 4 | Throws `InvalidEnvelopeError` on: not JSON, wrong format literal, wrong version literal, missing `transaction.cmd`. |
+| **`deserializePartialTransaction` — `TamperedHashError`** | 1 | Embedded `transaction.hash` doesn't match `kadenaHash(transaction.cmd)` → throws `TamperedHashError` with both `expected` and `actual` populated. The `actual` field equals `signed.hash` (sanity check that the chain's hash IS what `kadenaHash(cmd)` produces — locks the assumption the integrity check rests on). |
+| **slot-status helpers** | 3 | `getMissingSigners` / `getFilledSigners` / `isFullySigned` correctly partition a 3-signer tx across (a) 0 signed → all missing, none filled, not fully signed; (b) 1 signed → 2 missing, 1 filled, not fully signed; (c) all 3 signed → 0 missing, 3 filled, fully signed. |
+| **`verifyExistingSignatures`** | 3 | (a) properly-signed all-slots-filled tx → `allValid: true`; (b) partial-signed tx with empty slots → `allValid: true` (empty slots skipped, not flagged as failures); (c) tampered sig (1 hex digit flipped) → `allValid: false` with `invalid[0].publicKey` and reason text matching `/Ed25519 verification/`. |
+| **end-to-end 3-party round-trip** | 1 | Full A→B→C handoff via serialize/deserialize: A signs → exports JSON → B imports (hash + cmd + A's sig all intact) → B signs → exports JSON → C imports (all 3 verifications pass) → C signs → final tx has all 3 slots filled, `verifyExistingSignatures` returns `allValid: true`, every sig validates against the original hash via direct `nacl.sign.detached.verify`. The chain-validator-equivalent end-state assertion. |
+
+### How OuronetUI consumes this
+
+```ts
+import {
+  signPartial,
+  serializePartialTransaction,
+  deserializePartialTransaction,
+  getMissingSigners,
+  isFullySigned,
+  verifyExistingSignatures,
+} from "@stoachain/ouronet-core/signing";
+
+// ── Person A's side ──
+const txWithA = await signPartial(unsignedTx, [personAKeypair]);
+const exportFromA = serializePartialTransaction(txWithA, {
+  exportedAt: new Date().toISOString(),
+  exportedBy: "k:a3f...",
+});
+// → exportFromA flows out via download / QR / chat.
+
+// ── Person B's side ──
+const importedAtB = deserializePartialTransaction(exportFromA);
+//   ↑ throws TamperedHashError if cmd was modified mid-flight.
+const verifyAtB = verifyExistingSignatures(importedAtB);
+if (!verifyAtB.allValid) { /* surface verifyAtB.invalid in UI */ }
+const stillNeed = getMissingSigners(importedAtB);
+//   ↑ ["personB-pubkey", "personC-pubkey"] — drives "who's left to sign?" panel.
+const txWithAB = await signPartial(importedAtB, [personBKeypair]);
+const exportFromB = serializePartialTransaction(txWithAB, { exportedBy: "k:b1c..." });
+
+// ── Person C's side ──
+const importedAtC = deserializePartialTransaction(exportFromB);
+const txWithABC = await signPartial(importedAtC, [personCKeypair]);
+if (isFullySigned(txWithABC)) {
+  // → submit to chain via the existing OuronetUI submitToChain flow.
+}
+```
+
+### Verified
+
+- `npm run typecheck` — zero errors. The new `PartialSigEnvelope` interface, `InvalidEnvelopeError` / `TamperedHashError` classes, and the `VerifyExistingSignaturesResult` type all compile cleanly. The seven exported functions all use existing `IUnsignedCommand` / `ICommand` types from `@kadena/types`; no new third-party dependency.
+- `npm test` — **647/647 tests pass** (was 631 in v3.3.2; +16 from the new test file).
+- `npm run build` — clean tsc emit. `dist/signing/partialSig.js` + `dist/signing/partialSig.d.ts` produced; `dist/signing/index.d.ts` re-exports the new symbols. No source-code change to any pre-v3.3.3 file (only the `export * from "./partialSig"` line added to `src/signing/index.ts`).
+
+### Migration
+
+No consumer migration. The package's pre-v3.3.3 public API surface is byte-identical: `universalSignTransaction`, `fromKeypair`, `CodexSigningStrategy`, `KeyResolver` etc. all behave exactly as in v3.3.2. v3.3.3 is purely additive — consumers who don't import the new symbols see no observable difference. OuronetUI's "AnyOne v2" branch can now wire the workflow above; the AncientHolder HUB can adopt the same surface for any multi-admin signing flow it grows into.
+
+### v3.3.x trajectory ahead
+
+- **v3.3.4** — F-TEST-005 success-path tests for the 13 v3.0.0 nullable-widened functions.
+- **v3.3.5** — F-TEST-006 behavioural tests for `pensionFunctions`/`guardFunctions`/`infoOneFunctions`.
+- **v3.3.6+** — Documentation/deprecation cleanups; possibly a small dependency-hygiene release (pin exact versions of `@kadena/*` peerDeps + vendor `@kadena/types` per the supply-chain risk discussion deferred from earlier in the v3.3.x cycle).
+- **v4.0.0** — Major structural release (monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`, god-file decomposition, type consolidation, and the bigger fork-into-stoachain-scope work for `@kadena/cryptography-utils` / `@kadena/client` / `@kadena/hd-wallet`). `src/signing/partialSig.ts` is StoaChain-generic infrastructure and slated for `packages/stoa-core/`.
+
+---
+
 ## 3.3.2 — 2026-05-06
 
 **MINOR, additive (test-only).** Closes audit finding **F-TEST-002** (HIGH) — the central signing entry point `universalSignTransaction` in `src/signing/universalSign.ts` had ZERO direct tests pre-v3.3.2. Adds `tests/universal-sign.test.ts` with **9 new it-blocks** covering all three seedType branches (koala / chainweaver / eckowallet), the foreign-key onMissingKey resolution path (success and key-mismatch error cases), the multi-signer mixed-seedType case, the partial-signing primitive (foundation lock for v3.3.3's planned multi-party signing public surface), and the silent-skip-when-not-in-signers contract. **NO source-code change**, **NO public API change**, **631/631 tests pass** (was 622 in v3.3.1; +9).
