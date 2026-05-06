@@ -3,7 +3,7 @@ import pkg from "../package.json" with { type: "json" };
 
 describe("package.json version", () => {
   it("declares the released semver string", () => {
-    expect(pkg.version).toBe("3.3.1");
+    expect(pkg.version).toBe("3.3.2");
   });
 
   it("is a valid semver MAJOR.MINOR.PATCH triplet", () => {

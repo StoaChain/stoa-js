@@ -2,6 +2,53 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.2 — 2026-05-06
+
+**MINOR, additive (test-only).** Closes audit finding **F-TEST-002** (HIGH) — the central signing entry point `universalSignTransaction` in `src/signing/universalSign.ts` had ZERO direct tests pre-v3.3.2. Adds `tests/universal-sign.test.ts` with **9 new it-blocks** covering all three seedType branches (koala / chainweaver / eckowallet), the foreign-key onMissingKey resolution path (success and key-mismatch error cases), the multi-signer mixed-seedType case, the partial-signing primitive (foundation lock for v3.3.3's planned multi-party signing public surface), and the silent-skip-when-not-in-signers contract. **NO source-code change**, **NO public API change**, **631/631 tests pass** (was 622 in v3.3.1; +9).
+
+### Why this is HIGH-severity even though no current bug
+
+`universalSignTransaction` is the central choke point through which every signed Pact transaction in the ecosystem flows. Pre-v3.3.2:
+
+- The only mention of `universalSignTransaction` in `tests/` was a comment in `tests/signing.test.ts:5` stating "the full universalSignTransaction is not exercised here."
+- `tests/strategy.test.ts` exercises `CodexSigningStrategy` which calls `universalSignTransaction` internally — but only with `seedType: "koala"`. The chainweaver / eckowallet / foreign branches were never runtime-tested.
+- The seedType dispatcher itself (the switch-equivalent in lines 89-104 of `universalSign.ts`) was never runtime-tested. A typo that mis-routed `eckowallet` → `koala` would silently produce a wrong-shape signature; the failure surfaces only when a real consumer with a chainweaver wallet tries to sign and the chain rejects with "invalid signature" — far from the actual cause.
+
+The audit's bug-detector and testing-auditor agents both flagged this as HIGH. v3.3.2 closes it before v4.0.0's monorepo restructure moves `src/signing/universalSign.ts` (it's StoaChain-generic infrastructure, slated for `packages/stoa-core/`). Locking the chainweaver/eckowallet/foreign paths NOW means the v4.0.0 file-relocation refactor can't accidentally break them.
+
+### Added — `tests/universal-sign.test.ts` (9 it-blocks across 6 describe groups)
+
+| Group | Test count | What it locks |
+|---|---|---|
+| **Koala branch (nacl Ed25519)** | 2 | Round-trip with RFC-8032 vector + verification via `nacl.sign.detached.verify`; `fromKeypair` adapter normalising consumer-shape `privateKey` field into the universal `secretKey` field |
+| **Chainweaver branch (WASM kadenaSign)** | 1 | Real chainweaver keypair derivation via `KadenaWalletBuilder.createWalletPairFromMnemonic` using the `@kadena/hd-wallet` vendor vector → `universalSignTransaction` produces a valid Ed25519 signature verifiable against the derived publicKey |
+| **Eckowallet branch (label-only difference)** | 1 | Identical derivation as chainweaver but with `seedType: "eckowallet"` — locks the dispatcher routing both labels to the same WASM signing path. Eckowallet is not just "chainweaver renamed" at the type level; this test runtime-confirms it. |
+| **Multi-signer mixed seedTypes** | 1 | Two-signer transaction with one koala signer + one chainweaver signer; both slots filled, both verifiable. Locks the iterate-and-dispatch-each loop's correctness. |
+| **Foreign branch (onMissingKey)** | 2 | (a) Success: callback resolves a signer-pubkey not in our keypairs list; (b) Failure: callback returns mismatched private key → throws "Key mismatch" error citing both expected and derived pubkeys for operator diagnosability |
+| **Partial-signing primitive (v3.3.3 foundation)** | 2 | (a) 3-signer transaction signed with only 1 keypair — only that slot filled, other two left empty (the load-bearing assertion for v3.3.3's multi-party signing workflow); (b) keypairs whose pubkey is NOT in cmd.signers are silently skipped (current contract per `universalSign.ts:91`) |
+
+The verification approach uses `nacl.sign.detached.verify` over the base64URL-decoded `signed.hash` bytes. This works for BOTH the nacl-direct path (koala/foreign) AND the WASM-Ed25519 path (chainweaver/eckowallet) — `kadenaSign` produces standard Ed25519 signatures verifiable with the same primitive, despite the BIP32-derived key path. The test file documents this explicitly so future contributors know the verification helper handles both branches.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The `UniversalKeypair` type's seedType union (`"koala" | "chainweaver" | "eckowallet" | "foreign"`) compiles cleanly across all 9 test cases.
+- `npm test` — **631/631 tests pass** (was 622 in v3.3.1; +9 from the new test file).
+- `npm run build` — clean tsc emit. No source-code change; `universalSign.ts` is byte-identical to v3.3.1.
+
+### Migration
+
+No consumer migration. The package's public API surface is byte-identical to v3.3.1. This release adds tests that lock existing behaviour against future regressions; consumers see no observable difference.
+
+### v3.3.x trajectory ahead
+
+- **v3.3.3** — Multi-party partial-sig public surface (`signPartial`, `serializePartialTransaction`, `deserializePartialTransaction`, `getMissingSigners`, `getFilledSigners`, `isFullySigned`, `verifyExistingSignatures`). Builds on v3.3.2's locked partial-signing primitive. Enables the OuronetUI workflow where Person A signs and exports a transaction, Person B imports and adds their signature, Person C imports and submits — with hash-integrity verification at each handoff so a tampered cmd between signers gets rejected. New `src/signing/partialSig.ts` module.
+- **v3.3.4** — F-TEST-005 success-path tests for the 13 v3.0.0 nullable-widened functions.
+- **v3.3.5** — F-TEST-006 behavioural tests for `pensionFunctions`/`guardFunctions`/`infoOneFunctions`.
+- **v3.3.6+** — Documentation/deprecation cleanups; possibly a small dependency-hygiene release (pin exact versions of `@kadena/*` peerDeps + vendor `@kadena/types` per the supply-chain risk discussion deferred from earlier in the v3.3.x cycle).
+- **v4.0.0** — Major structural release (monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`, god-file decomposition, type consolidation, and the bigger fork-into-stoachain-scope work for `@kadena/cryptography-utils` / `@kadena/client` / `@kadena/hd-wallet`).
+
+---
+
 ## 3.3.1 — 2026-05-06
 
 **PATCH, workflow-only.** Closes the two carried-forward follow-ups that have appeared in every pollinate run's "follow-ups" block since v3.0.0: (1) `npm publish` now passes the `--provenance` flag (and the workflow gains the `id-token: write` permission required to mint the OIDC token npm exchanges with npmjs.org), so v3.3.1 onwards every release carries a verifiable SLSA attestation linking the published tarball to the exact GitHub Action run that produced it; and (2) the `gh release create` invocations in both the main Release-creation step and the idempotent backfill step drop the `--repo` flag, eliminating the `gh release create --notes-from-tag --repo X` flag-combination incompatibility that the GitHub-hosted runners' gh CLI image rejected starting around 2026-04-30. Both fixes are workflow-file-only — `.github/workflows/publish.yml` is the only file that ships behaviour change. **NO source-code change**, **NO public API change**, **622/622 tests pass unchanged** (the workflow file isn't in the test scope; verification is the v3.3.1 publish run itself).

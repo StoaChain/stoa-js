@@ -6,7 +6,34 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.1` on public npmjs** — **PATCH, workflow-only.** Closes the
+**`3.3.2` on public npmjs** — **MINOR, additive (test-only).**
+Closes audit finding **F-TEST-002** (HIGH) — the central signing
+entry point `universalSignTransaction` in
+`src/signing/universalSign.ts` had ZERO direct tests pre-v3.3.2.
+The only mention in `tests/` was a comment in
+`tests/signing.test.ts:5` stating "the full
+universalSignTransaction is not exercised here";
+`tests/strategy.test.ts` exercises a higher-level wrapper but only
+covers `seedType: "koala"`. The chainweaver / eckowallet / foreign
+branches AND the seedType dispatcher itself were never
+runtime-tested — a regression that mis-routed `eckowallet` →
+`koala` (or any other dispatch error) would silently produce
+wrong-shape signatures, surfaced only by chain-side "invalid
+signature" rejection at consumer runtime. v3.3.2 adds
+`tests/universal-sign.test.ts` with **9 new it-blocks** covering
+all three seedType branches with real-keypair round-trips
+(koala via RFC-8032 vector, chainweaver/eckowallet via the
+@kadena/hd-wallet vendor vector through
+`KadenaWalletBuilder.createWalletPairFromMnemonic`), the
+foreign-key `onMissingKey` callback (success and key-mismatch
+error cases), the multi-signer mixed-seedType case, the
+partial-signing primitive (foundation lock for v3.3.3's planned
+multi-party signing public surface), and the
+silent-skip-when-not-in-signers contract. **NO source-code
+change**, **NO public API change**, **631/631 tests pass** (was
+622 in v3.3.1; +9 from the new test file).
+
+**`3.3.1`** — **PATCH, workflow-only.** Closes the
 two carried-forward follow-ups that have appeared in every
 pollinate run's "follow-ups" block since v3.0.0: (1) `npm publish`
 now passes `--provenance` (and the workflow gains `id-token:
@@ -679,6 +706,39 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
+**v3.3.2** — direct test coverage for `universalSignTransaction`
+(closes audit finding **F-TEST-002** HIGH). **MINOR, additive
+(test-only).** Pre-v3.3.2, the central signing entry point in
+`src/signing/universalSign.ts` had ZERO direct tests — the
+chainweaver / eckowallet / foreign seedType branches AND the
+seedType dispatcher itself were never runtime-tested. v3.3.2 adds
+`tests/universal-sign.test.ts` with 9 new it-blocks across 6
+describe groups: koala branch round-trip with RFC-8032 vector
+(2 tests including the `fromKeypair` adapter that normalises
+consumer-shape `privateKey` field into universal `secretKey`);
+chainweaver branch round-trip with real WASM `kadenaSign`
+derived from the @kadena/hd-wallet vendor mnemonic vector
+(1 test); eckowallet branch round-trip proving the dispatcher
+routes both labels to the same WASM signing path (1 test);
+multi-signer mixed-seedType case proving the
+iterate-and-dispatch-each loop's correctness (1 test);
+foreign-key `onMissingKey` callback resolution — success path
+where the callback returns the matching private key (1 test) +
+failure path where the callback returns a mismatched key →
+"Key mismatch" error citing both expected and derived pubkeys
+(1 test); and the partial-signing primitive that v3.3.3's
+planned multi-party signing public surface will build on —
+3-signer transaction signed with only 1 keypair fills only
+that slot, other slots stay empty (1 test); and keypairs whose
+pubkey is NOT in cmd.signers are silently skipped (1 test).
+The verification helper uses `nacl.sign.detached.verify` over
+the base64URL-decoded `signed.hash` bytes — works for BOTH
+the nacl-direct path (koala/foreign) AND the WASM-Ed25519
+path (chainweaver/eckowallet) since both produce standard
+Ed25519 signatures over the same canonical hash. NO
+source-code change; `universalSign.ts` is byte-identical to
+v3.3.1.
+
 **v3.3.1** — workflow-file patch. **PATCH, workflow-only.** Closes
 the two carried-forward follow-ups that appeared in every
 pollinate run's final report from v3.0.0 through v3.3.0: (1) `npm
@@ -709,10 +769,12 @@ to v3.3.0; **622/622 tests pass unchanged** (workflow files
 aren't in the test scope; verification arrives with the v3.3.1
 publish run itself).
 
-**622 tests** pass on every commit (unchanged from v3.3.0 — the
-v3.3.1 patch is workflow-file-only; the only source-tree changes
-are the `package.json` version field bump 3.3.0 → 3.3.1 and the
-matching pin update in `tests/package-version.test.ts`). Published to the public npmjs registry via
+**631 tests** pass on every commit (up from 622 v3.3.1; +9 from
+the new `tests/universal-sign.test.ts` file added in v3.3.2 to
+close audit finding F-TEST-002 — the central signing entry point
+finally has direct test coverage of all 3 seedType branches plus
+the foreign-key onMissingKey path, multi-signer, partial-signing,
+and silent-skip-when-not-in-signers contracts). Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`
