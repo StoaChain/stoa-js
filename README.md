@@ -6,7 +6,42 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.5` on public npmjs** — **MINOR, additive (test-only).**
+**`3.3.6` on public npmjs** — **MINOR, additive (performance
+pass).** Closes three MEDIUM performance findings from the
+2026-05-05 audit in a single bundled release:
+**F-PERF-008** — added `"sideEffects": false` to `package.json`
+(the audit's "single most impactful tree-shaking fix"; lets
+downstream bundlers prune unused barrel imports from the
+16-subpath exports map; verified safe via top-level-mutation
+grep across `src/`);
+**F-PERF-003** — memoized 8 `RegExp` allocations per call in
+`coilFunctions.getCoilPreviewGeneric` to a per-`targetTokenName`
+`Map<string, CoilPatternSet>` cache (the audit's literal
+suggested fix "hoist to module-level const" doesn't apply
+because patterns interpolate `targetTokenName` from `config`,
+but the cache form achieves the same outcome — steady-state
+allocation cost is 0 RegExp objects per call after warm-up);
+**F-PERF-004** — parallelized `ouroFunctions.getOuronetKdaDetails`
+from sequential `await getKadenaAccountOwner()` →
+`await getKadenaAccountGuard()` to a single
+`Promise.all([owner, guard])` (verified independent: probes
+`DALOS.UR_AccountKadena` vs `DALOS.UR_AccountGuard` with no
+causal dependency; halves happy-path latency from 2 sequential
+RPC roundtrips to 1 parallel roundtrip).
+All three are low-risk, behaviorally identical to v3.3.5.
+Consumer-side impact: smaller OuronetUI bundle sizes (F-PERF-008,
+exact savings bundler-config-dependent); faster
+`getOuronetKdaDetails` (F-PERF-004, ~half wall-clock); no
+observable difference for `getCoilPreviewGeneric` (F-PERF-003,
+internal-only). **NO public API change**, **674/674 tests pass**
+(was 672 in v3.3.5; +2 from the new
+`tests/v3-3-6-perf-pass.test.ts` regression-lock file). Locks
+both F-PERF-008 (`expect(pkg.sideEffects).toBe(false)` strict
+equality) and F-PERF-004 (counting reader proves both
+`UR_AccountKadena` AND `UR_AccountGuard` reads still happen,
+catching a regression that accidentally drops one of the reads).
+
+**`3.3.5`** — **MINOR, additive (test-only).**
 Closes audit finding **F-TEST-006** (MEDIUM, testing-auditor) —
 six interaction modules previously had insufficient runtime
 coverage: three with **zero runtime tests at all**
@@ -805,6 +840,39 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
+**v3.3.6** — performance pass closing three MEDIUM perf findings
+from the 2026-05-05 audit in one release. **MINOR, additive.**
+**F-PERF-008** added `"sideEffects": false` to `package.json` —
+the audit's "single most impactful tree-shaking fix"; verified
+safe via grep showing zero top-level callable statements in
+`src/` (every seam — `setPactReader`, `setLogger`, `setNodeConfig`
+— is consumer-invoked at boot, never at module top-level);
+consumer bundles can now prune unused barrel imports from the
+16-subpath exports map. **F-PERF-003** memoized 8 `RegExp`
+allocations per call in `coilFunctions.getCoilPreviewGeneric`
+to a `Map<string, CoilPatternSet>` cache keyed by
+`targetTokenName` — patterns are dynamic per token (interpolate
+`config.targetToken`) so the audit's literal "hoist to
+module-level const" doesn't apply; the cache form achieves the
+same outcome with steady-state 0 RegExp allocations per call
+after warm-up. **F-PERF-004** parallelized
+`ouroFunctions.getOuronetKdaDetails` via `Promise.all([owner,
+guard])` — verified independent (probes `DALOS.UR_AccountKadena`
+vs `DALOS.UR_AccountGuard` with no causal dependency); halves
+happy-path latency from ~2 sequential RPC roundtrips to ~1
+parallel roundtrip. NO public API change. NO observable
+behavior change outside the latency win and the bundler
+tree-shaking pruning. Locked at
+`tests/v3-3-6-perf-pass.test.ts` with 2 it-blocks: T1 strict
+equality `pkg.sideEffects === false` for F-PERF-008, T2
+counting-reader assertion that both `UR_AccountKadena` AND
+`UR_AccountGuard` Pact codes appear in the recorded calls for
+F-PERF-004. F-PERF-003's regex memoization is module-internal;
+behavioral coverage already lives in v3.3.5's
+`tests/v3-3-5-smoke.test.ts:117-141` for `getCoilPreviewGeneric`
+which passes unchanged. **+2 new tests** bringing the suite to
+**674/674 passing** (was 672 in v3.3.5).
+
 **v3.3.5** — runtime smoke tests for 6 interaction modules with
 no runtime test coverage prior to this release. **MINOR,
 additive (test-only).** Closes audit finding **F-TEST-006**
@@ -965,15 +1033,15 @@ to v3.3.0; **622/622 tests pass unchanged** (workflow files
 aren't in the test scope; verification arrives with the v3.3.1
 publish run itself).
 
-**672 tests** pass on every commit (up from 660 in v3.3.4; +12
-from the new `tests/v3-3-5-smoke.test.ts` file added in v3.3.5
-to close audit finding F-TEST-006 — runtime smoke tests for the
-6 interaction modules with insufficient pre-v3.3.5 coverage
-(`pensionFunctions`, `guardFunctions`, `infoOneFunctions` had
-zero; `coilFunctions`, `kpayFunctions`, `activateFunctions` had
-compile-only). With v3.3.5 the v3.3.x audit-closure track is
-COMPLETE — all MEDIUM testing findings from the 2026-05-05
-audit are now CLOSED). Published to the public npmjs registry via
+**674 tests** pass on every commit (up from 672 in v3.3.5; +2
+from the new `tests/v3-3-6-perf-pass.test.ts` regression-lock
+file added in v3.3.6 to close three MEDIUM performance findings
+from the 2026-05-05 audit — F-PERF-008 sideEffects flag,
+F-PERF-003 regex memoization, F-PERF-004 Promise.all
+parallelization. With v3.3.6 every MEDIUM finding from the
+2026-05-05 audit's testing AND performance categories is closed;
+remaining MEDIUMs are arch + sec, naturally folding into v4.0.0's
+monorepo-split work or a small additive v3.3.7 if requested). Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`

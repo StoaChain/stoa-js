@@ -2,6 +2,102 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.6 — 2026-05-06
+
+**MINOR, additive (performance pass).** Closes three MEDIUM performance findings from the 2026-05-05 audit in a single bundled release: **F-PERF-008** (tree-shaking guarantee via `"sideEffects": false`), **F-PERF-003** (regex memoization in `coilFunctions.getCoilPreviewGeneric`), and **F-PERF-004** (parallelize `ouroFunctions.getOuronetKdaDetails`). All three are low-risk, behaviorally identical to v3.3.5; the change surface is two source files + one package.json field + one new regression-lock test file. **NO public API change**, **NO observable behavior change**, **674/674 tests pass** (was 672 in v3.3.5; +2 from the new `tests/v3-3-6-perf-pass.test.ts`).
+
+### F-PERF-008 — Added `"sideEffects": false` to package.json
+
+The biggest tree-shaking win available to consumer bundlers per the audit. Before v3.3.6, downstream bundlers (OuronetUI's webpack/Vite) couldn't prune unused barrel imports from the package's 16-subpath exports map, because they had to assume every imported module might have side effects at top-level. With this flag, bundlers know they can safely drop any imported module whose exports aren't actually used.
+
+Verified safe before adding the flag: every seam in the package (`setPactReader` in `src/reads`, `setLogger` in `src/observability`, `setNodeConfig` in `src/network/nodeFailover`) is **consumer-invoked at boot** — none of them runs at module top-level. Confirmed by grepping `src/` for top-level callable statements (zero matches). Module evaluation only declares functions and constants; it does not mutate global state.
+
+Consumer-side impact: OuronetUI's bundle should shrink for paths that import a single function from a barrel (e.g. `import { analyzeGuard } from "@stoachain/ouronet-core/guard"` previously pulled in the entire `./guard` module's evaluated code; with `sideEffects: false` it pulls only `analyzeGuard`'s code). The exact savings depend on the consumer's bundler config, but the audit cited this as "the single most impactful tree-shaking fix in the codebase."
+
+Locked at `tests/v3-3-6-perf-pass.test.ts` T1: `expect(pkg.sideEffects).toBe(false)` — strict equality with literal `false`. A future package.json edit that drops the field, sets it to `true`, or sets it to a string/array all fail the check.
+
+### F-PERF-003 — Memoized 8 RegExp allocations per call in `coilFunctions.getCoilPreviewGeneric`
+
+Pre-v3.3.6, `getCoilPreviewGeneric` compiled 8 `RegExp` objects every call (4 for the `pre-text` array parsing, 4 for the `post-text` array fallback). The patterns interpolate `targetTokenName` (derived from `config.targetToken`), so the audit's literal suggested fix ("hoist each regex to a module-level const") doesn't apply directly — the patterns are dynamic per token. v3.3.6 adopts the **memoization-cache** form which achieves the same outcome: subsequent calls with the same `targetTokenName` reuse the compiled `RegExp` instances from a `Map<string, CoilPatternSet>` cache.
+
+```ts
+// New module-level cache + lazy-compile helper:
+const coilPatternCache = new Map<string, CoilPatternSet>();
+function getCoilPatterns(targetTokenName: string): CoilPatternSet {
+  const cached = coilPatternCache.get(targetTokenName);
+  if (cached) return cached;
+  // ... compile 8 patterns once, cache, return ...
+}
+
+// Inside getCoilPreviewGeneric (no more `new RegExp(...)` calls):
+const patterns = getCoilPatterns(targetTokenName);
+for (const pattern of patterns.generates) { ... }
+for (const pattern of patterns.generating) { ... }
+```
+
+Steady-state allocation cost: 0 RegExp objects per call after the cache warms (one warm-up call per unique target token). For the 3 standard `COIL_CONFIGS` entries (`AURYN`, `ELITEAURYN`, `SSTOA`), the cache size caps at 3. The Map structure handles arbitrary token names too, so consumer-supplied custom configs benefit equally.
+
+Behavior is byte-identical to v3.3.5 — same patterns in the same order. Behavioral regression coverage already lives in `tests/v3-3-5-smoke.test.ts:117-141` which exercises `getCoilPreviewGeneric` with `COIL_CONFIGS.ouroToAuryn` and asserts the parsed `targetAmount === 5.0` from `pre-text: ["...generates 5.0 AURYN tokens"]`. That test passes unchanged in v3.3.6.
+
+### F-PERF-004 — Parallelized `getOuronetKdaDetails` via Promise.all
+
+Pre-v3.3.6:
+```ts
+const owner = await getKadenaAccountOwner(address);   // sequential
+const guard = await getKadenaAccountGuard(address);   // (waits for owner)
+```
+
+v3.3.6:
+```ts
+const [owner, guard] = await Promise.all([
+  getKadenaAccountOwner(address),
+  getKadenaAccountGuard(address),
+]);
+```
+
+Verified safe: `getKadenaAccountOwner` reads `DALOS.UR_AccountKadena`, `getKadenaAccountGuard` reads `DALOS.UR_AccountGuard` — neither depends on the other's result, no shared mutable state, no causal ordering. Both throw the same `Error("Failed to retrieve data from the transaction.")` on RPC failure, so error semantics are identical (Promise.all rejects with the first rejection — which would be the same error consumers saw in the sequential form).
+
+Happy-path latency: was 2 sequential RPC roundtrips (the chain has to respond to the owner read before the guard read even starts), now 1 parallel roundtrip (both reads in flight simultaneously). On the typical Stoa network (~150-300ms per chain RPC), this halves the function's wall-clock duration to ~150-300ms. Consumer-side impact: UR-detail panels in OuronetUI render visibly faster.
+
+One trade-off worth noting: the parallel form always issues both RPCs even when the first might have failed. The sequential form short-circuited on owner failure. With the failover layer absorbing transient RPC cost, this is a net win — but worth flagging for future contributors that the change is not strictly cost-free on the unhappy path.
+
+Locked at `tests/v3-3-6-perf-pass.test.ts` T2: a counting reader that dispatches different stub payloads by Pact-code substring (`UR_AccountKadena` vs `UR_AccountGuard`). The test asserts both substrings appeared in the recorded calls AND the function returned the expected merged shape. A regression that accidentally drops one of the reads (e.g. only awaits `owner`) would fail loudly because the recorded calls would only contain one substring.
+
+### Added — `tests/v3-3-6-perf-pass.test.ts` (2 it-blocks across 2 describe groups)
+
+| Test | Locks | What regression it catches |
+|---|---|---|
+| **T1** (F-PERF-008) | `package.json` declares `sideEffects: false` | Future package.json edit drops field / changes type → CI fails before npm publish |
+| **T2** (F-PERF-004) | `getOuronetKdaDetails` issues both `UR_AccountKadena` AND `UR_AccountGuard` reads | Future refactor accidentally drops one of the reads (e.g. await only `owner`, not `guard`) → CI fails because the recorded Pact-code calls only contain one substring |
+
+F-PERF-003 (regex memoization) is NOT directly locked in this file because the cache is module-internal (not exported). Behavioral regression coverage lives in v3.3.5's `tests/v3-3-5-smoke.test.ts` for `getCoilPreviewGeneric`; if memoization broke pattern compilation OR matching, that test would fail. Currently it passes.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The new `CoilPatternSet` interface and `coilPatternCache` Map both type-check cleanly; `Promise.all` destructuring preserves the existing return-type contract.
+- `npm test` — **674/674 tests pass** (was 672 in v3.3.5; +2 from the new `tests/v3-3-6-perf-pass.test.ts`).
+- `npm run build` — clean tsc emit. The change surface is `package.json` (1 field), `src/interactions/coilFunctions.ts` (cache + helper added, regex blocks replaced), `src/interactions/ouroFunctions.ts` (1 function body parallelized).
+- `package.json` validates as JSON post-edit; `dist/package.json` is not ours (npm-side); the `sideEffects` flag travels with the published tarball via `files: ["dist", "CHANGELOG.md"]` (npm includes `package.json` automatically).
+
+### Migration
+
+No consumer migration. The package's public API surface is byte-identical to v3.3.5: same exports, same shapes, same return types, same error semantics. v3.3.6 is purely a performance pass; consumers see:
+
+- **Smaller bundle sizes** when consuming via webpack/Vite/Rollup (F-PERF-008 enables tree-shaking pruning of unused barrel re-exports). Exact savings consumer-config-dependent.
+- **Faster `getOuronetKdaDetails`** (F-PERF-004 — ~halved latency on the happy path).
+- **No observable difference** for `getCoilPreviewGeneric` (F-PERF-003 — internal-only optimization; behavior identical).
+
+### v3.3.x trajectory remaining
+
+The v3.3.x audit-closure track now has 6 of the original 6 audit-closure releases done (v3.3.0/2/4/5 testing + logger; v3.3.6 performance). v3.3.1 + v3.3.3 were workflow patches and a new public surface respectively.
+
+- **v3.3.7+** — Optional: small dependency-hygiene + doc-cleanup pass (KADENA_BASE_URL deprecation marker, `CreateAccountOptions` JSDoc, possibly pinning `@kadena/*` peerDeps). Or skip and go straight to v4.0.0.
+- **v4.0.0** — Major structural release (monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`, god-file decomposition including `infoOneFunctions`'s 23 exports → multi-file split, type consolidation, F-ARCH-003 helper extract, and the bigger fork-into-stoachain-scope work for `@kadena/cryptography-utils` / `@kadena/client` / `@kadena/hd-wallet`).
+
+Remaining unaddressed MEDIUM findings post-v3.3.6 are: F-PERF-014 (3-second sleeps replaced with state polling — naturally folds into v4.0.0's submit-flow refactor), F-ARCH-003 (executeLiquidityPipeline helper — natural for v4.0.0 god-file split), F-ARCH-004/008 (type duplication + Phase 3b strategy migration — multi-minor migration work), F-SEC-003/004 (seam validators + V1-decrypt warning — small, additive, fits a v3.3.7 if user wants).
+
+---
+
 ## 3.3.5 — 2026-05-06
 
 **MINOR, additive (test-only).** Closes audit finding **F-TEST-006** (MEDIUM, testing-auditor) — six interaction modules previously had insufficient runtime coverage: three with **zero runtime tests at all** (`pensionFunctions`, `guardFunctions`, `infoOneFunctions`) and three with **compile-only tests** (`coilFunctions`, `kpayFunctions`, `activateFunctions` are all type-checked at `tests/types.test.ts:44-47` via `expectTypeOf`, but the functions never actually execute in the test suite). v3.3.5 closes the gap with `tests/v3-3-5-smoke.test.ts` — **12 new it-blocks across 6 describe groups**, one happy-path + one error-path test per module, picking the simplest representative read-only function from each. **NO source-code change**, **NO public API change**, **672/672 tests pass** (was 660 in v3.3.4; +12 from the new test file).

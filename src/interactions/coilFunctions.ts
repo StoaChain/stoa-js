@@ -21,6 +21,52 @@ interface CoilConfig {
   previewCommand: string;
 }
 
+// Per-targetTokenName regex memoization (closes audit finding F-PERF-003).
+//
+// `getCoilPreviewGeneric` previously compiled 8 RegExp objects per call (4 for
+// the `pre-text` array, 4 for the `post-text` array fallback). Pre-v3.3.6:
+//   ~1 call → 8 allocations. The patterns interpolate `targetTokenName` derived
+// from `config.targetToken`, so they're not statically hoistable — but they ARE
+// stable per-token (only 3 token suffixes are in use across `COIL_CONFIGS`:
+// `AURYN`, `ELITEAURYN`, `SSTOA`). v3.3.6 lazily memoizes the 8 patterns per
+// `targetTokenName` so subsequent calls with the same token reuse the cached
+// `RegExp` instances. After the cache warms (one call per unique target
+// token), the steady-state allocation cost is zero per call. `Map<string,
+// CoilPatternSet>` handles arbitrary token names, not just the 3 in
+// `COIL_CONFIGS`, so consumer-supplied custom configs benefit too.
+interface CoilPatternSet {
+  generates: readonly RegExp[];
+  generating: readonly RegExp[];
+}
+
+const coilPatternCache = new Map<string, CoilPatternSet>();
+
+function getCoilPatterns(targetTokenName: string): CoilPatternSet {
+  const cached = coilPatternCache.get(targetTokenName);
+  if (cached) return cached;
+
+  const eliteHyphen = targetTokenName.replace("ELITE", "ELITE-");
+  const eliteSpace = targetTokenName.replace("ELITE", "Elite ");
+  const tail = targetTokenName.slice(-4);
+
+  const built: CoilPatternSet = {
+    generates: [
+      new RegExp(`generates\\s+([\\d.]+)\\s+${targetTokenName}`, "i"),
+      new RegExp(`generates\\s+([\\d.]+)\\s+${eliteHyphen}`, "i"),
+      new RegExp(`generates\\s+([\\d.]+)\\s+${eliteSpace}`, "i"),
+      new RegExp(`generates\\s+([\\d.]+)\\s+\\w*${tail}\\w*`, "i"),
+    ],
+    generating: [
+      new RegExp(`generating\\s+([\\d.]+)\\s+${targetTokenName}`, "i"),
+      new RegExp(`generating\\s+([\\d.]+)\\s+${eliteHyphen}`, "i"),
+      new RegExp(`generating\\s+([\\d.]+)\\s+${eliteSpace}`, "i"),
+      new RegExp(`generating\\s+([\\d.]+)\\s+\\w*${tail}\\w*`, "i"),
+    ],
+  };
+  coilPatternCache.set(targetTokenName, built);
+  return built;
+}
+
 // Coiling configurations for each token pair
 export const COIL_CONFIGS = {
   ouroToAuryn: {
@@ -74,19 +120,15 @@ export async function getCoilPreviewGeneric(
     let targetAmount = 0;
     const targetTokenName = config.targetToken.replace('-8Nh-JO8JO4F5', ''); // ELITEAURYN, SSTOA, etc
     
+    // v3.3.6 (F-PERF-003): pull the 8 RegExp instances from the
+    // per-targetTokenName memoization cache instead of compiling them
+    // 8x per call. Behaviorally identical — same patterns, same order.
+    const patterns = getCoilPatterns(targetTokenName);
+
     // Check pre-text array for target token amount
     if (data && data['pre-text']) {
       for (const text of data['pre-text']) {
-        // Try multiple possible patterns
-        const patterns = [
-          new RegExp(`generates\\s+([\\d.]+)\\s+${targetTokenName}`, 'i'),
-          new RegExp(`generates\\s+([\\d.]+)\\s+${targetTokenName.replace('ELITE', 'ELITE-')}`, 'i'),
-          new RegExp(`generates\\s+([\\d.]+)\\s+${targetTokenName.replace('ELITE', 'Elite ')}`, 'i'),
-          // Generic pattern to catch any number before any token name part  
-          new RegExp(`generates\\s+([\\d.]+)\\s+\\w*${targetTokenName.slice(-4)}\\w*`, 'i')
-        ];
-        
-        for (const pattern of patterns) {
+        for (const pattern of patterns.generates) {
           const tokenMatch = text.match(pattern);
           if (tokenMatch) {
             targetAmount = parseFloat(tokenMatch[1]);
@@ -96,20 +138,11 @@ export async function getCoilPreviewGeneric(
         if (targetAmount > 0) break;
       }
     }
-    
+
     // Fallback: check post-text array
     if (!targetAmount && data && data['post-text']) {
       for (const text of data['post-text']) {
-        // Look for patterns like "generating X.XX AURYN" or "generating X.XX ELITEAURYN" or "generating X.XX SSTOA"
-        const patterns = [
-          new RegExp(`generating\\s+([\\d.]+)\\s+${targetTokenName}`, 'i'),
-          new RegExp(`generating\\s+([\\d.]+)\\s+${targetTokenName.replace('ELITE', 'ELITE-')}`, 'i'),
-          new RegExp(`generating\\s+([\\d.]+)\\s+${targetTokenName.replace('ELITE', 'Elite ')}`, 'i'),
-          // Generic pattern to catch any number before any token name part
-          new RegExp(`generating\\s+([\\d.]+)\\s+\\w*${targetTokenName.slice(-4)}\\w*`, 'i')
-        ];
-        
-        for (const pattern of patterns) {
+        for (const pattern of patterns.generating) {
           const tokenMatch = text.match(pattern);
           if (tokenMatch) {
             targetAmount = parseFloat(tokenMatch[1]);

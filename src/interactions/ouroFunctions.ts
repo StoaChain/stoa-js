@@ -216,8 +216,16 @@ export const getKadenaAccountGuard = async (
 };
 
 export async function getOuronetKdaDetails(address: string): Promise<any> {
-  const owner = await getKadenaAccountOwner(address);
-  const guard = await getKadenaAccountGuard(address);
+  // v3.3.6 (F-PERF-004): parallelize the two independent reads.
+  // `getKadenaAccountOwner` reads `DALOS.UR_AccountKadena` and
+  // `getKadenaAccountGuard` reads `DALOS.UR_AccountGuard` — neither
+  // depends on the other's result, so `Promise.all` halves the
+  // happy-path latency (was ~2 sequential RPC roundtrips, now ~1
+  // parallel roundtrip).
+  const [owner, guard] = await Promise.all([
+    getKadenaAccountOwner(address),
+    getKadenaAccountGuard(address),
+  ]);
 
   return {
     isActive: owner !== null,
