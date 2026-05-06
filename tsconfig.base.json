@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "strict": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+
+    "baseUrl": ".",
+    "paths": {
+      "@stoachain/stoa-core": ["./packages/stoa-core/src/index.ts"],
+      "@stoachain/stoa-core/constants": ["./packages/stoa-core/src/constants/index.ts"],
+      "@stoachain/stoa-core/network": ["./packages/stoa-core/src/network/index.ts"],
+      "@stoachain/stoa-core/observability": ["./packages/stoa-core/src/observability/index.ts"],
+      "@stoachain/stoa-core/gas": ["./packages/stoa-core/src/gas/index.ts"],
+      "@stoachain/stoa-core/guard": ["./packages/stoa-core/src/guard/index.ts"],
+      "@stoachain/stoa-core/crypto": ["./packages/stoa-core/src/crypto/index.ts"],
+      "@stoachain/stoa-core/errors": ["./packages/stoa-core/src/errors/index.ts"],
+      "@stoachain/stoa-core/signing": ["./packages/stoa-core/src/signing/index.ts"],
+      "@stoachain/stoa-core/wallet": ["./packages/stoa-core/src/wallet/index.ts"],
+      "@stoachain/stoa-core/reads": ["./packages/stoa-core/src/reads/index.ts"],
+      "@stoachain/stoa-core/pact": ["./packages/stoa-core/src/pact/index.ts"],
+      "@stoachain/stoa-core/dalos": ["./packages/stoa-core/src/dalos/index.ts"],
+      "@stoachain/ouronet-core": ["./packages/ouronet-core/src/index.ts"],
+      "@stoachain/ouronet-core/constants": ["./packages/ouronet-core/src/constants/index.ts"],
+      "@stoachain/ouronet-core/codex": ["./packages/ouronet-core/src/codex/index.ts"],
+      "@stoachain/ouronet-core/pact": ["./packages/ouronet-core/src/pact/index.ts"],
+      "@stoachain/ouronet-core/interactions": ["./packages/ouronet-core/src/interactions/index.ts"],
+      "@stoachain/ouronet-core/interactions/*": ["./packages/ouronet-core/src/interactions/*.ts"]
+    }
+  }
+}

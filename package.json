@@ -1,110 +1,23 @@
 {
-  "name": "@stoachain/ouronet-core",
-  "version": "3.3.8",
-  "description": "Shared TypeScript core for the OuroNet ecosystem — StoaChain / Chainweb / Pact interactions, Codex signing, guard analysis, encryption. Consumed by OuronetUI and the AncientHolder HUB.",
+  "name": "stoa-js",
+  "version": "0.0.0",
+  "description": "StoaChain TypeScript stack — workspace root for @stoachain/stoa-core (chain-generic foundation) and @stoachain/ouronet-core (Ouronet protocol business logic).",
+  "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./constants": {
-      "types": "./dist/constants/index.d.ts",
-      "import": "./dist/constants/index.js"
-    },
-    "./network": {
-      "types": "./dist/network/index.d.ts",
-      "import": "./dist/network/index.js"
-    },
-    "./observability": {
-      "types": "./dist/observability/index.d.ts",
-      "import": "./dist/observability/index.js"
-    },
-    "./gas": {
-      "types": "./dist/gas/index.d.ts",
-      "import": "./dist/gas/index.js"
-    },
-    "./guard": {
-      "types": "./dist/guard/index.d.ts",
-      "import": "./dist/guard/index.js"
-    },
-    "./crypto": {
-      "types": "./dist/crypto/index.d.ts",
-      "import": "./dist/crypto/index.js"
-    },
-    "./errors": {
-      "types": "./dist/errors/index.d.ts",
-      "import": "./dist/errors/index.js"
-    },
-    "./signing": {
-      "types": "./dist/signing/index.d.ts",
-      "import": "./dist/signing/index.js"
-    },
-    "./wallet": {
-      "types": "./dist/wallet/index.d.ts",
-      "import": "./dist/wallet/index.js"
-    },
-    "./codex": {
-      "types": "./dist/codex/index.d.ts",
-      "import": "./dist/codex/index.js"
-    },
-    "./reads": {
-      "types": "./dist/reads/index.d.ts",
-      "import": "./dist/reads/index.js"
-    },
-    "./pact": {
-      "types": "./dist/pact/index.d.ts",
-      "import": "./dist/pact/index.js"
-    },
-    "./interactions": {
-      "types": "./dist/interactions/index.d.ts",
-      "import": "./dist/interactions/index.js"
-    },
-    "./interactions/*": {
-      "types": "./dist/interactions/*.d.ts",
-      "import": "./dist/interactions/*.js"
-    },
-    "./dalos": {
-      "types": "./dist/dalos/index.d.ts",
-      "import": "./dist/dalos/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "CHANGELOG.md"
-  ],
-  "sideEffects": false,
   "engines": {
     "node": ">=20"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest",
-    "prepare": "npm run build",
-    "clean": "rimraf dist"
-  },
-  "dependencies": {
-    "@stoachain/dalos-crypto": "^4.0.3"
-  },
-  "peerDependencies": {
-    "@kadena/client": "^1.17.0",
-    "@kadena/cryptography-utils": "^0.4.0",
-    "@kadena/hd-wallet": "^0.6.0",
-    "@kadena/types": "^0.7.0",
-    "@noble/curves": "^1.4.0",
-    "@scure/bip39": "^1.2.0"
+    "build": "npm run build --workspace=@stoachain/stoa-core && npm run build --workspace=@stoachain/ouronet-core",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "test:watch": "npm run test:watch --workspaces",
+    "clean": "npm run clean --workspaces"
   },
   "devDependencies": {
-    "@kadena/client": "^1.17.1",
-    "@kadena/cryptography-utils": "^0.4.4",
-    "@kadena/hd-wallet": "^0.6.1",
-    "@kadena/types": "^0.7.0",
-    "@noble/curves": "^1.9.0",
-    "@scure/bip39": "^1.6.0",
     "@types/node": "^22.10.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.7.2",
@@ -113,10 +26,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/StoaChain/stoa-js.git"
-  },
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org",
-    "access": "public"
   },
   "license": "UNLICENSED"
 }

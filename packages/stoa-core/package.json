@@ -1,0 +1,107 @@
+{
+  "name": "@stoachain/stoa-core",
+  "version": "4.0.0",
+  "description": "Chain-generic StoaChain TypeScript foundation: signing, wallet, crypto codex encryption, network failover, gas calibration, guard analysis, DALOS integration. Consumed by @stoachain/ouronet-core and any other StoaChain consumer (CLI tools, validators, third-party integrations).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants/index.d.ts",
+      "import": "./dist/constants/index.js"
+    },
+    "./network": {
+      "types": "./dist/network/index.d.ts",
+      "import": "./dist/network/index.js"
+    },
+    "./observability": {
+      "types": "./dist/observability/index.d.ts",
+      "import": "./dist/observability/index.js"
+    },
+    "./gas": {
+      "types": "./dist/gas/index.d.ts",
+      "import": "./dist/gas/index.js"
+    },
+    "./guard": {
+      "types": "./dist/guard/index.d.ts",
+      "import": "./dist/guard/index.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto/index.d.ts",
+      "import": "./dist/crypto/index.js"
+    },
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js"
+    },
+    "./signing": {
+      "types": "./dist/signing/index.d.ts",
+      "import": "./dist/signing/index.js"
+    },
+    "./wallet": {
+      "types": "./dist/wallet/index.d.ts",
+      "import": "./dist/wallet/index.js"
+    },
+    "./reads": {
+      "types": "./dist/reads/index.d.ts",
+      "import": "./dist/reads/index.js"
+    },
+    "./pact": {
+      "types": "./dist/pact/index.d.ts",
+      "import": "./dist/pact/index.js"
+    },
+    "./dalos": {
+      "types": "./dist/dalos/index.d.ts",
+      "import": "./dist/dalos/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@stoachain/dalos-crypto": "^4.0.3"
+  },
+  "peerDependencies": {
+    "@kadena/client": "^1.17.0",
+    "@kadena/cryptography-utils": "^0.4.0",
+    "@kadena/hd-wallet": "^0.6.0",
+    "@kadena/types": "^0.7.0",
+    "@noble/curves": "^1.4.0",
+    "@scure/bip39": "^1.2.0"
+  },
+  "devDependencies": {
+    "@kadena/client": "^1.17.1",
+    "@kadena/cryptography-utils": "^0.4.4",
+    "@kadena/hd-wallet": "^0.6.1",
+    "@kadena/types": "^0.7.0",
+    "@noble/curves": "^1.9.0",
+    "@scure/bip39": "^1.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StoaChain/stoa-js.git",
+    "directory": "packages/stoa-core"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "license": "UNLICENSED"
+}
