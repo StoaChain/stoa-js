@@ -17,6 +17,7 @@
  */
 
 import { WrongPasswordError, CorruptEnvelopeError } from "./errors";
+import { getLogger } from "../observability/logger";
 
 export interface EncryptedDataV2 {
   v: 2;
@@ -25,10 +26,78 @@ export interface EncryptedDataV2 {
   salt: string;
 }
 
+/**
+ * V1 envelope shape (legacy). PBKDF2-SHA256 / 10,000 iterations / AES-GCM-256.
+ *
+ * **Security note (v3.3.7, closes audit finding F-SEC-004):** OWASP's
+ * password-storage cheat sheet (2023+) recommends a PBKDF2-SHA256 minimum
+ * of **600,000** iterations. V1 ships at 10,000 — meaningfully crackable
+ * on commodity GPU hardware in ways the V2 envelope (PBKDF2-SHA512 /
+ * 600,000 iterations) is not.
+ *
+ * V1 lingers in the codebase for backwards-compat: codex backups exported
+ * before the V2 upgrade still parse via this shape (the V1-fallback path
+ * inside `decryptStringV2`). New writes always go through `encryptStringV2`
+ * — every `smartEncrypt` call with `schemaVersion >= "1"` produces a V2
+ * envelope. Consumers holding V1 codices should **upgrade in place** by
+ * decrypting with the password and re-encrypting via `encryptStringV2`
+ * (or by triggering the OuronetUI codex-upgrade flow).
+ *
+ * v3.3.7 surfaces a one-time `getLogger().warn(...)` event on the first
+ * V1 envelope decoded per process, plus the optional
+ * `decryptStringV2WithDetails` / `smartDecryptWithDetails` variants that
+ * return `{ plaintext, wasLegacyV1 }` so consumers can react
+ * programmatically.
+ */
 export interface EncryptedDataV1 {
   ciphertext: string;
   iv: string;
   salt: string;
+}
+
+/**
+ * Result shape returned by `decryptStringV2WithDetails` /
+ * `smartDecryptWithDetails`. The `wasLegacyV1` flag tells the caller
+ * whether the input envelope was decoded via the V1-fallback path
+ * (sub-OWASP iteration count) or the canonical V2 path. Use it to
+ * trigger an in-place re-encrypt to V2, or to surface a "your codex
+ * uses outdated encryption" banner in the consumer UI.
+ *
+ * Added in v3.3.7 (closes audit finding F-SEC-004).
+ */
+export interface DecryptResultWithDetails {
+  plaintext: string;
+  wasLegacyV1: boolean;
+}
+
+// v3.3.7 (F-SEC-004): one-shot warning when the V1 fallback path executes.
+// The warning fires on the first V1 decrypt per process and stays silent
+// after that, so a codex bulk-decrypt of N V1 entries doesn't spam the
+// consumer's log pipeline with N copies. The `wasLegacyV1` flag returned
+// by `*WithDetails` variants is the per-call programmatic signal.
+let _v1WarningEmitted = false;
+
+function emitV1WarningOnce(): void {
+  if (_v1WarningEmitted) return;
+  _v1WarningEmitted = true;
+  getLogger().warn(
+    "[ouronet-core/crypto] V1-format encrypted blob decoded successfully. " +
+      "V1 uses PBKDF2-SHA256 at 10,000 iterations, well below OWASP's current " +
+      "600,000 minimum (cracked meaningfully faster on commodity GPU hardware). " +
+      "Re-encrypt affected codex entries to V2 (PBKDF2-SHA512 / 600,000) at the " +
+      "earliest opportunity. Use `decryptStringV2WithDetails` or `smartDecryptWithDetails` " +
+      "for the per-call `wasLegacyV1` flag. This warning fires once per process lifetime.",
+  );
+}
+
+/**
+ * @internal Test-only helper to reset the one-shot V1-warning guard so
+ * each test in `tests/v3-3-7-v1-warning.test.ts` starts from a clean
+ * state. NOT exported via the public barrel — consumers should never
+ * call this; the warning is intentionally one-shot in production.
+ */
+export function _resetV1WarningEmittedForTests(): void {
+  _v1WarningEmitted = false;
 }
 
 function ab2b64(buf: ArrayBuffer): string {
@@ -77,6 +146,14 @@ export async function encryptStringV2(plaintext: string, password: string): Prom
  * Decrypt a V2 envelope. Includes a V1 fallback path: if the envelope lacks
  * `v: 2`, this still decodes it using V1 params. That keeps V2-only call
  * sites (e.g. a codex-wide re-encrypt job) safe when stray V1 blobs linger.
+ *
+ * **v3.3.7 (closes audit finding F-SEC-004):** the V1-fallback path emits
+ * `getLogger().warn(...)` on the FIRST execution per process lifetime,
+ * surfacing the sub-OWASP-iteration-count security advisory exactly once
+ * (one-shot guard prevents bulk-decrypt log spam). For the per-call
+ * programmatic signal, use the `decryptStringV2WithDetails` variant which
+ * returns `{ plaintext, wasLegacyV1 }`. See the `EncryptedDataV1` JSDoc
+ * for the security background.
  *
  * Failure classification (applies to BOTH V2 branch and V1-fallback branch):
  *   - JSON.parse / outer atob failure        → CorruptEnvelopeError
@@ -173,6 +250,12 @@ export async function decryptStringV2(encryptedBase64: string, password: string)
       key,
       ctBuf1,
     );
+    // v3.3.7 (F-SEC-004): success path on the V1-fallback branch — this is
+    // the moment the security advisory becomes actionable (we just decoded
+    // sub-OWASP-iteration ciphertext successfully). Warning is one-shot
+    // per process; programmatic per-call signal is via
+    // `decryptStringV2WithDetails`.
+    emitV1WarningOnce();
     return dec.decode(decrypted);
   } catch (error) {
     if ((error as { name?: string } | null)?.name === "OperationError") {
@@ -180,6 +263,41 @@ export async function decryptStringV2(encryptedBase64: string, password: string)
     }
     throw new Error("Unexpected V1-fallback decrypt failure", { cause: error });
   }
+}
+
+/**
+ * Same as `decryptStringV2`, but returns `{ plaintext, wasLegacyV1 }` so
+ * consumers can react programmatically per call. `wasLegacyV1: true`
+ * means the input envelope was decoded via the V1-fallback path
+ * (PBKDF2-SHA256 / 10k iterations — sub-OWASP); `wasLegacyV1: false`
+ * means the canonical V2 path (PBKDF2-SHA512 / 600k iterations).
+ *
+ * Use this variant when you need to trigger an in-place re-encrypt-to-V2
+ * after detecting a V1 codex entry, OR to surface a per-entry "outdated
+ * encryption" banner in the consumer UI. The plain `decryptStringV2`
+ * still works for pure decrypt-and-throw-away use cases — the
+ * one-shot `getLogger().warn(...)` advisory fires from BOTH variants
+ * (a single warning per process for the first V1 decrypt encountered).
+ *
+ * Added in v3.3.7 (closes audit finding F-SEC-004).
+ *
+ * Failure classification is identical to `decryptStringV2` — same
+ * `CorruptEnvelopeError` / `WrongPasswordError` / wrapped-Error contract.
+ */
+export async function decryptStringV2WithDetails(
+  encryptedBase64: string,
+  password: string,
+): Promise<DecryptResultWithDetails> {
+  // Best-effort detect whether this WILL be a V1-fallback path before we
+  // call into the full decrypt — the path branches deterministically on
+  // `parsed.v === 2`, and `isEncryptedV2` already implements that check
+  // with the same JSON.parse + atob shape. If the envelope is malformed,
+  // both functions throw the same `CorruptEnvelopeError` from the same
+  // call site, so the `isEncryptedV2`-then-`decryptStringV2` ordering
+  // doesn't change the observable error contract.
+  const wasLegacyV1 = !isEncryptedV2(encryptedBase64);
+  const plaintext = await decryptStringV2(encryptedBase64, password);
+  return { plaintext, wasLegacyV1 };
 }
 
 /** True iff the envelope is V2 (has `v: 2` after base64-JSON decode). */
@@ -250,7 +368,33 @@ export async function smartDecrypt(encrypted: string, password: string): Promise
   if (isEncryptedV2(encrypted)) {
     return decryptStringV2(encrypted, password);
   }
+  // v3.3.7 (F-SEC-004): non-V2 envelope → V1 path. Surface the one-shot
+  // security advisory here too, since `smartDecrypt` short-circuits to
+  // the V1 primitive (`decryptString` from `./v1`) directly and never
+  // reaches `decryptStringV2`'s V1-fallback path. Without this, codex
+  // unlocks via `smartDecrypt` would silently skip the warning.
+  emitV1WarningOnce();
   const { decryptString } = await import("./v1");
   return decryptString(encrypted, password);
+}
+
+/**
+ * Same as `smartDecrypt`, but returns `{ plaintext, wasLegacyV1 }` so
+ * consumers can react programmatically per call. `wasLegacyV1: true` for
+ * non-V2 envelopes (routed through the V1 primitive); `false` for V2.
+ *
+ * The single best entry point for "decrypt this codex entry AND tell me
+ * whether it was a V1 envelope so I can re-encrypt it to V2 next."
+ *
+ * Added in v3.3.7 (closes audit finding F-SEC-004). See `EncryptedDataV1`
+ * JSDoc for security context.
+ */
+export async function smartDecryptWithDetails(
+  encrypted: string,
+  password: string,
+): Promise<DecryptResultWithDetails> {
+  const wasLegacyV1 = !isEncryptedV2(encrypted);
+  const plaintext = await smartDecrypt(encrypted, password);
+  return { plaintext, wasLegacyV1 };
 }
 

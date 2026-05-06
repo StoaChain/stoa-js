@@ -26,6 +26,32 @@
 import { rawCalibratedDirtyRead } from "./rawCalibratedRead";
 
 /**
+ * Thrown by `setPactReader(...)` when the supplied value is not a function.
+ *
+ * Closes audit finding F-SEC-003 (v3.3.7). Pre-v3.3.7, `setPactReader(undefined)`
+ * (or any non-function value) silently installed the bad reader; the error
+ * surfaced later as a confusing `_reader is not a function` at the first
+ * `pactRead(...)` call site, far from the misconfiguration. The typed error
+ * with a clear message names the actual type passed so consumers can fix
+ * the boot wiring at the source.
+ *
+ * Subclasses `TypeError` so existing `catch (e) { if (e instanceof TypeError) ... }`
+ * code in consumers continues to catch it; the `name` property identifies
+ * the specific invariant that was violated.
+ */
+export class InvalidPactReaderError extends TypeError {
+  constructor(actual: unknown) {
+    const observedType = actual === null ? "null" : typeof actual;
+    super(
+      `setPactReader requires a function, received ${observedType}. ` +
+        `Pass a PactReader function such as rawCalibratedDirtyRead, or your ` +
+        `cache-aware reader.`,
+    );
+    this.name = "InvalidPactReaderError";
+  }
+}
+
+/**
  * Read function shape. Mirrors rawCalibratedDirtyRead's signature — options
  * extend that raw baseline so consumers can add their own fields (like
  * OuronetUI's `tier`, `skipTempWatcher`) without a core change.
@@ -65,8 +91,18 @@ let _reader: PactReader = rawCalibratedDirtyRead;
  * Call once at boot; later calls replace the previous reader. Passing
  * nothing — or a call to this function — is how OuronetUI wires its
  * cache-aware reader back in after Phase 2b.
+ *
+ * v3.3.7 (F-SEC-003): throws `InvalidPactReaderError` when the supplied
+ * value is not a function. Catches the entire class of misconfiguration
+ * bugs where a consumer accidentally passes `undefined` (e.g. a stale
+ * import) or a non-function (e.g. a Promise of a function) — surfaces
+ * the failure at the boot site rather than at the first `pactRead(...)`
+ * call site downstream.
  */
 export function setPactReader(reader: PactReader): void {
+  if (typeof reader !== "function") {
+    throw new InvalidPactReaderError(reader);
+  }
   _reader = reader;
 }
 

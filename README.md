@@ -6,7 +6,40 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.6` on public npmjs** — **MINOR, additive (performance
+**`3.3.7` on public npmjs** — **MINOR, additive (security
+pass).** Closes two MEDIUM security findings from the
+2026-05-05 audit in a single bundled release: **F-SEC-003**
+(seam-setter input validation) and **F-SEC-004** (V1-fallback
+security advisory). **F-SEC-003** adds two new typed errors —
+`InvalidPactReaderError` (rejects non-function values passed to
+`setPactReader`) and `InvalidLoggerError` (rejects null /
+undefined / non-object inputs and any object whose `warn` or
+`error` are non-callable, passed to `setLogger`). Both extend
+`TypeError` so existing consumer `instanceof TypeError` catches
+are unchanged. Pre-v3.3.7 the misconfigurations only surfaced
+later as `_reader is not a function` / `_logger.warn is not a
+function` at the first call site, far from the boot wiring;
+v3.3.7 surfaces them at the boot site. **F-SEC-004** wires a
+**one-shot** `getLogger().warn(...)` security advisory into the
+V1-decrypt path (V1 = PBKDF2-SHA256 / 10,000 iterations; OWASP
+2023+ recommends 600,000) — fires on the FIRST V1 envelope
+decoded per process lifetime, stays silent after that so a
+codex with 100 V1 entries logs ONE warning, not 100. Adds two
+new public-API rich variants `decryptStringV2WithDetails` and
+`smartDecryptWithDetails` that return `{plaintext, wasLegacyV1}`
+for the per-call programmatic signal — consumers can react by
+re-encrypting affected entries to V2 in-place. JSDoc CVE-style
+risk documentation added to `EncryptedDataV1`,
+`decryptStringV2`, and `smartDecrypt`. **NO breaking change**,
+**695/695 tests pass** (was 674 in v3.3.6; +21 from
+`tests/v3-3-7-seam-validators.test.ts` (11) +
+`tests/v3-3-7-v1-warning.test.ts` (10)). v3.3.0 contract test
+locking the byte-identical `setLogger requires a non-null
+Logger` message preserved verbatim — the new
+`InvalidLoggerError` extends `TypeError` to keep that contract
+intact.
+
+**`3.3.6`** — **MINOR, additive (performance
 pass).** Closes three MEDIUM performance findings from the
 2026-05-05 audit in a single bundled release:
 **F-PERF-008** — added `"sideEffects": false` to `package.json`
@@ -840,6 +873,41 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
+**v3.3.7** — security pass closing two MEDIUM security findings
+from the 2026-05-05 audit in one bundled release. **MINOR,
+additive.** **F-SEC-003** ships `InvalidPactReaderError` and
+`InvalidLoggerError` (both extend `TypeError`) and tightens
+`setPactReader` (now rejects non-function inputs with a clear
+message naming the actual type) and `setLogger` (now rejects
+null / undefined / non-object inputs AND objects whose `warn`
+or `error` are non-callable). Pre-v3.3.7 misconfigurations
+only surfaced later as `_reader is not a function` /
+`_logger.warn is not a function` at the first call site, far
+from the boot wiring. **F-SEC-004** wires a one-shot
+`getLogger().warn(...)` security advisory into the V1-decrypt
+path — V1 envelopes use PBKDF2-SHA256 / 10,000 iterations,
+well below OWASP's current 600,000 minimum; the warning fires
+once per process lifetime (no bulk-decrypt log spam). Adds
+new rich variants `decryptStringV2WithDetails` and
+`smartDecryptWithDetails` returning `{plaintext, wasLegacyV1}`
+for per-call programmatic detection so consumers can re-encrypt
+affected codex entries to V2 in-place. JSDoc CVE-style risk
+documentation added to `EncryptedDataV1`, `decryptStringV2`,
+and `smartDecrypt`. NO breaking change. v3.3.0 contract test
+locking the byte-identical `setLogger requires a non-null
+Logger` message preserved verbatim. Locked at
+`tests/v3-3-7-seam-validators.test.ts` (11 it-blocks across 3
+describe groups: setPactReader input validation,
+setLogger input-shape validation, setLogger
+backwards-compat preservation) and
+`tests/v3-3-7-v1-warning.test.ts` (10 it-blocks across 3
+describe groups: decryptStringV2WithDetails,
+smartDecryptWithDetails, one-shot warning behavior including
+the load-bearing "second V1 decrypt is silent" assertion that
+proves the bulk-codex-decrypt UX is non-spammy). **+21 new
+tests** bringing the suite to **695/695 passing** (was 674 in
+v3.3.6).
+
 **v3.3.6** — performance pass closing three MEDIUM perf findings
 from the 2026-05-05 audit in one release. **MINOR, additive.**
 **F-PERF-008** added `"sideEffects": false` to `package.json` —
@@ -1033,15 +1101,19 @@ to v3.3.0; **622/622 tests pass unchanged** (workflow files
 aren't in the test scope; verification arrives with the v3.3.1
 publish run itself).
 
-**674 tests** pass on every commit (up from 672 in v3.3.5; +2
-from the new `tests/v3-3-6-perf-pass.test.ts` regression-lock
-file added in v3.3.6 to close three MEDIUM performance findings
-from the 2026-05-05 audit — F-PERF-008 sideEffects flag,
-F-PERF-003 regex memoization, F-PERF-004 Promise.all
-parallelization. With v3.3.6 every MEDIUM finding from the
-2026-05-05 audit's testing AND performance categories is closed;
-remaining MEDIUMs are arch + sec, naturally folding into v4.0.0's
-monorepo-split work or a small additive v3.3.7 if requested). Published to the public npmjs registry via
+**695 tests** pass on every commit (up from 674 in v3.3.6; +21
+from the two new test files added in v3.3.7 to close two MEDIUM
+security findings from the 2026-05-05 audit —
+`tests/v3-3-7-seam-validators.test.ts` (11 it-blocks for
+F-SEC-003 setPactReader/setLogger input validation) and
+`tests/v3-3-7-v1-warning.test.ts` (10 it-blocks for F-SEC-004
+V1-fallback security advisory + rich `*WithDetails` variants).
+With v3.3.7 every MEDIUM finding from the 2026-05-05 audit's
+testing AND performance AND security-input-validation
+categories is closed; remaining MEDIUMs are arch
+(F-ARCH-003/004/008 — natural for v4.0.0 monorepo split) and
+F-PERF-014 sleep-to-state-poll. Doc cleanup pass planned for
+v3.3.8; dependency-hygiene release planned for v3.3.9 / v3.4.0). Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`

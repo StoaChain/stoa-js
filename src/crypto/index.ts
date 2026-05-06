@@ -36,13 +36,16 @@ export {
 export {
   encryptStringV2,
   decryptStringV2,
+  decryptStringV2WithDetails,
   isEncryptedV2,
   allEncryptedV2,
   isCodexUpgraded,
   smartEncrypt,
   smartDecrypt,
+  smartDecryptWithDetails,
   type EncryptedDataV1,
   type EncryptedDataV2,
+  type DecryptResultWithDetails,
 } from "./v2";
 
 export { WrongPasswordError, CorruptEnvelopeError, UnsupportedFormatError } from "./errors";

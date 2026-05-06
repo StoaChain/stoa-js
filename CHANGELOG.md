@@ -2,6 +2,147 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.7 — 2026-05-06
+
+**MINOR, additive (security pass).** Closes two MEDIUM security findings from the 2026-05-05 audit in a single bundled release: **F-SEC-003** (seam-setter input validation) and **F-SEC-004** (V1-fallback security advisory). Three new public-API additions (`InvalidPactReaderError`, `InvalidLoggerError`, `decryptStringV2WithDetails` + `smartDecryptWithDetails` + `DecryptResultWithDetails` + a one-shot `getLogger().warn(...)` advisory inside the V1-decrypt path). All changes preserve byte-identical backwards-compat with v3.3.6 — existing consumer code that calls `setLogger({warn, error})` (v3.2.x compat path) or catches `instanceof TypeError` continues to work. **NO breaking change**, **695/695 tests pass** (was 674 in v3.3.6; +21 from two new test files).
+
+### F-SEC-003 — Seam-setter input validation
+
+Pre-v3.3.7 the two pluggable seams had inconsistent guards:
+
+- `setPactReader(fn)` accepted **any** value (including `undefined`, `null`, numbers, plain objects). The misconfiguration only surfaced later as a confusing `_reader is not a function` at the first `pactRead(...)` call site, often far from the boot wiring that installed the bad value. v3.3.7 adds a `typeof reader !== "function"` guard that throws **`InvalidPactReaderError`** with a clear message naming the actual type passed (`received undefined`, `received null`, `received number`, etc.).
+
+- `setLogger(logger)` only guarded `null`/`undefined`. Passing an object whose `warn` or `error` was non-callable (a typo'd field name, a half-finished test fixture, an `undefined` property access) silently installed the bad logger; the error surfaced later as `_logger.warn is not a function` at the first catch-block routing site. v3.3.7 adds shape validation that throws **`InvalidLoggerError`** with messages naming the specific invariant violated (`logger.warn must be a function`, `logger.error must be a function`, etc.).
+
+Both new error classes extend `TypeError` so existing consumer `catch (e) { if (e instanceof TypeError) ... }` code is unchanged. The pre-v3.3.7 null/undefined message text on `setLogger` (`"setLogger requires a non-null Logger"`) is preserved verbatim — the v3.3.0 contract test at `tests/observability-logger.test.ts:68-80` that locks the byte-identical message continues to pass.
+
+```ts
+// New typed errors:
+import { InvalidPactReaderError } from "@stoachain/ouronet-core/reads";
+import { InvalidLoggerError } from "@stoachain/ouronet-core/observability";
+
+// Caught at boot now, not at first call site:
+try {
+  setPactReader(myReader);
+} catch (e) {
+  if (e instanceof InvalidPactReaderError) {
+    console.error("PactReader misconfigured:", e.message);
+  }
+}
+```
+
+### F-SEC-004 — V1-fallback security advisory
+
+V1 envelopes use **PBKDF2-SHA256 / 10,000 iterations / AES-GCM-256**. OWASP's password-storage cheat sheet (2023+) recommends a PBKDF2-SHA256 minimum of **600,000** iterations — V1 is meaningfully crackable on commodity GPU hardware in ways the V2 envelope (PBKDF2-SHA512 / 600,000 iterations) is not. V1 lingers in the codebase for backwards-compat: codex backups exported before the V2 upgrade still parse via the V1 path inside `decryptStringV2` (envelopes lacking `v: 2`) and the V1 primitive route inside `smartDecrypt`.
+
+Pre-v3.3.7 these paths were silent — consumers had no way to detect that a successful decrypt had used legacy-strength KDF parameters, and could not surface "your codex uses outdated encryption" UI banners or trigger in-place re-encrypt flows. v3.3.7 ships:
+
+#### One-shot `getLogger().warn(...)` advisory
+
+Fires on the FIRST V1 decrypt per process lifetime:
+
+```
+[ouronet-core/crypto] V1-format encrypted blob decoded successfully.
+V1 uses PBKDF2-SHA256 at 10,000 iterations, well below OWASP's current
+600,000 minimum (cracked meaningfully faster on commodity GPU hardware).
+Re-encrypt affected codex entries to V2 (PBKDF2-SHA512 / 600,000) at the
+earliest opportunity. Use `decryptStringV2WithDetails` or
+`smartDecryptWithDetails` for the per-call `wasLegacyV1` flag. This
+warning fires once per process lifetime.
+```
+
+The one-shot guard prevents bulk-decrypt log spam — a codex with 100 V1 entries logs **one** warning, not 100. Consumers wanting per-call programmatic detection use the new `*WithDetails` variants (below).
+
+The advisory fires from BOTH code paths that reach V1: `decryptStringV2`'s V1-fallback branch (envelopes lacking `v: 2`) AND `smartDecrypt`'s shape-dispatch path that short-circuits to the V1 primitive. Without the duplicate hook in `smartDecrypt`, codex unlocks via the auto-detect entry point would silently skip the warning.
+
+#### `decryptStringV2WithDetails(blob, password): Promise<{plaintext, wasLegacyV1}>`
+
+Same failure contract as `decryptStringV2` (`CorruptEnvelopeError` / `WrongPasswordError`), but returns the rich shape so consumers can react programmatically per call:
+
+```ts
+import { decryptStringV2WithDetails } from "@stoachain/ouronet-core/crypto";
+
+const result = await decryptStringV2WithDetails(blob, password);
+if (result.wasLegacyV1) {
+  // Re-encrypt to V2 in-place:
+  const upgraded = await encryptStringV2(result.plaintext, password);
+  await codexAdapter.replace(blobId, upgraded);
+}
+```
+
+#### `smartDecryptWithDetails(blob, password): Promise<{plaintext, wasLegacyV1}>`
+
+Mirrors `smartDecrypt`'s shape-dispatch (V2 envelopes via `decryptStringV2`, non-V2 via the V1 primitive). The single best entry point for "decrypt this codex entry AND tell me whether it was a V1 envelope so I can re-encrypt next."
+
+#### JSDoc CVE-style risk documentation
+
+Added prominent security blocks to:
+
+- `EncryptedDataV1` interface JSDoc — full OWASP context, why V1 lingers, recommended upgrade path
+- `decryptStringV2` function JSDoc — V1-fallback path advisory + cross-references to the new variants
+- The `EncryptedDataV1` JSDoc references the in-place re-encrypt pattern so future contributors reading the source see the security context inline
+
+### Added — `tests/v3-3-7-seam-validators.test.ts` (11 it-blocks across 3 describe groups)
+
+| Group | Count | What it locks |
+|---|---|---|
+| **`setPactReader` input validation** | 4 | rejects `undefined` / `null` / non-function (number/string/object) → `InvalidPactReaderError`; accepts a valid `PactReader` function (no throw + replaces the seam) |
+| **`setLogger` input-shape validation** | 5 | rejects `null` / `undefined` with the byte-identical pre-v3.3.7 message; rejects non-object inputs (string, number); rejects `{warn: undefined, error: () => {}}` naming the warn invariant; rejects `{warn: () => {}, error: 'oops'}` naming the error invariant — all via `InvalidLoggerError` |
+| **`setLogger` backwards-compat preservation** | 2 | v3.3.0+ full-shape `{warn, error, info}` still installs cleanly with reference identity preserved; v3.2.x partial-shape `{warn, error}` (no info) still installs cleanly with synthesised `info` |
+
+### Added — `tests/v3-3-7-v1-warning.test.ts` (10 it-blocks across 3 describe groups)
+
+| Group | Count | What it locks |
+|---|---|---|
+| **`decryptStringV2WithDetails`** | 3 | V2 envelope → `wasLegacyV1: false`; V1 envelope → `wasLegacyV1: true` AND plaintext correct; `WrongPasswordError` propagates from the rich variant (failure contract unchanged) |
+| **`smartDecryptWithDetails`** | 2 | V2 envelope routes via `decryptStringV2` → `wasLegacyV1: false`; V1 envelope routes via the V1 primitive → `wasLegacyV1: true` |
+| **One-shot warning behavior** | 5 | first V1 decrypt via `decryptStringV2` emits the security-advisory `getLogger().warn(...)`; second V1 decrypt is **silent** (one-shot guard intact — load-bearing for bulk-codex-decrypt UX); V2 decrypts NEVER emit the warning; `smartDecrypt`'s short-circuit path also emits the warning (separate code path needs its own hook); rich `*WithDetails` variants emit the warning identically (delegation chain intact) |
+
+The V1-warning tests use the internal `_resetV1WarningEmittedForTests()` helper (NOT exported via the public barrel) to reset the one-shot guard between tests. Production code never calls this — the warning is intentionally one-shot per process lifetime.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The new `InvalidPactReaderError` / `InvalidLoggerError` / `DecryptResultWithDetails` types compile cleanly. `decryptStringV2WithDetails` and `smartDecryptWithDetails` delegate to the existing primitives with no shape change to the underlying functions.
+- `npm test` — **695/695 tests pass** (was 674 in v3.3.6; +21 from `tests/v3-3-7-seam-validators.test.ts` (11) + `tests/v3-3-7-v1-warning.test.ts` (10)).
+- `npm run build` — clean tsc emit. The change surface is `src/reads/pactReader.ts` (added error class + 3-line guard), `src/observability/logger.ts` (added error class + 4-clause shape guard), `src/crypto/v2.ts` (added one-shot guard + 2 rich variants + JSDoc + warning hooks at 2 V1 paths), `src/crypto/index.ts` (3 new exports).
+
+### Migration
+
+No consumer migration required. The package's pre-v3.3.7 public API surface is byte-identical: `setPactReader(validFn)` works unchanged; `setLogger({warn, error})` works unchanged with the v3.3.0-synthesised info; `decryptStringV2(...)` and `smartDecrypt(...)` return the same `Promise<string>` and throw the same error classes.
+
+The new APIs are purely additive:
+
+- Consumers wanting the per-call `wasLegacyV1` signal opt in by switching `decryptStringV2` → `decryptStringV2WithDetails` (or `smartDecrypt` → `smartDecryptWithDetails`). The plain functions keep returning `Promise<string>` for ergonomic call sites that don't care.
+- The one-shot `getLogger().warn(...)` advisory fires automatically with no opt-in. Consumers using a structured logger (OuronetUI's redux-devtools, HUB's pino) see the warning routed through their pipeline; consumers with no `setLogger` call see it on `console.warn` (the seam's default).
+
+Two error-handling notes for callers who are STRICT about narrowing:
+
+- `setPactReader(notAFunction)` **previously** silently installed the bad value. v3.3.7+ throws `InvalidPactReaderError`. Code that defensively wrapped the call to swallow errors no longer needs to (the throw catches the misconfiguration earlier). Code that NEVER wrapped is unaffected (it would never trigger the throw because it was passing valid functions all along).
+- `setLogger({warn: undefined, ...})` **previously** silently installed the bad value. v3.3.7+ throws `InvalidLoggerError`. Same reasoning as above.
+
+### v3.3.x trajectory remaining (post-v3.3.7)
+
+With v3.3.7 every MEDIUM finding from the 2026-05-05 audit's testing AND performance AND **security-input-validation** categories is closed. The track:
+
+| Release | Findings | Track |
+|---|---|---|
+| v3.3.0 | F-LOGGER-SEAM-001 | logger seam |
+| v3.3.2 | F-TEST-002 | testing |
+| v3.3.4 | F-TEST-005 | testing |
+| v3.3.5 | F-TEST-006 | testing |
+| v3.3.6 | F-PERF-008, F-PERF-003, F-PERF-004 | performance |
+| v3.3.7 | F-SEC-003, F-SEC-004 | security |
+
+Plus v3.3.1 (workflow patches) + v3.3.3 (multi-party signing public surface).
+
+- **v3.3.8** (planned) — Documentation/deprecation cleanup pass: KADENA_BASE_URL deprecation marker, `CreateAccountOptions` JSDoc fix, possibly other low-hanging doc tidies.
+- **v3.3.9 / v3.4.0** (planned) — Dependency-hygiene: pin exact versions of `@kadena/*` peerDeps, possibly vendor `@kadena/types` per the supply-chain risk discussion.
+- **v4.0.0** — Major structural release (monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`, god-file decomposition including `infoOneFunctions`'s 23 exports → multi-file split, type consolidation, F-ARCH-003 helper extract, F-PERF-014 sleep-to-state-poll, and the bigger fork-into-stoachain-scope work for `@kadena/cryptography-utils` / `@kadena/client` / `@kadena/hd-wallet`).
+
+Remaining non-test/perf/sec MEDIUMs after v3.3.7: F-ARCH-003 (executeLiquidityPipeline helper — natural for v4.0.0 god-file split), F-ARCH-004/008 (type duplication + Phase 3b strategy migration — multi-minor), F-PERF-014 (3-second sleeps → state polling — natural for v4.0.0 submit-flow refactor), and 4 NEEDS CONTEXT findings (F-ERR-014 multi-step add-liquidity timeout, F-API-018 readonly modifiers, F-BUG-006 ad-hoc decimal formatter, F-BUG-008 Σ-prefix validation in CodexSigningStrategy) flagged for human review per the audit roadmap.
+
+---
+
 ## 3.3.6 — 2026-05-06
 
 **MINOR, additive (performance pass).** Closes three MEDIUM performance findings from the 2026-05-05 audit in a single bundled release: **F-PERF-008** (tree-shaking guarantee via `"sideEffects": false`), **F-PERF-003** (regex memoization in `coilFunctions.getCoilPreviewGeneric`), and **F-PERF-004** (parallelize `ouroFunctions.getOuronetKdaDetails`). All three are low-risk, behaviorally identical to v3.3.5; the change surface is two source files + one package.json field + one new regression-lock test file. **NO public API change**, **NO observable behavior change**, **674/674 tests pass** (was 672 in v3.3.5; +2 from the new `tests/v3-3-6-perf-pass.test.ts`).
