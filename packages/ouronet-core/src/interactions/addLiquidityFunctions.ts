@@ -1,7 +1,7 @@
 import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import {
   KADENA_CHAIN_ID,
-  KADENA_NAMESPACE, GAS_STATION,
+  KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
 } from "../constants";
 import { Pact } from "@kadena/client";
@@ -257,7 +257,7 @@ export async function executeAddLiquiditySingle(
           pred: "keys-all",
         })
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride ?? defaultGasLimit,
@@ -397,7 +397,7 @@ export async function executeSpecialAddLiquidity(
           pred: "keys-all",
         })
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride || gasLimit,
@@ -576,7 +576,7 @@ export async function executeFuel(
           pred: "keys-all",
         })
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride ?? defaultGasLimit,
@@ -648,7 +648,7 @@ export async function executeRemoveLiquidity(
           pred: "keys-all",
         })
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride ?? defaultGasLimit,

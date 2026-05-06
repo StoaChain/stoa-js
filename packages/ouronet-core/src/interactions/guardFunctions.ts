@@ -2,7 +2,7 @@ import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE,
-  GAS_STATION,
+  STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
 } from "../constants";
 import { Pact } from "@kadena/client";
@@ -125,7 +125,7 @@ export async function rotateGuard(params: RotateGuardParams) {
 
     builder = builder
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,

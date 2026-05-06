@@ -1,6 +1,6 @@
 import {
   KADENA_CHAIN_ID,
-  KADENA_NAMESPACE, GAS_STATION,
+  KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
 } from "../constants";
 import { Pact } from "@kadena/client";
@@ -842,7 +842,7 @@ export async function executeSingleSwapWithSlippage(
         })
         .addData('slippage-bounds', slippageBoundsObj as any)
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride || gasLimit,
@@ -933,7 +933,7 @@ export async function executeSingleSwapNoSlippage(
           pred: "keys-all",
         })
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride || gasLimit,
@@ -1032,7 +1032,7 @@ export async function executeMultiSwapWithSlippage(
         })
         .addData('slippage-bounds', slippageBoundsObj as any)
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride || gasLimit,
@@ -1247,7 +1247,7 @@ export async function executeSmartSwapWithSlippage(
         })
         .addData("slippage-bounds", slippageObj as any)
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride ?? gasLimit,
@@ -1368,7 +1368,7 @@ export async function executeSmartSwapNoSlippage(
           pred: "keys-all",
         })
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride ?? gasLimit,
@@ -1439,7 +1439,7 @@ export async function executeMultiSwapNoSlippage(
           pred: "keys-all",
         })
         .setMeta({
-          senderAccount: GAS_STATION,
+          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
           chainId: KADENA_CHAIN_ID,
           gasLimit: gasLimitOverride || gasLimit,

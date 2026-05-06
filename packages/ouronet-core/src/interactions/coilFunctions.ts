@@ -1,6 +1,6 @@
 import {
   KADENA_CHAIN_ID,
-  KADENA_NAMESPACE, GAS_STATION,
+  KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
 } from "../constants";
 import { Pact } from "@kadena/client";
@@ -211,7 +211,7 @@ export async function coilTokensGeneric(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,

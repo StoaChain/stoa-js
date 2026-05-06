@@ -1,15 +1,15 @@
 import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import {
   KADENA_CHAIN_ID,
-  KADENA_NAMESPACE, GAS_STATION,
+  KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
 } from "../constants";
 import { formatDecimalForPact, safeCreationTime } from "@stoachain/stoa-core/pact";
 import { Pact } from "@kadena/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { pactRead } from "@stoachain/stoa-core/reads";
-import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
-import type { IOuroAccountKeypair, IKadenaKeypair } from "./ouroFunctions";
+import { universalSignTransaction, fromKeypair, type IKadenaKeypair } from "@stoachain/stoa-core/signing";
+import type { IOuroAccountKeypair } from "./ouroFunctions";
 
 // Brumate WSTOA to H|GSTOA (Hibernated Pension Kadena)
 // (namespace.TS01-C2.ATS|C_Brumate patron:string brumate-account:string "SilverStoaPillar-O136CBn22ncY" "GoldenStoaPillar-O136CBn22ncY" "WSTOA-8Nh-JO8JO4F5" amount:decimal lock-days:integer)
@@ -32,7 +32,7 @@ export async function brumateWkdaToPkda(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -95,7 +95,7 @@ export async function constrictLkdaToPkda(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,

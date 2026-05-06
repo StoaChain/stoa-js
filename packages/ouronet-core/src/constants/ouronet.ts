@@ -33,29 +33,6 @@ export {
  */
 export const KADENA_NAMESPACE = "ouronet-ns";
 
-/**
- * Base URL for Chainweb API (static — primary node).
- *
- * @deprecated Pinned to `node2.stoachain.com` and bypasses the failover
- * layer added in v2.1.0. Direct consumers reading this constant lose
- * the node-recovery + node-degradation handling provided by
- * `getActivePactUrl(chainId)` / `getActiveSpvUrl(chainId)` exported from
- * `@stoachain/stoa-core/network`. v3.3.8 marked this `@deprecated`;
- * scheduled for **removal in v4.0.0** (Phase 3 of the v4.0.0 split work).
- */
-export const KADENA_BASE_URL = `https://node2.stoachain.com/chainweb/0.0/stoa`;
-
-/**
- * Pact API endpoint for chain 0. For failover-aware URLs, use
- * `getActivePactUrl(chainId)` from `@stoachain/stoa-core/network` (or its
- * thin wrapper `getPactUrl(chainId)` from
- * `@stoachain/stoa-core/constants`).
- *
- * @deprecated Same reasoning as `KADENA_BASE_URL`. Scheduled for removal
- * in v4.0.0.
- */
-export const PACT_URL = `${KADENA_BASE_URL}/chain/0/pact`;
-
 // ─── Stoa Autonomic Accounts ───────────────────────────────────────────────
 // Canonical names for all protocol-level Stoa accounts.
 // Always reference these — never hardcode the address strings directly.
@@ -69,13 +46,13 @@ export const STOA_AUTONOMIC_LIQUIDPOT = "c:ZNfuj3iZI83n7MUSKGuoXoSxFg1cyMxCzB3sz
 /** Ouronet Gas Station (pays Kadena gas fees for all transactions) */
 export const STOA_AUTONOMIC_OURONETGASSTATION = "c:iQQFWj6gWtpGEzhM_O5ekW1QtnQQy55R8BRPGhj_0FU";
 
-// Legacy aliases — point to canonical constants above.
-// Scheduled for removal in v4.0.0 Phase 3 (after the 21 internal consumer
-// sites have been migrated to STOA_AUTONOMIC_*).
-/** @deprecated Use STOA_AUTONOMIC_OURONETGASSTATION */
-export const GAS_STATION = STOA_AUTONOMIC_OURONETGASSTATION;
-/** @deprecated Use STOA_AUTONOMIC_LIQUIDPOT */
-export const NATIVE_TOKEN_VAULT = STOA_AUTONOMIC_LIQUIDPOT;
+// v4.0.0: removed deprecated aliases.
+//   - `KADENA_BASE_URL` and `PACT_URL` (pinned to node2; use the failover
+//     accessors `getPactUrl(chainId)` / `getSpvUrl(chainId)` from
+//     `@stoachain/stoa-core/constants` instead — they delegate to the
+//     v2.1.0 failover layer)
+//   - `GAS_STATION` and `NATIVE_TOKEN_VAULT` (use the canonical
+//     `STOA_AUTONOMIC_*` names above directly).
 
 export const MAIN_TOKENS = [
   { id: "AURYN-8Nh-JO8JO4F5", name: "AURYN" },

@@ -1,7 +1,7 @@
 import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import {
   KADENA_CHAIN_ID,
-  KADENA_NAMESPACE, GAS_STATION, NATIVE_TOKEN_VAULT,
+  KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION, STOA_AUTONOMIC_LIQUIDPOT,
   KADENA_NETWORK,
 } from "../constants";
 import { formatEU, safeCreationTime } from "@stoachain/stoa-core/pact";
@@ -9,7 +9,7 @@ import { mayComeWithDeimal, formatDecimalForPact } from "@stoachain/stoa-core/pa
 import { IKeyset, normalizeKeysetRef } from "@stoachain/stoa-core/guard";
 import { Pact } from "@kadena/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
-import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
+import { universalSignTransaction, fromKeypair, type IKadenaKeypair } from "@stoachain/stoa-core/signing";
 import { createSigningError, createSimulationError, logDetailedError } from "@stoachain/stoa-core/errors";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
@@ -816,18 +816,6 @@ export interface IOuroAccountKeypair {
   privateKey?: string;
 }
 
-/**
- * @deprecated Phase-2b backwards-compat copy. Use the canonical `IKadenaKeypair` from
- * `@stoachain/ouronet-core/signing` (declared in `src/signing/types.ts`) instead.
- */
-export interface IKadenaKeypair {
-  publicKey: string;
-  privateKey: string;
-  seedType?: "koala" | "chainweaver" | "eckowallet";
-  encryptedSecretKey?: any;
-  password?: string;
-}
-
 // Ouro to Ignis
 // (namespace.T201-C2.ORBR|C_Sublimate client target ouro-amount)
 export async function sublimateOuroToIgnis(
@@ -852,7 +840,7 @@ export async function sublimateOuroToIgnis(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -940,7 +928,7 @@ export async function compressIgnisToOuro(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -994,7 +982,7 @@ export async function compressIgnisToOuro(
 // Wrap Kadena
 // (defun LQD|C_WrapStoa (patron:string wrapper:string amount:decimal))
 // patron is current ouro account public key | wrapper by default is the same but can also be a different ouro account public key amount should be decimal
-// as keys we need to use the ouro account kadena_ledger that has the capability coin.TRANSFER and the value of the amount. GAS_STATION
+// as keys we need to use the ouro account kadena_ledger that has the capability coin.TRANSFER and the value of the amount. STOA_AUTONOMIC_OURONETGASSTATION
 export async function wrapKadena(
   patronAccount: IOuroAccountKeypair,
   wrapperAccount: string, // Ouro address that will receive the wrapped KDA
@@ -1017,7 +1005,7 @@ export async function wrapKadena(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -1033,7 +1021,7 @@ export async function wrapKadena(
         withCapability(
           "coin.TRANSFER",
           `k:${kadenaAccount.publicKey}`,
-          NATIVE_TOKEN_VAULT,
+          STOA_AUTONOMIC_LIQUIDPOT,
           { decimal: decimalAmount }
         ),
       ])
@@ -1092,7 +1080,7 @@ export async function unwrapKadena(
     return Pact.builder
       .execution(`(${KADENA_NAMESPACE}.TS01-C2.LQD|C_UnwrapStoa "${patronAccount.address}" "${unwrapperAccount}" ${decimalAmount})`)
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -1107,7 +1095,7 @@ export async function unwrapKadena(
         ),
         withCapability(
           "coin.TRANSFER",
-          NATIVE_TOKEN_VAULT,
+          STOA_AUTONOMIC_LIQUIDPOT,
           `k:${kadenaAccount.publicKey}`,
           { decimal: decimalAmount }
         ),
@@ -1224,7 +1212,7 @@ export async function transferToken(
     return Pact.builder
       .execution(`(${KADENA_NAMESPACE}.TS01-C1.DPTF|C_Transfer "${patronAccount.address}" "${tokenId}" "${senderAccount}" "${receiverAccount}" ${decimalAmount} ${method})`)
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -1344,7 +1332,7 @@ export async function movieBoosterBuy(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -1368,7 +1356,7 @@ export async function movieBoosterBuy(
             withCapability(
               "coin.TRANSFER",
               `k:${kadenaAccount.publicKey}`,
-              GAS_STATION,
+              STOA_AUTONOMIC_OURONETGASSTATION,
               { decimal: `${kadenaCost}` } // This will be updated after simulation
             )
           );
@@ -1408,7 +1396,7 @@ export async function movieBoosterBuy(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimit,
@@ -1424,7 +1412,7 @@ export async function movieBoosterBuy(
         withCapability(
           "coin.TRANSFER",
           `k:${kadenaAccount.publicKey}`,
-          GAS_STATION,
+          STOA_AUTONOMIC_OURONETGASSTATION,
           { decimal: `${kadenaCost}` }
         ),
       ])
@@ -1509,7 +1497,7 @@ export async function firestarter(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -1525,7 +1513,7 @@ export async function firestarter(
         withCapability(
           "coin.TRANSFER",
           `k:${kadenaAccount.publicKey}`,
-          GAS_STATION,
+          STOA_AUTONOMIC_OURONETGASSTATION,
           { decimal: kdaAmount }
         ),
       ])
@@ -1682,7 +1670,7 @@ export async function curlOuroToEliteAuryn(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -1783,7 +1771,7 @@ export async function coilOuroToAuryn(
         pred: "keys-all",
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -2011,7 +1999,7 @@ export async function rotateKadenaPaymentKey(
 
     builder = builder
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
@@ -2273,13 +2261,13 @@ export async function executeUnwrapStoa(params: UnwrapStoaParams): Promise<any> 
           });
 
     builder = builder
-      .setMeta({ senderAccount: GAS_STATION, chainId: KADENA_CHAIN_ID, creationTime: safeCreationTime(),
+      .setMeta({ senderAccount: STOA_AUTONOMIC_OURONETGASSTATION, chainId: KADENA_CHAIN_ID, creationTime: safeCreationTime(),
         gasLimit: effectiveGasLimit })
       .setNetworkId(KADENA_NETWORK)
       // Gas Station: GAS_PAYER + coin.TRANSFER
       .addSigner(gasStationKey.publicKey, (w: any) => [
         w(`${KADENA_NAMESPACE}.DALOS.GAS_PAYER`, "", { int: 0 }, { decimal: "0.0" }),
-        w("coin.TRANSFER", NATIVE_TOKEN_VAULT, targetAddress, { decimal: String(numAmount) }),
+        w("coin.TRANSFER", STOA_AUTONOMIC_LIQUIDPOT, targetAddress, { decimal: String(numAmount) }),
       ]);
 
     // Patron + account guard keys: pure signers
@@ -2453,7 +2441,7 @@ export async function executeUnwrapUrStoa(params: UnwrapUrStoaParams): Promise<a
           });
 
     builder = builder
-      .setMeta({ senderAccount: GAS_STATION, chainId: KADENA_CHAIN_ID, creationTime: safeCreationTime(),
+      .setMeta({ senderAccount: STOA_AUTONOMIC_OURONETGASSTATION, chainId: KADENA_CHAIN_ID, creationTime: safeCreationTime(),
         gasLimit: effectiveGasLimit })
       .setNetworkId(KADENA_NETWORK)
       .addSigner(gasStationKey.publicKey, (w: any) => [

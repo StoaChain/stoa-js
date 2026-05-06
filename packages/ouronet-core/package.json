@@ -48,16 +48,16 @@
     "clean": "rimraf dist"
   },
   "peerDependencies": {
-    "@stoachain/stoa-core": "^4.0.0",
-    "@kadena/client": "^1.17.0",
-    "@kadena/cryptography-utils": "^0.4.0",
-    "@kadena/types": "^0.7.0"
+    "@stoachain/stoa-core": "4.0.0",
+    "@kadena/client": "1.18.3",
+    "@kadena/cryptography-utils": "0.4.4",
+    "@kadena/types": "0.7.0"
   },
   "devDependencies": {
     "@stoachain/stoa-core": "*",
-    "@kadena/client": "^1.17.1",
-    "@kadena/cryptography-utils": "^0.4.4",
-    "@kadena/types": "^0.7.0"
+    "@kadena/client": "1.18.3",
+    "@kadena/cryptography-utils": "0.4.4",
+    "@kadena/types": "0.7.0"
   },
   "repository": {
     "type": "git",

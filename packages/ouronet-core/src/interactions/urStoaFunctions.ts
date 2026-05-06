@@ -16,9 +16,8 @@ import {
   KADENA_NETWORK,
   STOA_AUTONOMIC_OURONETGASSTATION,
 } from "../constants";
-import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
+import { universalSignTransaction, fromKeypair, type IKadenaKeypair } from "@stoachain/stoa-core/signing";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";
-import type { IKadenaKeypair } from "./ouroFunctions";
 import { createSimulationError, logDetailedError } from "@stoachain/stoa-core/errors";
 import { getLogger } from "@stoachain/stoa-core/observability";
 import { ed25519 } from "@noble/curves/ed25519";

@@ -11,9 +11,12 @@
  *   - `KADENA_NAMESPACE = "ouronet-ns"` — the Ouronet Pact namespace string.
  *   - `STOA_AUTONOMIC_*` — Ouronet protocol accounts.
  *   - `MAIN_TOKENS`, `TOKEN_ID_*` — Ouronet's specific DPTF tokens.
- *   - Deprecated `GAS_STATION` / `NATIVE_TOKEN_VAULT` aliases (scheduled
- *     for removal in v4.0.0).
- *   - Deprecated `KADENA_BASE_URL` / `PACT_URL` (also scheduled for removal).
+ *
+ * v4.0.0 removed the deprecated `GAS_STATION`/`NATIVE_TOKEN_VAULT`/
+ * `KADENA_BASE_URL`/`PACT_URL` aliases that previously lived in
+ * `@stoachain/ouronet-core/constants`. Consumers should now use the
+ * canonical `STOA_AUTONOMIC_*` names + the failover-aware
+ * `getPactUrl(chainId)` / `getSpvUrl(chainId)` accessors below.
  */
 
 import { getActivePactUrl, getActiveSpvUrl } from "../network/nodeFailover";

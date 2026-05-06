@@ -1,6 +1,6 @@
 import { Pact, ITransactionDescriptor } from "@kadena/client";
 import { getFailoverClient, withFailover } from "@stoachain/stoa-core/network";
-import { KADENA_NETWORK, getPactUrl, GAS_STATION, KADENA_NAMESPACE } from "../constants";
+import { KADENA_NETWORK, getPactUrl, STOA_AUTONOMIC_OURONETGASSTATION, KADENA_NAMESPACE } from "../constants";
 import { GAS_PRICE_MIN_ANU, anuToStoa } from "@stoachain/stoa-core/gas";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";
@@ -185,7 +185,7 @@ export function buildCTransferAcross(params: CTransferAcrossParams) {
       ])
       .setMeta({
         chainId: "0" as ChainId,
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(),
         gasLimit: 2500,
         gasPrice: anuToStoa(GAS_PRICE_MIN_ANU),

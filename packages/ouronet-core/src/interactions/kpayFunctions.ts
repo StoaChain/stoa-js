@@ -1,7 +1,7 @@
 import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import {
   KADENA_CHAIN_ID,
-  KADENA_NAMESPACE, GAS_STATION,
+  KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
 } from "../constants";
 import { Pact } from "@kadena/client";
@@ -194,7 +194,7 @@ export async function kpayBuy(
         pred: guardKeyset.pred,
       })
       .setMeta({
-        senderAccount: GAS_STATION,
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
         creationTime: safeCreationTime(), // Gas station
         chainId: KADENA_CHAIN_ID,
         gasLimit: gasLimitOverride || gasLimit,
