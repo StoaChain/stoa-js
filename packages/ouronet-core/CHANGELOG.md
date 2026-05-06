@@ -4,6 +4,10 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.0.1 — 2026-05-06
+
+**PATCH, cosmetic (published-metadata cleanup).** Strips the redundant `devDependencies` block from `package.json`. Pre-v4.0.1 the published manifest carried a `devDependencies` block that contained `@stoachain/stoa-core: "*"` (workspace-resolution plumbing — meaningless on a published artifact since the `peerDependency` already pins `@stoachain/stoa-core@4.0.1`) plus duplicates of the `@kadena/*` peer entries. The npmjs.com page now shows the cleaner shape: zero `dependencies`, just the canonical `peerDependencies` (the @kadena/* set + `@stoachain/stoa-core@4.0.1` exact-pin). The peer-dep on `@stoachain/stoa-core` was bumped from `4.0.0` to `4.0.1` (atomic-version invariant — both packages always release at the same version). NO source-code change. NO behaviour change. NO breaking change. **218/218 tests pass** (regression-lock test `tests/package-version.test.ts` updated to assert `4.0.1`).
+
 ## 4.0.0 — 2026-05-06
 
 **MAJOR, breaking (monorepo split + deprecated-alias removal).** v4.0.0 is the structural refactor that v3.3.8 set up. The single `@stoachain/ouronet-core` package was split into two atomic-release npm packages under the new `StoaChain/stoa-js` GitHub monorepo:

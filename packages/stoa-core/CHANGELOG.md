@@ -4,6 +4,10 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.0.1 — 2026-05-06
+
+**PATCH, cosmetic (published-metadata cleanup).** Strips the redundant `devDependencies` block from `package.json`. Pre-v4.0.1 the published manifest carried a `devDependencies` block that duplicated the `peerDependencies` entries verbatim — workspace-tooling cruft (npm 7+ peer-dep auto-install in dev mode makes the duplicate unnecessary, but the line shipped to npmjs.com anyway, where it appeared as "Dev Dependencies" on the package page next to the canonical "Peer Dependencies" section). v4.0.1 drops the dupes — the npmjs.com page now shows only `dependencies` (`@stoachain/dalos-crypto@4.0.3`) and `peerDependencies` (the @kadena/* + @noble/curves + @scure/bip39 set). NO source-code change. NO behaviour change. NO breaking change. **485/485 tests pass** (regression-lock test `tests/package-version.test.ts` updated to assert `4.0.1`).
+
 ## 4.0.0 — 2026-05-06
 
 **INITIAL RELEASE — born from the monorepo split.** `@stoachain/stoa-core` is the chain-generic StoaChain TypeScript foundation, extracted from `@stoachain/ouronet-core` v3.3.8 as part of the `stoa-js` monorepo restructure.
