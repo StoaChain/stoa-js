@@ -6,8 +6,7 @@ import {
 } from "../constants";
 import { formatEU, safeCreationTime } from "../pact";
 import { mayComeWithDeimal, formatDecimalForPact } from "../pact";
-import { IKeyset } from "../guard";
-import { normalizeKeysetRef } from "../guard/smartAccountAuth";
+import { IKeyset, normalizeKeysetRef } from "../guard";
 import { Pact } from "@kadena/client";
 import { getFailoverClient } from "../network";
 import { universalSignTransaction, fromKeypair } from "../signing";

@@ -6,7 +6,41 @@ Pact interactions, Codex signing, guard analysis, encryption. Consumed by
 
 ## Status
 
-**`3.3.7` on public npmjs** — **MINOR, additive (security
+**`3.3.8` on public npmjs** — **MINOR, additive
+(documentation/deprecation cleanup pass).** Closes 5
+LOW-severity findings from the 2026-05-05 audit's `"v3.x
+deprecation cleanup"` + `"v3.x conventions alignment"` + `"v3.x
+API hygiene"` themes in a single bundled release.
+**F-API-015** rewrote stale `strict`-parameter JSDoc on
+`src/dalos/account.ts:42-45` (the parameter never existed in
+the `CreateAccountOptions` type union; new doc explains the
+actual mode-vs-primitive throw contract).
+**F-API-016** added `export` to the `CoilConfig` interface in
+`src/interactions/coilFunctions.ts:17` — consumers holding a
+`CoilConfig` value (e.g. from `COIL_CONFIGS.ouroToAuryn`)
+could USE it but couldn't TYPE-ANNOTATE a parameter or local
+with `CoilConfig` without re-declaring the shape; now they can.
+**F-SEC-005 / F-ARCH-014** added `@deprecated` JSDoc to
+`KADENA_BASE_URL` redirecting consumers to the failover-aware
+`getActivePactUrl(chainId)` / `getActiveSpvUrl(chainId)` (or
+the same-subpath thin wrappers `getPactUrl(chainId)` /
+`getSpvUrl(chainId)`); removal scheduled for v4.0.0. The
+constant was pinned to `node2.stoachain.com` and bypassed the
+v2.1.0 failover layer.
+**F-ARCH-011** consolidated `normalizeKeysetRef` deep-import
+in `src/interactions/ouroFunctions.ts:10` to the `../guard`
+barrel, matching the project's subpath-import discipline.
+**F-ARCH-012** converted 19 single-quoted string literals to
+double quotes in `src/dalos/account.ts` — the file was the
+only remaining drift after v3.1.1's fix to
+`src/dalos/index.ts`. Pure stylistic; TypeScript treats the
+two forms as identical string literals at the type level.
+**NO breaking change**, **NO observable runtime behavior
+change**, **698/698 tests pass** (was 695 in v3.3.7; +3 from
+the new `tests/v3-3-8-doc-cleanup.test.ts` regression-lock
+file). One new public-API export (`CoilConfig` interface).
+
+**`3.3.7`** — **MINOR, additive (security
 pass).** Closes two MEDIUM security findings from the
 2026-05-05 audit in a single bundled release: **F-SEC-003**
 (seam-setter input validation) and **F-SEC-004** (V1-fallback
@@ -873,6 +907,40 @@ v4.0.0 is the major structural release (monorepo split into
 decomposition, type consolidation, `readonly` modifiers across
 the public type surface).
 
+**v3.3.8** — documentation/deprecation cleanup pass closing 5
+LOW-severity findings from the 2026-05-05 audit. **MINOR,
+additive.** **F-API-015** rewrote a stale JSDoc parameter
+mention in `src/dalos/account.ts` (the `strict` flag was never
+implemented; new wording documents the actual contract).
+**F-API-016** added `export` to the `CoilConfig` interface so
+consumers can type-annotate `CoilConfig` values directly
+without re-declaring the shape — one-word change, additive,
+consumer-facing improvement. **F-SEC-005 / F-ARCH-014** marked
+`KADENA_BASE_URL` `@deprecated` redirecting to the
+failover-aware `getActivePactUrl` / `getActiveSpvUrl` (or the
+same-subpath `getPactUrl` / `getSpvUrl` wrappers); the constant
+itself remains for backwards-compat, removal scheduled for
+v4.0.0. **F-ARCH-011** consolidated `normalizeKeysetRef`
+deep-import in `ouroFunctions.ts` to the `../guard` barrel,
+matching the project's subpath-import discipline. **F-ARCH-012**
+converted 19 single-quoted string literals to double quotes in
+`src/dalos/account.ts` — the only remaining drift after v3.1.1's
+fix to `src/dalos/index.ts`; TypeScript treats both forms as
+identical string literals at the type level (pure stylistic).
+NO breaking change. NO observable runtime behavior change. One
+new public-API export (`CoilConfig` interface). Locked at
+`tests/v3-3-8-doc-cleanup.test.ts` with 3 it-blocks across 3
+describe groups: T1 verifies the `CoilConfig` type export via
+`expectTypeOf`; T2 verifies `normalizeKeysetRef` is reachable
+through the `../guard` barrel and round-trips a
+keysetref-shaped object; T3 reads `src/dalos/account.ts` source
+verbatim and asserts no single-quoted string literals remain in
+code (English apostrophes inside JSDoc comments are exempt).
+F-API-015 (stale JSDoc) and F-SEC-005/F-ARCH-014 (`@deprecated`
+marker) are pure JSDoc changes that don't surface at runtime;
+the CHANGELOG entry is the audit trail. **+3 new tests**
+bringing the suite to **698/698 passing** (was 695 in v3.3.7).
+
 **v3.3.7** — security pass closing two MEDIUM security findings
 from the 2026-05-05 audit in one bundled release. **MINOR,
 additive.** **F-SEC-003** ships `InvalidPactReaderError` and
@@ -1101,19 +1169,19 @@ to v3.3.0; **622/622 tests pass unchanged** (workflow files
 aren't in the test scope; verification arrives with the v3.3.1
 publish run itself).
 
-**695 tests** pass on every commit (up from 674 in v3.3.6; +21
-from the two new test files added in v3.3.7 to close two MEDIUM
-security findings from the 2026-05-05 audit —
-`tests/v3-3-7-seam-validators.test.ts` (11 it-blocks for
-F-SEC-003 setPactReader/setLogger input validation) and
-`tests/v3-3-7-v1-warning.test.ts` (10 it-blocks for F-SEC-004
-V1-fallback security advisory + rich `*WithDetails` variants).
-With v3.3.7 every MEDIUM finding from the 2026-05-05 audit's
-testing AND performance AND security-input-validation
-categories is closed; remaining MEDIUMs are arch
-(F-ARCH-003/004/008 — natural for v4.0.0 monorepo split) and
-F-PERF-014 sleep-to-state-poll. Doc cleanup pass planned for
-v3.3.8; dependency-hygiene release planned for v3.3.9 / v3.4.0). Published to the public npmjs registry via
+**698 tests** pass on every commit (up from 695 in v3.3.7; +3
+from the new `tests/v3-3-8-doc-cleanup.test.ts` regression-lock
+file added in v3.3.8 to close 5 LOW-severity findings from the
+2026-05-05 audit — F-API-015 stale JSDoc, F-API-016 export
+CoilConfig, F-SEC-005/F-ARCH-014 KADENA_BASE_URL @deprecated
+marker, F-ARCH-011 normalizeKeysetRef barrel-import
+consolidation, F-ARCH-012 dalos/account.ts quote-style cleanup.
+With v3.3.8 the v3.3.x audit-closure track now spans testing
+AND performance AND security-input-validation AND
+documentation/deprecation categories; remaining items are
+either reserved for v4.0.0 (arch + sleep-replacement) or
+NEEDS CONTEXT findings flagged for human review.
+Dependency-hygiene release planned for v3.3.9 / v3.4.0. Published to the public npmjs registry via
 `.github/workflows/publish.yml` on every `v*` tag (which also
 creates a GitHub Release). Published to the public
 npmjs registry via `.github/workflows/publish.yml` on every `v*`

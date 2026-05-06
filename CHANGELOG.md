@@ -2,6 +2,96 @@
 
 All notable changes to `@stoachain/ouronet-core`.
 
+## 3.3.8 — 2026-05-06
+
+**MINOR, additive (documentation/deprecation cleanup pass).** Closes 5 LOW-severity findings from the 2026-05-05 audit's `"v3.x deprecation cleanup"` + `"v3.x conventions alignment"` + `"v3.x API hygiene"` themes in a single bundled release. **One new public-API export** (`CoilConfig` interface, previously consumed but un-exported), **one `@deprecated` marker** (`KADENA_BASE_URL` redirecting consumers to the failover-aware reader), **two doc fixes** (stale JSDoc + import-discipline cleanup), **one stylistic cleanup** (single-quote → double-quote drift in dalos/account.ts). **NO breaking change**, **NO observable runtime behavior change**, **698/698 tests pass** (was 695 in v3.3.7; +3 from the new `tests/v3-3-8-doc-cleanup.test.ts` regression-lock file).
+
+### F-API-015 — Stale `strict` JSDoc parameter mention
+
+`src/dalos/account.ts:42-45` previously documented a `strict` parameter on `CreateAccountOptions` that the type union never had. v3.3.8 rewrites the JSDoc to document the actual mode-vs-primitive contract: if the selected primitive doesn't support the requested `mode` (e.g. `bitmap` on a non-DalosGenesis primitive), `createOuronetAccount` throws a descriptive error from the call site — there is no opt-out flag. Consumers wrap the call in their own try/catch if they want a non-throwing fallback.
+
+Pure docstring change. No runtime regression to lock. The CHANGELOG entry is the audit trail.
+
+### F-API-016 — Export `CoilConfig` interface
+
+`src/interactions/coilFunctions.ts:17` previously declared `interface CoilConfig` (no `export`). The interface backs the exported `COIL_CONFIGS` constant, so consumers reaching into `COIL_CONFIGS.ouroToAuryn` got a value of type `CoilConfig` but couldn't TYPE-ANNOTATE a parameter or local with `CoilConfig` themselves without re-declaring the shape. v3.3.8 adds `export`. One-word change.
+
+```ts
+// Now works:
+import { CoilConfig, COIL_CONFIGS } from "@stoachain/ouronet-core/interactions/coilFunctions";
+
+function describeCoil(config: CoilConfig): string {
+  return `${config.sourceToken} → ${config.targetToken}`;
+}
+```
+
+Locked at `tests/v3-3-8-doc-cleanup.test.ts` T1: `expectTypeOf<CoilConfig>().toEqualTypeOf<{...}>()` — if a future edit drops the `export`, TS errors at typecheck time and the test fails to compile.
+
+### F-SEC-005 / F-ARCH-014 — Mark `KADENA_BASE_URL` `@deprecated`
+
+`src/constants/kadena.ts:17` exports `KADENA_BASE_URL = "https://node2.stoachain.com/chainweb/0.0/${KADENA_NETWORK}"` — pinned to node2, bypassing the failover layer added in v2.1.0. Direct consumers reading this constant lose node-recovery + node-degradation handling. v3.3.8 adds a prominent `@deprecated` JSDoc redirecting to `getActivePactUrl(chainId)` / `getActiveSpvUrl(chainId)` (or the same-subpath thin wrappers `getPactUrl(chainId)` / `getSpvUrl(chainId)`). The constant itself is preserved for consumer backwards-compat — removal is scheduled for v4.0.0; consumers reading it directly should migrate before the major bump.
+
+The TypeScript compiler emits `Type 'string' is deprecated` warnings to consumers reading the constant directly when their `tsconfig` has `"reportsDeprecated": true` (or via TS-Server / IDE indicators). Consumers who never read the constant directly (the recommended pattern — they call `getPactUrl(chainId)` instead) see no change.
+
+Pure JSDoc change. No runtime regression to lock.
+
+### F-ARCH-011 — Consolidate `normalizeKeysetRef` import to `../guard` barrel
+
+`src/interactions/ouroFunctions.ts:10` previously deep-imported:
+
+```ts
+import { IKeyset } from "../guard";
+import { normalizeKeysetRef } from "../guard/smartAccountAuth";  // deep import
+```
+
+Inconsistent with the project's subpath-import discipline — every other consumer of `normalizeKeysetRef` reaches through the `../guard` barrel (which already re-exports `* from "./smartAccountAuth"`). v3.3.8 consolidates:
+
+```ts
+import { IKeyset, normalizeKeysetRef } from "../guard";
+```
+
+Behaviorally identical (same symbol, same module). Locked at `tests/v3-3-8-doc-cleanup.test.ts` T2: imports `normalizeKeysetRef` through the barrel and smoke-calls it with a `keysetref`-shaped object, asserting the round-trip works. Catches a regression that drops the `export *` line in `src/guard/index.ts` (which would also break ouroFunctions.ts).
+
+### F-ARCH-012 — Single-quote → double-quote drift in `src/dalos/account.ts`
+
+`src/dalos/account.ts` was the only file in `src/` still using single-quoted string literals (the `CreateAccountMode` discriminator labels `'random'` / `'bitString'` / etc., the typeof guard string `'function'`, the fallback string `'(default)'` — 19 sites total). v3.1.1 fixed `src/dalos/index.ts` but missed account.ts. v3.3.8 converts all 19 sites to double quotes, matching the rest of the project.
+
+Pure stylistic change — TypeScript treats `'random'` and `"random"` as identical string literals at the type level. No observable behavior change.
+
+Locked at `tests/v3-3-8-doc-cleanup.test.ts` T3: reads `src/dalos/account.ts` source verbatim, walks each line, strips JSDoc + single-line comments (English apostrophes in `registry's` / `doesn't` are exempt), and asserts no single-quote characters remain in the code-only portion. A future edit that introduces single-quoted string literals fails the test.
+
+### Added — `tests/v3-3-8-doc-cleanup.test.ts` (3 it-blocks across 3 describe groups)
+
+| Test | Closes | What regression it catches |
+|---|---|---|
+| **T1** (F-API-016) | `CoilConfig` type export | Future edit drops `export` keyword → TS typecheck fails on the import line |
+| **T2** (F-ARCH-011) | `normalizeKeysetRef` barrel reachability + smoke-call | Future edit removes `export *` from `src/guard/index.ts` → import fails OR function shape changes |
+| **T3** (F-ARCH-012) | Quote-style invariant on `src/dalos/account.ts` | Future edit introduces single-quoted string literals → grep walker fails the test |
+
+F-API-015 (stale JSDoc) and F-SEC-005/F-ARCH-014 (`@deprecated` marker on `KADENA_BASE_URL`) are pure JSDoc changes that don't surface at runtime — no test added. The CHANGELOG entry is the audit trail.
+
+### Verified
+
+- `npm run typecheck` — zero errors. The new `CoilConfig` export type-checks cleanly across the three import sites that consume it (`getCoilPreviewGeneric`, `coilTokensGeneric`, the new test file). The `@deprecated` JSDoc on `KADENA_BASE_URL` is well-formed (TS picks it up as a deprecation indicator at consumer usage sites).
+- `npm test` — **698/698 tests pass** (was 695 in v3.3.7; +3 from `tests/v3-3-8-doc-cleanup.test.ts`).
+- `npm run build` — clean tsc emit. Change surface is `src/dalos/account.ts` (JSDoc rewrite + 19 quote-style edits), `src/interactions/coilFunctions.ts` (added `export`), `src/constants/kadena.ts` (`@deprecated` JSDoc), `src/interactions/ouroFunctions.ts` (consolidated imports — 1 line removed, 1 line edited).
+
+### Migration
+
+No consumer migration. The package's pre-v3.3.8 public API surface is byte-identical (with one ADDITION — the `CoilConfig` type export). Two consumer-side notes:
+
+- **Consumers reading `KADENA_BASE_URL` directly** see a TypeScript deprecation warning in IDEs / on `tsc` runs with `"reportsDeprecated": true`. They are encouraged to migrate to `getPactUrl(chainId)` / `getSpvUrl(chainId)` (failover-aware) before v4.0.0, when `KADENA_BASE_URL` is scheduled for removal. Consumers using the recommended `getPactUrl(chainId)` pattern see no change.
+- **Consumers using `CoilConfig` as a type annotation** can now import the type by name from `@stoachain/ouronet-core/interactions/coilFunctions` (previously they had to re-declare the shape inline).
+
+### v3.3.x trajectory remaining (post-v3.3.8)
+
+- **v3.3.9 / v3.4.0** — Dependency-hygiene release (pin exact versions of `@kadena/*` peerDeps; possibly vendor `@kadena/types` per the supply-chain risk discussion). Per the user's sequencing decision: this is the next planned release after v3.3.8.
+- **v4.0.0** — Major structural release (monorepo split into `@stoachain/stoa-core` + `@stoachain/ouronet-core`; god-file decomposition; F-ARCH-009 21-site GAS_STATION migration; F-ARCH-010 IKadenaKeypair canonical-source consolidation; F-ARCH-003 helper extract; F-PERF-014 sleep-to-state-poll; KADENA_BASE_URL removal; the bigger fork-into-stoachain-scope work for `@kadena/cryptography-utils` / `@kadena/client` / `@kadena/hd-wallet`).
+
+The v3.3.x audit-closure track now spans **testing + performance + security + documentation** categories. Remaining items in the audit are either reserved for v4.0.0 (arch + sleep replacement) or are NEEDS CONTEXT findings flagged for human review (F-ERR-014 multi-step add-liquidity timeout, F-API-018 readonly modifiers, F-BUG-006 ad-hoc decimal formatter, F-BUG-008 Σ-prefix validation in CodexSigningStrategy).
+
+---
+
 ## 3.3.7 — 2026-05-06
 
 **MINOR, additive (security pass).** Closes two MEDIUM security findings from the 2026-05-05 audit in a single bundled release: **F-SEC-003** (seam-setter input validation) and **F-SEC-004** (V1-fallback security advisory). Three new public-API additions (`InvalidPactReaderError`, `InvalidLoggerError`, `decryptStringV2WithDetails` + `smartDecryptWithDetails` + `DecryptResultWithDetails` + a one-shot `getLogger().warn(...)` advisory inside the V1-decrypt path). All changes preserve byte-identical backwards-compat with v3.3.6 — existing consumer code that calls `setLogger({warn, error})` (v3.2.x compat path) or catches `instanceof TypeError` continues to work. **NO breaking change**, **695/695 tests pass** (was 674 in v3.3.6; +21 from two new test files).

@@ -14,7 +14,13 @@ import type { IOuroAccountKeypair } from "./ouroFunctions";
 import { getLogger } from "../observability";
 
 // Generic coiling configuration
-interface CoilConfig {
+//
+// v3.3.8 (closes audit finding F-API-016): the interface is now
+// exported. Pre-v3.3.8 only `COIL_CONFIGS` was exported — consumers
+// holding a `CoilConfig` value (e.g. from `COIL_CONFIGS.ouroToAuryn`)
+// could USE it but couldn't TYPE-ANNOTATE a parameter or local with
+// `CoilConfig` without re-declaring the shape. Now they can.
+export interface CoilConfig {
   atsPair: string;
   sourceToken: string;
   targetToken: string;

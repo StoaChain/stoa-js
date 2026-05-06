@@ -13,7 +13,19 @@ export const KADENA_CHAIN_ID = "0";
 
 export const KADENA_NAMESPACE = "ouronet-ns";
 
-/** Base URL for Chainweb API (static — primary node) */
+/**
+ * Base URL for Chainweb API (static — primary node).
+ *
+ * @deprecated Pinned to `node2.stoachain.com` and bypasses the failover
+ * layer added in v2.1.0. Direct consumers reading this constant lose
+ * the node-recovery + node-degradation handling provided by
+ * `getActivePactUrl(chainId)` / `getActiveSpvUrl(chainId)` (in
+ * `src/network/nodeFailover`). Use those instead, or the same-subpath
+ * thin wrappers `getPactUrl(chainId)` / `getSpvUrl(chainId)` exported
+ * below. v3.3.8 (closes audit findings F-SEC-005 / F-ARCH-014) marks
+ * this for removal in v4.0.0; consumers reading it directly should
+ * migrate before the major bump.
+ */
 export const KADENA_BASE_URL = `https://node2.stoachain.com/chainweb/0.0/${KADENA_NETWORK}`;
 
 /**
