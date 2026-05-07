@@ -3,7 +3,7 @@ import pkg from "../package.json" with { type: "json" };
 
 describe("@stoachain/stoa-core package.json version", () => {
   it("declares the released semver string", () => {
-    expect(pkg.version).toBe("4.0.1");
+    expect(pkg.version).toBe("4.1.0");
   });
 
   it("is a valid semver MAJOR.MINOR.PATCH triplet", () => {

@@ -47,11 +47,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { Pact } from "@kadena/client";
-import type { IUnsignedCommand, ICommand } from "@kadena/types";
+import { Pact } from "@stoachain/kadena-stoic-legacy/client";
+import type { IUnsignedCommand, ICommand } from "@stoachain/kadena-stoic-legacy/types";
 import nacl from "tweetnacl";
 import { Buffer } from "node:buffer";
-import { base64UrlDecodeArr } from "@kadena/cryptography-utils";
+import { base64UrlDecodeArr } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
 import {
   universalSignTransaction,
   fromKeypair,

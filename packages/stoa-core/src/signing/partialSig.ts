@@ -48,8 +48,8 @@
 
 import nacl from "tweetnacl";
 import { Buffer } from "node:buffer";
-import { base64UrlDecodeArr, hash as kadenaHash } from "@kadena/cryptography-utils";
-import type { IUnsignedCommand, ICommand } from "@kadena/types";
+import { base64UrlDecodeArr, hash as kadenaHash } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
+import type { IUnsignedCommand, ICommand } from "@stoachain/kadena-stoic-legacy/types";
 import {
   universalSignTransaction,
   type UniversalKeypair,

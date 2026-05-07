@@ -11,7 +11,7 @@
  * — these signatures match what OuronetUI's CFM modals actually call today.
  */
 
-import type { IUnsignedCommand, ICommand } from "@kadena/types";
+import type { IUnsignedCommand, ICommand } from "@stoachain/kadena-stoic-legacy/types";
 import type { IKeyset } from "../guard";
 
 /**

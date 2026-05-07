@@ -61,7 +61,7 @@ const mocks = vi.hoisted(() => ({
   pollOne: vi.fn(),
 }));
 
-vi.mock("@kadena/client", () => ({
+vi.mock("@stoachain/kadena-stoic-legacy/client", () => ({
   createClient: vi.fn(() => ({
     dirtyRead: mocks.dirtyRead,
     submit: mocks.submit,

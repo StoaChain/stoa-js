@@ -25,7 +25,7 @@ import {
   kadenaEncrypt,
   kadenaGenKeypairFromSeed,
   kadenaMnemonicToSeed,
-} from "@kadena/hd-wallet";
+} from "@stoachain/kadena-stoic-legacy/hd-wallet";
 import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
 import {
@@ -33,7 +33,7 @@ import {
   kadenaMnemonicToRootKeypair,
   kadenaGenMnemonic,
   kadenaGenKeypair,
-} from "@kadena/hd-wallet/chainweaver";
+} from "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver";
 import type { SeedType } from "./types";
 
 class KadenaWalletBuilder {

@@ -30,7 +30,7 @@ import { describe, it, expect } from "vitest";
 import { Buffer } from "node:buffer";
 import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
-import { kadenaCheckMnemonic, kadenaSign } from "@kadena/hd-wallet/chainweaver";
+import { kadenaCheckMnemonic, kadenaSign } from "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver";
 import KadenaWalletBuilder from "../src/wallet/KadenaWalletBuilder";
 
 // ── Vendor test vectors (pinned regression) ─────────────────────────────────

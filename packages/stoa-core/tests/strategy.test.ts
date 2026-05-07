@@ -19,8 +19,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { IUnsignedCommand, ICommand } from "@kadena/types";
-import { Pact } from "@kadena/client";
+import type { IUnsignedCommand, ICommand } from "@stoachain/kadena-stoic-legacy/types";
+import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { CodexSigningStrategy } from "../src/signing/codexStrategy";
 import type {
   IKadenaKeypair,

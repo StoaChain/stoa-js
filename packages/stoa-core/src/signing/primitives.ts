@@ -13,7 +13,7 @@
  * the same input.
  */
 
-import { restoreKeyPairFromSecretKey, binToHex } from "@kadena/cryptography-utils";
+import { restoreKeyPairFromSecretKey, binToHex } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
 import { ed25519 } from "@noble/curves/ed25519";
 
 function hexToBytes(hex: string): Uint8Array {

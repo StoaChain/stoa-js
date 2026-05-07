@@ -32,13 +32,13 @@
  *     the request-key dedup contract — see JSDoc on `submit` below.
  */
 
-import { createClient } from "@kadena/client";
+import { createClient } from "@stoachain/kadena-stoic-legacy/client";
 import type {
   IUnsignedCommand,
   ICommand,
   ICommandResult,
   ITransactionDescriptor,
-} from "@kadena/client";
+} from "@stoachain/kadena-stoic-legacy/client";
 import { withFailover } from "./nodeFailover";
 import { createTimeoutError } from "../errors";
 

@@ -49,7 +49,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { ICommand, ITransactionDescriptor } from "@kadena/client";
+import type { ICommand, ITransactionDescriptor } from "@stoachain/kadena-stoic-legacy/client";
 
 // `vi.hoisted` lifts this initializer above the `vi.mock` factory below so the
 // mock function reference is available at hoist-time. The two `mock*Once`
@@ -65,7 +65,7 @@ const submitMock = vi.hoisted(() =>
     } as ITransactionDescriptor),
 );
 
-vi.mock("@kadena/client", () => ({
+vi.mock("@stoachain/kadena-stoic-legacy/client", () => ({
   createClient: vi.fn().mockReturnValue({ submit: submitMock }),
 }));
 

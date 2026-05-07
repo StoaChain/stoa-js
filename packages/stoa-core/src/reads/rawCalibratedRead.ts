@@ -12,8 +12,8 @@
  * bind a cache to) and what OuronetUI's cache wrapper delegates to on miss.
  */
 
-import { Pact, createClient } from "@kadena/client";
-import type { ChainId } from "@kadena/types";
+import { Pact, createClient } from "@stoachain/kadena-stoic-legacy/client";
+import type { ChainId } from "@stoachain/kadena-stoic-legacy/types";
 import { KADENA_CHAIN_ID, KADENA_NETWORK } from "../constants";
 import { getActivePactUrl, withFailover, runWithTimeout } from "../network";
 import { createTimeoutError } from "../errors";

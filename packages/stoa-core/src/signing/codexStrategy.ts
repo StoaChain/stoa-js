@@ -17,7 +17,7 @@
  * specific keypairs and produces a signed result.
  */
 
-import type { ICommand, IUnsignedCommand } from "@kadena/types";
+import type { ICommand, IUnsignedCommand } from "@stoachain/kadena-stoic-legacy/types";
 import { analyzeGuard, selectCapsSigningKey } from "../guard";
 import type { IKeyset } from "../guard";
 import { calculateAutoGasLimit } from "../gas";

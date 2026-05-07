@@ -19,10 +19,10 @@
  * terminal prompt / HSM fetch).
  */
 
-import { createSignWithKeypair, addSignatures } from "@kadena/client";
-import { base64UrlDecodeArr, binToHex } from "@kadena/cryptography-utils";
-import { kadenaSign } from "@kadena/hd-wallet/chainweaver";
-import type { IUnsignedCommand, ICommand } from "@kadena/types";
+import { createSignWithKeypair, addSignatures } from "@stoachain/kadena-stoic-legacy/client";
+import { base64UrlDecodeArr, binToHex } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
+import { kadenaSign } from "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver";
+import type { IUnsignedCommand, ICommand } from "@stoachain/kadena-stoic-legacy/types";
 import { publicKeyFromPrivateKey } from "./primitives";
 
 /**
