@@ -77,9 +77,10 @@ jobs:
 
       # Belt-and-suspenders: tests + build gate the publish so a broken
       # core never makes it to the registry. The root scripts iterate
-      # over both workspaces (build is ordered: stoa-core first, then
-      # ouronet-core, matching the publish order below).
-      - name: Typecheck + Test + Build (both packages)
+      # over all 3 workspaces (build is ordered: kadena-stoic-legacy
+      # first, then stoa-core, then ouronet-core, matching the publish
+      # order below).
+      - name: Typecheck + Test + Build (all 3 packages)
         run: |
           npm run typecheck
           npm test
@@ -91,23 +92,30 @@ jobs:
       # Build a queue of packages whose `package.json` version equals the
       # tag. Subsequent steps run for each queued package only. The queue
       # is exposed via step outputs:
-      #   - PUBLISH_STOA_CORE   ("true" | "false")
-      #   - PUBLISH_OURONET_CORE ("true" | "false")
+      #   - PUBLISH_KADENA_STOIC_LEGACY ("true" | "false")
+      #   - PUBLISH_STOA_CORE           ("true" | "false")
+      #   - PUBLISH_OURONET_CORE        ("true" | "false")
       #
-      # If neither matches, fail the workflow — the tag is wrong.
+      # If none matches, fail the workflow — the tag is wrong.
       - name: Detect publish queue (which packages match the tag?)
         id: queue
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          KSL_VERSION=$(node -p "require('./packages/kadena-stoic-legacy/package.json').version")
           STOA_VERSION=$(node -p "require('./packages/stoa-core/package.json').version")
           OURO_VERSION=$(node -p "require('./packages/ouronet-core/package.json').version")
           echo "Tag version: $TAG_VERSION"
+          echo "kadena-stoic-legacy version: $KSL_VERSION"
           echo "stoa-core version: $STOA_VERSION"
           echo "ouronet-core version: $OURO_VERSION"
 
+          PUBLISH_KSL="false"
           PUBLISH_STOA="false"
           PUBLISH_OURO="false"
 
+          if [ "$TAG_VERSION" = "$KSL_VERSION" ]; then
+            PUBLISH_KSL="true"
+          fi
           if [ "$TAG_VERSION" = "$STOA_VERSION" ]; then
             PUBLISH_STOA="true"
           fi
@@ -115,20 +123,22 @@ jobs:
             PUBLISH_OURO="true"
           fi
 
-          if [ "$PUBLISH_STOA" = "false" ] && [ "$PUBLISH_OURO" = "false" ]; then
-            echo "::error::Tag $TAG_VERSION matches NEITHER package.json version (stoa-core=$STOA_VERSION, ouronet-core=$OURO_VERSION)"
-            echo "::error::Tags must match at least one package's version. Bump packages/{stoa-core,ouronet-core}/package.json to $TAG_VERSION before tagging."
+          if [ "$PUBLISH_KSL" = "false" ] && [ "$PUBLISH_STOA" = "false" ] && [ "$PUBLISH_OURO" = "false" ]; then
+            echo "::error::Tag $TAG_VERSION matches NONE of the package.json versions (kadena-stoic-legacy=$KSL_VERSION, stoa-core=$STOA_VERSION, ouronet-core=$OURO_VERSION)"
+            echo "::error::Tags must match at least one package's version. Bump packages/{kadena-stoic-legacy,stoa-core,ouronet-core}/package.json to $TAG_VERSION before tagging."
             exit 1
           fi
 
-          echo "PUBLISH_STOA_CORE=$PUBLISH_STOA"     >> "$GITHUB_OUTPUT"
-          echo "PUBLISH_OURONET_CORE=$PUBLISH_OURO"  >> "$GITHUB_OUTPUT"
-          echo "TAG_VERSION=$TAG_VERSION"            >> "$GITHUB_OUTPUT"
+          echo "PUBLISH_KADENA_STOIC_LEGACY=$PUBLISH_KSL" >> "$GITHUB_OUTPUT"
+          echo "PUBLISH_STOA_CORE=$PUBLISH_STOA"          >> "$GITHUB_OUTPUT"
+          echo "PUBLISH_OURONET_CORE=$PUBLISH_OURO"       >> "$GITHUB_OUTPUT"
+          echo "TAG_VERSION=$TAG_VERSION"                 >> "$GITHUB_OUTPUT"
 
           echo ""
           echo "── Publish queue ──"
-          echo "  @stoachain/stoa-core:    $PUBLISH_STOA"
-          echo "  @stoachain/ouronet-core: $PUBLISH_OURO"
+          echo "  @stoachain/kadena-stoic-legacy: $PUBLISH_KSL"
+          echo "  @stoachain/stoa-core:           $PUBLISH_STOA"
+          echo "  @stoachain/ouronet-core:        $PUBLISH_OURO"
 
       # ------------------------------------------------------------------
       # Per-queued-package README + CHANGELOG version-parity gate
@@ -142,10 +152,12 @@ jobs:
       - name: Verify README + CHANGELOG of queued packages mention the publish version
         run: |
           TAG_VERSION="${{ steps.queue.outputs.TAG_VERSION }}"
+          PUBLISH_KSL="${{ steps.queue.outputs.PUBLISH_KADENA_STOIC_LEGACY }}"
           PUBLISH_STOA="${{ steps.queue.outputs.PUBLISH_STOA_CORE }}"
           PUBLISH_OURO="${{ steps.queue.outputs.PUBLISH_OURONET_CORE }}"
 
           QUEUED=()
+          [ "$PUBLISH_KSL" = "true" ] && QUEUED+=("packages/kadena-stoic-legacy")
           [ "$PUBLISH_STOA" = "true" ] && QUEUED+=("packages/stoa-core")
           [ "$PUBLISH_OURO" = "true" ] && QUEUED+=("packages/ouronet-core")
 
@@ -192,12 +204,27 @@ jobs:
       # "version already published". Pre-check via `npm view` and skip
       # — the registry is the source of truth.
       #
-      # ORDER MATTERS: stoa-core first because ouronet-core has a
-      # peer-dep on it. If stoa-core publish fails, ouronet-core
-      # publish never starts (set -e via the run-step contract). When
-      # stoa-core is NOT in the queue (ouronet-core-only release), the
-      # peer-dep version is already on npm by definition — we wouldn't
-      # have skipped it from the queue otherwise.
+      # ORDER MATTERS:
+      #   1. kadena-stoic-legacy first — has zero @stoachain/* peer-deps;
+      #      both stoa-core and ouronet-core peer-dep on it.
+      #   2. stoa-core second — peer-deps on kadena-stoic-legacy;
+      #      ouronet-core peer-deps on stoa-core.
+      #   3. ouronet-core third — peer-deps on both above.
+      # If a step fails, subsequent steps don't run (set -e via the
+      # run-step contract). When an upstream is NOT in the queue (e.g.
+      # ouronet-core-only release), the peer-dep version is already on
+      # npm by definition — we wouldn't have skipped it from the queue
+      # otherwise.
+
+      - name: Publish @stoachain/kadena-stoic-legacy to npmjs.org
+        if: steps.queue.outputs.PUBLISH_KADENA_STOIC_LEGACY == 'true'
+        run: |
+          TAG_VERSION="${{ steps.queue.outputs.TAG_VERSION }}"
+          if npm view @stoachain/kadena-stoic-legacy@${TAG_VERSION} version >/dev/null 2>&1; then
+            echo "@stoachain/kadena-stoic-legacy@${TAG_VERSION} already on npm — skipping (idempotent)."
+          else
+            npm publish --workspace=@stoachain/kadena-stoic-legacy --access public --provenance
+          fi
 
       - name: Publish @stoachain/stoa-core to npmjs.org
         if: steps.queue.outputs.PUBLISH_STOA_CORE == 'true'
