@@ -1,0 +1,30 @@
+{
+  "input": {
+    "code": "(coin.transfer \"c:iQQFWj6gWtpGEzhM_O5ekW1QtnQQy55R8BRPGhj_0FU\" \"bob\" 1.0)",
+    "meta": {
+      "chainId": "1",
+      "sender": "c:iQQFWj6gWtpGEzhM_O5ekW1QtnQQy55R8BRPGhj_0FU",
+      "gasLimit": 2500,
+      "gasPrice": 1e-7,
+      "ttl": 28800,
+      "creationTime": 1700000000
+    },
+    "networkId": "testnet04",
+    "nonce": "snapshot-nonce-fixed",
+    "signers": [
+      {
+        "pubKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "caps": []
+      }
+    ]
+  },
+  "expected_output": {
+    "cmd": "{\"payload\":{\"exec\":{\"code\":\"(coin.transfer \\\"c:iQQFWj6gWtpGEzhM_O5ekW1QtnQQy55R8BRPGhj_0FU\\\" \\\"bob\\\" 1.0)\",\"data\":{}}},\"nonce\":\"snapshot-nonce-fixed\",\"signers\":[{\"pubKey\":\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\",\"scheme\":\"ED25519\"}],\"meta\":{\"gasLimit\":2500,\"gasPrice\":1e-7,\"sender\":\"c:iQQFWj6gWtpGEzhM_O5ekW1QtnQQy55R8BRPGhj_0FU\",\"ttl\":28800,\"creationTime\":1700000000,\"chainId\":\"1\"},\"networkId\":\"testnet04\"}",
+    "hash": "6-n0fApW6v31QiLe_oNtzFJGPTJiNgLMw4sXQiyCUNM",
+    "sigs": [
+      null
+    ]
+  },
+  "captured_at": "2026-05-07T09:36:55.316Z",
+  "captured_from": "@kadena/client version 1.18.3"
+}

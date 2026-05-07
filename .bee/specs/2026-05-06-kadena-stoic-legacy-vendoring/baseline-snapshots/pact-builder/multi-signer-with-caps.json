@@ -1,0 +1,65 @@
+{
+  "input": {
+    "code": "(coin.transfer \"alice\" \"bob\" 1.0)",
+    "meta": {
+      "chainId": "1",
+      "sender": "alice",
+      "gasLimit": 2500,
+      "gasPrice": 1e-7,
+      "ttl": 28800,
+      "creationTime": 1700000000
+    },
+    "networkId": "testnet04",
+    "nonce": "snapshot-nonce-fixed",
+    "signers": [
+      {
+        "pubKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "caps": [
+          [
+            "coin.GAS"
+          ]
+        ]
+      },
+      {
+        "pubKey": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+        "caps": [
+          [
+            "coin.TRANSFER",
+            "alice",
+            "bob",
+            {
+              "decimal": "1.0"
+            }
+          ]
+        ]
+      },
+      {
+        "pubKey": "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
+        "caps": [
+          [
+            "coin.GAS"
+          ],
+          [
+            "coin.TRANSFER",
+            "alice",
+            "bob",
+            {
+              "decimal": "1.0"
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "expected_output": {
+    "cmd": "{\"payload\":{\"exec\":{\"code\":\"(coin.transfer \\\"alice\\\" \\\"bob\\\" 1.0)\",\"data\":{}}},\"nonce\":\"snapshot-nonce-fixed\",\"signers\":[{\"pubKey\":\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}]},{\"pubKey\":\"3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.TRANSFER\",\"args\":[\"alice\",\"bob\",{\"decimal\":\"1.0\"}]}]},{\"pubKey\":\"fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]},{\"name\":\"coin.TRANSFER\",\"args\":[\"alice\",\"bob\",{\"decimal\":\"1.0\"}]}]}],\"meta\":{\"gasLimit\":2500,\"gasPrice\":1e-7,\"sender\":\"alice\",\"ttl\":28800,\"creationTime\":1700000000,\"chainId\":\"1\"},\"networkId\":\"testnet04\"}",
+    "hash": "oJJtR2eW0g4WDjwX2R8KwU43YOM_EV02Y4hWYD-orPU",
+    "sigs": [
+      null,
+      null,
+      null
+    ]
+  },
+  "captured_at": "2026-05-07T09:36:55.314Z",
+  "captured_from": "@kadena/client version 1.18.3"
+}

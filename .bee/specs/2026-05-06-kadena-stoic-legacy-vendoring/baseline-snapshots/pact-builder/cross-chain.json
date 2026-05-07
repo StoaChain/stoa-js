@@ -1,0 +1,42 @@
+{
+  "input": {
+    "code": "(coin.transfer-crosschain \"alice\" \"bob\" (read-keyset \"receiver-guard-snapshot\") \"2\" 1.0)",
+    "meta": {
+      "chainId": "0",
+      "sender": "alice",
+      "gasLimit": 2500,
+      "gasPrice": 1e-7,
+      "ttl": 28800,
+      "creationTime": 1700000000
+    },
+    "networkId": "testnet04",
+    "nonce": "snapshot-nonce-fixed",
+    "signers": [
+      {
+        "pubKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "caps": [
+          [
+            "coin.GAS"
+          ]
+        ]
+      }
+    ],
+    "data": {
+      "receiver-guard-snapshot": {
+        "keys": [
+          "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        ],
+        "pred": "keys-all"
+      }
+    }
+  },
+  "expected_output": {
+    "cmd": "{\"payload\":{\"exec\":{\"code\":\"(coin.transfer-crosschain \\\"alice\\\" \\\"bob\\\" (read-keyset \\\"receiver-guard-snapshot\\\") \\\"2\\\" 1.0)\",\"data\":{\"receiver-guard-snapshot\":{\"keys\":[\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\"],\"pred\":\"keys-all\"}}}},\"nonce\":\"snapshot-nonce-fixed\",\"signers\":[{\"pubKey\":\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}]}],\"meta\":{\"gasLimit\":2500,\"gasPrice\":1e-7,\"sender\":\"alice\",\"ttl\":28800,\"creationTime\":1700000000,\"chainId\":\"0\"},\"networkId\":\"testnet04\"}",
+    "hash": "FGnvU-Jg1H1Qrua-F9ft3Y8lmqxd5tQgD97l3Lj6nUE",
+    "sigs": [
+      null
+    ]
+  },
+  "captured_at": "2026-05-07T09:36:55.312Z",
+  "captured_from": "@kadena/client version 1.18.3"
+}

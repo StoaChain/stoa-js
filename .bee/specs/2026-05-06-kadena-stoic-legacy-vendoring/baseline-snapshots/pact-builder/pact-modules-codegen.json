@@ -1,0 +1,12 @@
+{
+  "input": {
+    "description": "Pact.modules.coin.transfer codegen",
+    "code": "Pact.modules.coin.transfer('alice','bob',1.0)"
+  },
+  "expected_output": {
+    "value": null,
+    "note": "@kadena/pactjs-generated not installed; codegen path unavailable"
+  },
+  "captured_at": "2026-05-07T09:36:56.037Z",
+  "captured_from": "@kadena/client version 1.18.3"
+}

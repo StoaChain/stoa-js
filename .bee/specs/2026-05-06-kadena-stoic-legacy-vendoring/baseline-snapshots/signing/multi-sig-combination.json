@@ -1,0 +1,40 @@
+{
+  "input": {
+    "description": "3-keypair multi-sig via per-keypair addSignatures loop",
+    "keypairs": [
+      {
+        "publicKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "secretKey": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+      },
+      {
+        "publicKey": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+        "secretKey": "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
+      },
+      {
+        "publicKey": "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
+        "secretKey": "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7"
+      }
+    ],
+    "unsignedCmd_hash": "i8Iin_bsp7pLrRI8hiHRcSyk8TQVre-ld0-YsPOC30U"
+  },
+  "expected_output": {
+    "cmd": "{\"payload\":{\"exec\":{\"code\":\"(coin.transfer-create \\\"alice\\\" \\\"bob\\\" (read-keyset \\\"ks\\\") 1.0)\",\"data\":{\"ks\":{\"keys\":[\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\"],\"pred\":\"keys-all\"}}}},\"nonce\":\"snapshot-nonce-fixed\",\"signers\":[{\"pubKey\":\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}]},{\"pubKey\":\"3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.TRANSFER\",\"args\":[\"alice\",\"bob\",{\"decimal\":\"1.0\"}]}]},{\"pubKey\":\"fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]}]}],\"meta\":{\"gasLimit\":2500,\"gasPrice\":1e-7,\"sender\":\"alice\",\"ttl\":28800,\"creationTime\":1700000000,\"chainId\":\"1\"},\"networkId\":\"testnet04\"}",
+    "hash": "i8Iin_bsp7pLrRI8hiHRcSyk8TQVre-ld0-YsPOC30U",
+    "sigs": [
+      {
+        "pubKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "sig": "69cf1188d702f3acb65e16f17f2b35e4401870c28ee6275dfb5c32950560295da6b34921126f3508f0ba18ce84fb25d04d6f4db9dba6def57e448f019edf0604"
+      },
+      {
+        "pubKey": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+        "sig": "73a76d3b60e168354c7f1a59178209e88ae0b84d246b2430b41cba268290e26c3e6c1de9bd5c2989b8ab69146a0771d639adc773ae0b736bc945f3c1cc5da804"
+      },
+      {
+        "pubKey": "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
+        "sig": "ac544451fed60fad0123d436a7c830fd3ae698816f3f82be3902bdd6f178c20ca8395885c28dba1ce28a0cab048f32a91e7b9aa23b6fa7436e1ea10a1f426f04"
+      }
+    ]
+  },
+  "captured_at": "2026-05-07T09:37:01.031Z",
+  "captured_from": "@kadena/client version 1.18.3"
+}

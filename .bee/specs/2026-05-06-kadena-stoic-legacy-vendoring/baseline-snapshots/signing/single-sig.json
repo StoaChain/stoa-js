@@ -1,0 +1,15 @@
+{
+  "input": {
+    "keypair": {
+      "publicKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "secretKey": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+    },
+    "message": "nBCiL4qLpVdy46FgDteqCOj9l3nuPeRpZCCsrKvPDsg"
+  },
+  "expected_output": {
+    "signature": "a5388a4c1b72e8b827378d9302e26296683be70eb06d750b16740d471e9c6fdc31896a6bf8415b8b3e4080b196c11510887826b503db12faef52696c3ea0540c",
+    "hashInput_b64Url": "nBCiL4qLpVdy46FgDteqCOj9l3nuPeRpZCCsrKvPDsg"
+  },
+  "captured_at": "2026-05-07T09:37:01.004Z",
+  "captured_from": "@kadena/cryptography-utils version 0.4.4"
+}

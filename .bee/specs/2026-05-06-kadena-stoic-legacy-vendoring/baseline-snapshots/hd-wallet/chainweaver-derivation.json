@@ -1,0 +1,14 @@
+{
+  "input": {
+    "mnemonic": "mammal east oxygen romance wheel chimney frequent brain spawn owner announce sell",
+    "password": "kadena",
+    "index": 1
+  },
+  "expected_output": {
+    "publicKey": "83a185400b2fdaaacf44afe93e126ba528900ec66cd31a9e5b104ffe92d96976",
+    "signatureOverFixedMessage_hex": "bedd0722d330f063266b4b72b2987856c9c7bc0f5f894eb490541441c59bf4c21dba3d35e5214050c90e727b16617c885cb74b2d3fbcd0ebb723f524c8679805",
+    "derivationPath": "chainweaver"
+  },
+  "captured_at": "2026-05-07T09:37:00.190Z",
+  "captured_from": "@kadena/hd-wallet version 0.6.2"
+}

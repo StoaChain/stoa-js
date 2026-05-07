@@ -1,0 +1,14 @@
+{
+  "input": {
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "password": "test-password-123",
+    "index": 0
+  },
+  "expected_output": {
+    "publicKey": "60ec71ef5df37ee922b272edf60590158938d6a6e0d385d506de913ad3f2be3d",
+    "signatureOverFixedMessage_hex": "fbab4641e1cc7084b7f72b0238c97efdebcdef64d63261e39fe0d127e1ce8626a3b362d350b539ca3934e916286dfb554608ac0118ec123a3ab62d8b559cb001",
+    "derivationPath": "SLIP10/koala"
+  },
+  "captured_at": "2026-05-07T09:36:58.565Z",
+  "captured_from": "@kadena/hd-wallet version 0.6.2"
+}

@@ -1,0 +1,52 @@
+{
+  "input": {
+    "code": "(coin.transfer \"alice\" \"bob\" 10.0)",
+    "meta": {
+      "chainId": "1",
+      "sender": "alice",
+      "gasLimit": 2500,
+      "gasPrice": 1e-7,
+      "ttl": 28800,
+      "creationTime": 1700000000
+    },
+    "networkId": "testnet04",
+    "nonce": "snapshot-nonce-fixed",
+    "signers": [
+      {
+        "pubKey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+        "caps": [
+          [
+            "coin.GAS"
+          ],
+          [
+            "coin.TRANSFER",
+            "alice",
+            "bob",
+            {
+              "decimal": "10.0"
+            }
+          ],
+          [
+            "ouronet-ns.DALOS.GAS_PAYER",
+            "",
+            {
+              "int": 0
+            },
+            {
+              "decimal": "0.0"
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "expected_output": {
+    "cmd": "{\"payload\":{\"exec\":{\"code\":\"(coin.transfer \\\"alice\\\" \\\"bob\\\" 10.0)\",\"data\":{}}},\"nonce\":\"snapshot-nonce-fixed\",\"signers\":[{\"pubKey\":\"d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a\",\"scheme\":\"ED25519\",\"clist\":[{\"name\":\"coin.GAS\",\"args\":[]},{\"name\":\"coin.TRANSFER\",\"args\":[\"alice\",\"bob\",{\"decimal\":\"10.0\"}]},{\"name\":\"ouronet-ns.DALOS.GAS_PAYER\",\"args\":[\"\",{\"int\":0},{\"decimal\":\"0.0\"}]}]}],\"meta\":{\"gasLimit\":2500,\"gasPrice\":1e-7,\"sender\":\"alice\",\"ttl\":28800,\"creationTime\":1700000000,\"chainId\":\"1\"},\"networkId\":\"testnet04\"}",
+    "hash": "bnNWMeLwOLplQ7nvi9TteiVr9PiS40R7vtjN8LJ9zPY",
+    "sigs": [
+      null
+    ]
+  },
+  "captured_at": "2026-05-07T09:36:56.073Z",
+  "captured_from": "@kadena/client version 1.18.3"
+}

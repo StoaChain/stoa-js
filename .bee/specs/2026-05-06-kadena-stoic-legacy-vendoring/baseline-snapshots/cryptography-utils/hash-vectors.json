@@ -1,0 +1,18 @@
+{
+  "input": [
+    "",
+    "hello world",
+    "日本語テスト",
+    "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ",
+    " "
+  ],
+  "expected_output": [
+    "DldRwCblQ7Loqy6wYJnaodHl30d3j3eH-qtFzfEv46g",
+    "JWyDspcRTSAbMBefPw7wys6Xg2ItpZdDJrQ2F4ru9hA",
+    "8DopY-A9_oLZuI0AOFiJNMLQrlSwbuc4Ma4rDwtnCPQ",
+    "TPP-Ary2SL64jnm0SZwX1Eo9Pg8841mZ1kDx8fjVeBE",
+    "roXSRaPQC_3gH1nzxP4LS_rhyzfpz5GSnq3OpJhXEd4"
+  ],
+  "captured_at": "2026-05-07T09:36:56.763Z",
+  "captured_from": "@kadena/cryptography-utils version 0.4.4"
+}

@@ -1,0 +1,27 @@
+{
+  "input": [
+    "",
+    "hello world",
+    "日本語テスト",
+    "                                                                ",
+    "a"
+  ],
+  "expected_output": {
+    "encoded": [
+      "",
+      "aGVsbG8gd29ybGQ",
+      "5pel5pys6Kqe44OG44K544OI",
+      "ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIA",
+      "YQ"
+    ],
+    "decoded": [
+      "",
+      "68656c6c6f20776f726c64",
+      "e697a5e69cace8aa9ee38386e382b9e38388",
+      "20202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020",
+      "61"
+    ]
+  },
+  "captured_at": "2026-05-07T09:36:56.766Z",
+  "captured_from": "@kadena/cryptography-utils version 0.4.4"
+}
