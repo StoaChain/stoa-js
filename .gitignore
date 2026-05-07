@@ -54,6 +54,7 @@ pnpm-debug.log*
 .bee/specs/*/*
 !.bee/specs/*/baseline-snapshots/
 !.bee/specs/*/baseline-snapshots/**
+!.bee/specs/*/phase-*-triage-results.md
 !.bee/archive/
 .bee/archive/*
 !.bee/archive/*/
