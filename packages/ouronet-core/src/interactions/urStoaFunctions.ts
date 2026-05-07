@@ -6,7 +6,7 @@
  * Transfer: coin.C_UR|Transfer / Transmit / TransferAnew / TransmitAnew
  */
 
-import { Pact } from "@kadena/client";
+import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import { pactRead } from "@stoachain/stoa-core/reads";

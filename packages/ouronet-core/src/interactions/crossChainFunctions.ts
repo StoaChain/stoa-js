@@ -1,10 +1,10 @@
-import { Pact, ITransactionDescriptor } from "@kadena/client";
+import { Pact, ITransactionDescriptor } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient, withFailover } from "@stoachain/stoa-core/network";
 import { KADENA_NETWORK, getPactUrl, STOA_AUTONOMIC_OURONETGASSTATION, KADENA_NAMESPACE } from "../constants";
 import { GAS_PRICE_MIN_ANU, anuToStoa } from "@stoachain/stoa-core/gas";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";
-import { ChainId } from "@kadena/types";
+import { ChainId } from "@stoachain/kadena-stoic-legacy/types";
 
 /**
  * Get KDA balance for an account on a specific chain.
@@ -104,7 +104,7 @@ export function buildCrossChainTransfer(params: CrossChainTransferParams) {
       `(coin.transfer-crosschain "${sender}" "${receiver}" (read-keyset "${receiverKeysetName}") "${targetChain}" ${formattedAmount})`
     )
     .addData(receiverKeysetName, receiverGuard)
-    .addSigner(senderPublicKey, (withCapability) => [
+    .addSigner(senderPublicKey, (withCapability: any) => [
       withCapability("coin.TRANSFER_XCHAIN", sender, receiver, {
         decimal: formattedAmount,
       }, targetChain),
@@ -177,10 +177,10 @@ export function buildCTransferAcross(params: CTransferAcrossParams) {
     return Pact.builder
       .execution(pactCode)
       .addData(keysetName, receiverGuard)
-      .addSigner(gasStationPublicKey, (w) => [
+      .addSigner(gasStationPublicKey, (w: any) => [
         w(`${KADENA_NAMESPACE}.DALOS.GAS_PAYER`, "", { int: 0 }, { decimal: "0.0" }),
       ])
-      .addSigner(senderPublicKey, (w) => [
+      .addSigner(senderPublicKey, (w: any) => [
         w("coin.TRANSFER_XCHAIN", sender, receiver, { decimal: amount }, targetChain),
       ])
       .setMeta({
@@ -202,7 +202,7 @@ export function buildCTransferAcross(params: CTransferAcrossParams) {
     return Pact.builder
       .execution(pactCode)
       .addData(keysetName, receiverGuard)
-      .addSigner(senderPublicKey, (w) => [
+      .addSigner(senderPublicKey, (w: any) => [
         w("coin.TRANSFER_XCHAIN", sender, receiver, { decimal: amount }, targetChain),
       ])
       .setMeta({

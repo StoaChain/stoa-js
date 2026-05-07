@@ -3,7 +3,7 @@
  * On-chain interactions for C_WrapStoa (ouronet-ns.TS01-C2.LQD)
  */
 
-import { Pact } from "@kadena/client";
+import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import {

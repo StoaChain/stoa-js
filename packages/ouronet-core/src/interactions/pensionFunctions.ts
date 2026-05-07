@@ -5,7 +5,7 @@ import {
   KADENA_NETWORK,
 } from "../constants";
 import { formatDecimalForPact, safeCreationTime } from "@stoachain/stoa-core/pact";
-import { Pact } from "@kadena/client";
+import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { universalSignTransaction, fromKeypair, type IKadenaKeypair } from "@stoachain/stoa-core/signing";

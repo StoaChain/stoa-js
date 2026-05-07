@@ -7,7 +7,7 @@ import {
 import { formatEU, safeCreationTime } from "@stoachain/stoa-core/pact";
 import { mayComeWithDeimal, formatDecimalForPact } from "@stoachain/stoa-core/pact";
 import { IKeyset, normalizeKeysetRef } from "@stoachain/stoa-core/guard";
-import { Pact } from "@kadena/client";
+import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { universalSignTransaction, fromKeypair, type IKadenaKeypair } from "@stoachain/stoa-core/signing";
 import { createSigningError, createSimulationError, logDetailedError } from "@stoachain/stoa-core/errors";
