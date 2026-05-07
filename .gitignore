@@ -35,15 +35,17 @@ pnpm-debug.log*
 .env
 .env.local
 
-# Re-include Phase 0 baseline-snapshot oracle artifacts under .bee/specs/.
+# Re-include Phase 0 baseline-snapshot oracle artifacts under .bee/specs/
+# AND under .bee/archive/ (shipped specs migrate from specs/ to archive/ on
+# /bee:archive-spec; the snapshots remain a permanent historical reference).
 # These JSON snapshots are the byte-identity gold-standard for the
 # kadena-stoic-legacy migration's Phase 7 verification gate (REQ-29) and
 # MUST be tracked in git. Per gitignore(5), a child cannot be re-included if
 # any of its parent directories is excluded, so we re-include each ancestor
 # directory explicitly while immediately re-excluding ALL siblings that
 # AREN'T the baseline-snapshots subtree. This keeps every other .bee/ file
-# (sessions, STATE.md, archive/, ARCHITECTURE.md, spec docs, etc.) ignored
-# as before — ONLY the snapshot oracle leaks out of the .bee/ blanket exclusion.
+# (sessions, STATE.md, ARCHITECTURE.md, spec docs, etc.) ignored as before
+# — ONLY the snapshot oracle leaks out of the .bee/ blanket exclusion.
 !.bee/
 .bee/*
 !.bee/specs/
@@ -52,3 +54,9 @@ pnpm-debug.log*
 .bee/specs/*/*
 !.bee/specs/*/baseline-snapshots/
 !.bee/specs/*/baseline-snapshots/**
+!.bee/archive/
+.bee/archive/*
+!.bee/archive/*/
+.bee/archive/*/*
+!.bee/archive/*/baseline-snapshots/
+!.bee/archive/*/baseline-snapshots/**
