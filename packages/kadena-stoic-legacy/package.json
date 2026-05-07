@@ -1,0 +1,41 @@
+{
+  "name": "@stoachain/kadena-stoic-legacy",
+  "version": "4.1.0",
+  "description": "Vendored source of @kadena/{client,cryptography-utils,types,hd-wallet} under StoaChain stewardship. Sovereign supply-chain replacement for the upstream @kadena/* npm packages, preserved byte-identical at v1.18.3 / 0.4.4 / 0.7.0 / 0.6.2.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE-attribution.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "clean": "rimraf dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StoaChain/stoa-js.git",
+    "directory": "packages/kadena-stoic-legacy"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "license": "BSD-3-Clause"
+}

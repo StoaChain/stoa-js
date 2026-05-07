@@ -22,6 +22,12 @@
 
     "baseUrl": ".",
     "paths": {
+      "@stoachain/kadena-stoic-legacy": ["./packages/kadena-stoic-legacy/src/index.ts"],
+      "@stoachain/kadena-stoic-legacy/client": ["./packages/kadena-stoic-legacy/src/client/index.ts"],
+      "@stoachain/kadena-stoic-legacy/cryptography-utils": ["./packages/kadena-stoic-legacy/src/cryptography-utils/index.ts"],
+      "@stoachain/kadena-stoic-legacy/types": ["./packages/kadena-stoic-legacy/src/types/index.ts"],
+      "@stoachain/kadena-stoic-legacy/hd-wallet": ["./packages/kadena-stoic-legacy/src/hd-wallet/index.ts"],
+      "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver": ["./packages/kadena-stoic-legacy/src/hd-wallet/chainweaver/index.ts"],
       "@stoachain/stoa-core": ["./packages/stoa-core/src/index.ts"],
       "@stoachain/stoa-core/constants": ["./packages/stoa-core/src/constants/index.ts"],
       "@stoachain/stoa-core/network": ["./packages/stoa-core/src/network/index.ts"],
