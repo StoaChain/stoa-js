@@ -81,7 +81,7 @@
   "peerDependencies": {
     "@stoachain/kadena-stoic-legacy": "4.1.0",
     "@noble/curves": "1.9.7",
-    "@scure/bip39": "1.6.0"
+    "@scure/bip39": "1.2.1"
   },
   "repository": {
     "type": "git",
