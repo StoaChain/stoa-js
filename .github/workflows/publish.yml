@@ -75,16 +75,27 @@ jobs:
       - name: Install dependencies
         run: npm install --prefer-offline --no-audit --no-fund
 
-      # Belt-and-suspenders: tests + build gate the publish so a broken
-      # core never makes it to the registry. The root scripts iterate
-      # over all 3 workspaces (build is ordered: kadena-stoic-legacy
-      # first, then stoa-core, then ouronet-core, matching the publish
-      # order below).
-      - name: Typecheck + Test + Build (all 3 packages)
+      # Belt-and-suspenders: typecheck + build + tests gate the publish
+      # so a broken core never makes it to the registry. The root scripts
+      # iterate over all 3 workspaces; build is ordered kadena-stoic-legacy
+      # → stoa-core → ouronet-core, matching the publish order below.
+      #
+      # ORDER: typecheck → build → test. Build MUST precede test because
+      # stoa-core's tests resolve `@stoachain/kadena-stoic-legacy/*`
+      # imports through Node's standard module resolution (no
+      # resolve.alias for kadena-stoic-legacy in stoa-core's
+      # vitest.config.ts — vendored CJS source layout is incompatible
+      # with vitest's transform layer; documented at
+      # packages/stoa-core/vitest.config.ts:3-25). Module resolution flows
+      # via the kadena-stoic-legacy package's `exports` map → `dist/*/
+      # index.js`. If `dist/` doesn't exist when tests run, Node throws
+      # ERR_MODULE_NOT_FOUND. On a CI fresh checkout `dist/` is absent
+      # until the build step creates it.
+      - name: Typecheck + Build + Test (all 3 packages)
         run: |
           npm run typecheck
-          npm test
           npm run build
+          npm test
 
       # ------------------------------------------------------------------
       # Per-package publish-queue detection (the smart bit)
