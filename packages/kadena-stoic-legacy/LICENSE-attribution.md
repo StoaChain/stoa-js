@@ -20,7 +20,9 @@ Shipping four byte-identical copies would be redundant. The single canonical LIC
 
 ## Modifications from upstream
 
-(No modifications yet. Phase 2 will append entries here when cross-fetch is swapped to globalThis.fetch and walletconnect dead-requires are pruned.)
+- **2026-05-06** — `src/client/signing/chainweaver/signWithChainweaver.cjs`: replaced `cross-fetch` (~3.1.5) import with native `globalThis.fetch` (Node 22+ stable). Reason: avoid bundling third-party MIT package when the language platform now provides a stable native equivalent. Diff: removed `const cross_fetch_1 = __importDefault(require("cross-fetch"))` import + replaced `cross_fetch_1.default` call site with `globalThis.fetch`. Behavioral preservation under Node 22+.
+- **2026-05-06** — `src/client/signing/index.cjs` + `signing/index.d.cts`: removed dead walletconnect re-exports (`./walletconnect/{quicksignWithWalletConnect,signWithWalletConnect}`). Reason: walletconnect/ subtree dropped per Phase 2 T2.7 decision (zero usage in stoa-core/ouronet-core; upstream walletconnect imports are TYPE-ONLY). Diff: removed 2 `__exportStar(require(...))` lines (`signing/index.js:23-24` upstream) and 3 type re-export lines (`TWalletConnectChainId` named export + 2 `export *` lines for walletconnect submodules in `signing/index.d.ts`).
+- **2026-05-06** — `dist/client/**/*.cjs`: bare `require("./X")` calls rewritten at copy time to `require("./X.cjs")` to fix Node CJS resolver auto-resolution after the `.js → .cjs` rebrand. Reason: Node's CJS resolver auto-resolves only `.js`, `.json`, `.node` extensions for relative bare requires. Source files in `src/client/` remain byte-identical to upstream; the rewrite happens only at the dist boundary. Implementation: `scripts/copy-vendor-files.cjs` walks each `.cjs` file, applies regex `/require\("(\.\.?\/[^"]+?)"\)/g`, and appends `.cjs` (or `/index.cjs` for directory targets) when the target file exists.
 
 ## Upstream LICENSE (BSD-3-Clause, byte-identical canonical copy)
 
