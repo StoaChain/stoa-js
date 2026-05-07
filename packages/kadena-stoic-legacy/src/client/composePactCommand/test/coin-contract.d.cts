@@ -1,4 +1,4 @@
-import type { ICap } from '@kadena/types';
+import type { ICap } from '@stoachain/kadena-stoic-legacy/types';
 interface ITransferCapability {
     (name: 'coin.GAS'): ICap;
     (name: 'coin.TRANSFER', from: string, to: string, amount: {

@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runPact = void 0;
 const chainweb_node_client_1 = require("@kadena/chainweb-node-client");
-const cryptography_utils_1 = require("@kadena/cryptography-utils");
+const cryptography_utils_1 = require("@stoachain/kadena-stoic-legacy/cryptography-utils");
 const composePactCommand_1 = require("../../composePactCommand");
 function runPact(hostUrl, code, data = {}, requestInit) {
     const pactCommand = (0, composePactCommand_1.composePactCommand)((0, composePactCommand_1.execution)(code), {

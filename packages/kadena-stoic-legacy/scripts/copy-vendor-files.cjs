@@ -1,23 +1,24 @@
 #!/usr/bin/env node
-// Copy vendored .cjs and .d.cts files from src/client/ to dist/client/.
-// Preserves relative directory structure; skips .ts files (tsc compiles those).
+// Copy vendored .cjs and .d.cts files from src/{client,cryptography-utils,types,hd-wallet}/
+// to dist/<subpath>/. Preserves relative directory structure; skips .ts files (tsc compiles those).
 //
 // For .cjs files, rewrites bare `require("./X")` / `require("../X")` calls to
 // add an explicit `.cjs` (or `/index.cjs`) suffix. Node's CJS resolver
 // auto-resolves only `.js`, `.json`, `.node` extensions for relative bare
-// requires, so the rebrand from `.js` -> `.cjs` (Phase 2 T2.1-T2.5) breaks
-// runtime resolution unless extensions are added explicitly.
+// requires, so the rebrand from `.js` -> `.cjs` (Phase 2 T2.1-T2.5, Phase 3 T3.2-T3.4)
+// breaks runtime resolution unless extensions are added explicitly.
 //
-// Source files in src/client/ remain byte-identical to upstream; the rewrite
-// happens only at the dist/ boundary. This is documented under the
-// "Modifications from upstream" section of LICENSE-attribution.md.
+// Source files under src/ remain byte-identical to upstream; the rewrite happens
+// only at the dist/ boundary. This is documented under the "Modifications from
+// upstream" section of LICENSE-attribution.md.
 
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
 
-const SRC = path.resolve(__dirname, "..", "src", "client");
-const DST = path.resolve(__dirname, "..", "dist", "client");
+const SUBPATHS = ["client", "cryptography-utils", "types", "hd-wallet"];
+const SRC_ROOT = path.resolve(__dirname, "..", "src");
+const DST_ROOT = path.resolve(__dirname, "..", "dist");
 
 // Returns the rewritten require path with explicit suffix, or null if the
 // path should be left unchanged (peer dep, already-suffixed, or unresolvable).
@@ -63,23 +64,31 @@ async function walk(dir) {
 }
 
 async function main() {
-  await fs.mkdir(DST, { recursive: true });
-  const files = await walk(SRC);
-  let rewriteCount = 0;
-  for (const src of files) {
-    const rel = path.relative(SRC, src);
-    const dst = path.join(DST, rel);
-    if (src.endsWith(".cjs")) {
-      const touched = await copyAndRewriteCjs(src, dst);
-      if (touched) rewriteCount++;
-    } else {
-      await fs.mkdir(path.dirname(dst), { recursive: true });
-      await fs.copyFile(src, dst);
+  let totalFiles = 0;
+  let totalRewrites = 0;
+  for (const subpath of SUBPATHS) {
+    const src = path.join(SRC_ROOT, subpath);
+    const dst = path.join(DST_ROOT, subpath);
+    if (!fsSync.existsSync(src)) continue;
+    await fs.mkdir(dst, { recursive: true });
+    const files = await walk(src);
+    let rewriteCount = 0;
+    for (const f of files) {
+      const rel = path.relative(src, f);
+      const out = path.join(dst, rel);
+      if (f.endsWith(".cjs")) {
+        const touched = await copyAndRewriteCjs(f, out);
+        if (touched) rewriteCount++;
+      } else {
+        await fs.mkdir(path.dirname(out), { recursive: true });
+        await fs.copyFile(f, out);
+      }
     }
+    console.log(`copied ${files.length} vendored files to dist/${subpath}/ (${rewriteCount} files had bare-require rewrites)`);
+    totalFiles += files.length;
+    totalRewrites += rewriteCount;
   }
-  console.log(
-    `copied ${files.length} vendored files to dist/client/ (${rewriteCount} files had bare-require rewrites)`,
-  );
+  console.log(`total: ${totalFiles} files, ${totalRewrites} files with rewrites`);
 }
 
 main().catch((e) => {

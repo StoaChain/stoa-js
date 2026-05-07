@@ -1,5 +1,5 @@
 import type { ClientRequestInit, ICommandResult } from '@kadena/chainweb-node-client';
-import type { ChainId } from '@kadena/types';
+import type { ChainId } from '@stoachain/kadena-stoic-legacy/types';
 /**
  * @public
  */

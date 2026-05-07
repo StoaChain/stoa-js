@@ -1,4 +1,4 @@
-import type { ICommand } from '@kadena/types';
+import type { ICommand } from '@stoachain/kadena-stoic-legacy/types';
 import type { IQuicksignResponseOutcomes } from '../../signing-api/v1/quicksign';
 import type { ISignFunction, ISingleSignFunction } from '../ISignFunction';
 /**

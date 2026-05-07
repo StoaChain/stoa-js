@@ -1,4 +1,4 @@
-import type { ICommand, IUnsignedCommand } from '@kadena/types';
+import type { ICommand, IUnsignedCommand } from '@stoachain/kadena-stoic-legacy/types';
 /**
  * adds signatures to an {@link @kadena/types#IUnsignedCommand | unsigned command}
  *

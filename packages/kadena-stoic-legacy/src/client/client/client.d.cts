@@ -1,5 +1,5 @@
 import type { ClientRequestInit, ICommandResult, ILocalCommandResult, ILocalOptions, IPollResponse, LocalRequestBody, LocalResponse } from '@kadena/chainweb-node-client';
-import type { ChainId, ICommand, IUnsignedCommand } from '@kadena/types';
+import type { ChainId, ICommand, IUnsignedCommand } from '@stoachain/kadena-stoic-legacy/types';
 import type { INetworkOptions, IPollOptions, IPollRequestPromise } from './interfaces/interfaces';
 /**
  * Represents the object type that the `submit` or `send` function returns,

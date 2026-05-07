@@ -11,7 +11,7 @@ export { Pact } from './pact';
 export type * from './interfaces/IPactCommand';
 export type * from './interfaces/ISigningRequest';
 export { ClientRequestInit, ICommandResult, IPollResponse, IPreflightResult, } from '@kadena/chainweb-node-client';
-export { ChainId, ICap, ICommand, IKeyPair, IUnsignedCommand, } from '@kadena/types';
+export { ChainId, ICap, ICommand, IKeyPair, IUnsignedCommand, } from '@stoachain/kadena-stoic-legacy/types';
 export * from './utils/getPactErrorCode';
 export * from './utils/parseAsPactValue';
 //# sourceMappingURL=index.d.ts.map

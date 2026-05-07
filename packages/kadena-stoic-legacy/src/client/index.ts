@@ -90,7 +90,7 @@ export type {
 export type { ISignBody } from "./signing-api/v1/sign.cjs";
 
 // Type-only re-exports from peer-deps (Phase 2; retargeted to vendored siblings in Phase 3 sweep)
-export type { ChainId, ICap, ICommand, IKeyPair, IUnsignedCommand } from "@kadena/types";
+export type { ChainId, ICap, ICommand, IKeyPair, IUnsignedCommand } from "@stoachain/kadena-stoic-legacy/types";
 export type {
   ClientRequestInit,
   ICommandResult,

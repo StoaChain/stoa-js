@@ -1,4 +1,4 @@
-import type { ICap } from '@kadena/types';
+import type { ICap } from '@stoachain/kadena-stoic-legacy/types';
 import type { IPactModules } from '../pact';
 /**
  * @internal

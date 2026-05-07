@@ -12,18 +12,40 @@
     },
     "./client": {
       "types": "./dist/client/index.d.ts",
-      "import": "./dist/client/index.js"
+      "import": "./dist/client/index.js",
+      "require": "./dist/client/index.js"
+    },
+    "./cryptography-utils": {
+      "types": "./dist/cryptography-utils/index.d.ts",
+      "import": "./dist/cryptography-utils/index.js",
+      "require": "./dist/cryptography-utils/index.js"
+    },
+    "./hd-wallet": {
+      "types": "./dist/hd-wallet/index.d.ts",
+      "import": "./dist/hd-wallet/index.js",
+      "require": "./dist/hd-wallet/index.js"
+    },
+    "./hd-wallet/chainweaver": {
+      "types": "./dist/hd-wallet/chainweaver/index.d.ts",
+      "import": "./dist/hd-wallet/chainweaver/index.js",
+      "require": "./dist/hd-wallet/chainweaver/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js",
+      "require": "./dist/types/index.js"
     }
   },
   "files": [
     "dist",
     "CHANGELOG.md",
     "README.md",
-    "LICENSE-attribution.md"
+    "LICENSE-attribution.md",
+    "VENDOR-MANIFEST.sha256"
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "prebuild": "node scripts/copy-vendor-files.cjs",
@@ -45,8 +67,13 @@
   "peerDependencies": {
     "@kadena/chainweb-node-client": "0.9.5",
     "@kadena/pactjs": "0.6.0",
-    "@kadena/types": "0.7.0",
-    "debug": "4.3.4"
+    "@scure/bip39": "1.2.1",
+    "blakejs": "^1.2.1",
+    "buffer": "6.0.3",
+    "buffer-from": "1.1.2",
+    "debug": "4.3.4",
+    "ed25519-keygen": "0.4.8",
+    "tweetnacl": "^1.0.3"
   },
   "license": "BSD-3-Clause"
 }

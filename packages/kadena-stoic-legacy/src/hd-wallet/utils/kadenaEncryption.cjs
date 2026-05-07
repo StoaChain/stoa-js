@@ -1,0 +1,95 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.kadenaChangePassword = exports.kadenaDecrypt = exports.kadenaEncrypt = void 0;
+const crypto_js_1 = require("./crypto.cjs");
+/**
+ * Encrypts the message with a password .
+ * @param message - The message to be encrypted.
+ * @param password - password used for encryption.
+ * @returns The encrypted string
+ * @public
+ */
+async function kadenaEncrypt(password, message, encode = 'base64') {
+    // Using randomBytes for the salt is fine here because the salt is not secret but should be unique.
+    const salt = (0, crypto_js_1.randomBytes)(16);
+    const { cipherText, iv, iterations } = await (0, crypto_js_1.encrypt)(typeof message === 'string'
+        ? new Uint8Array(Buffer.from(message))
+        : message, password, salt);
+    const encrypted = Buffer.from([salt, iv, cipherText, iterations]
+        .map((x) => Buffer.from((0, crypto_js_1.toArrayBuffer)(x)).toString('base64'))
+        .join('.'));
+    return (encode === 'base64' ? encrypted.toString('base64') : encrypted);
+}
+exports.kadenaEncrypt = kadenaEncrypt;
+/**
+ * Decrypts an encrypted message using the provided password.
+ * This function is a wrapper for the internal decryption logic, intended
+ * for public-facing API usage where the private key encryption follows
+ *
+ * @param encryptedData - The encrypted data as a Base64 encoded string.
+ * @param password - The password used to encrypt the private key.
+ * @returns The decrypted private key.
+ * @throws Throws an error if decryption fails.
+ * @public
+ */
+async function kadenaDecrypt(password, encryptedData) {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (!encryptedData) {
+        throw new Error('Encrypted data is empty');
+    }
+    const [saltBase64, ivBase64, encryptedBase64, iterationsBase64] = typeof encryptedData === 'string'
+        ? Buffer.from(encryptedData, 'base64').toString().split('.')
+        : Buffer.from((0, crypto_js_1.toArrayBuffer)(encryptedData)).toString().split('.');
+    // Convert from Base64.
+    const salt = new Uint8Array(Buffer.from(saltBase64, 'base64'));
+    const iv = new Uint8Array(Buffer.from(ivBase64, 'base64'));
+    const cipherText = new Uint8Array(Buffer.from(encryptedBase64, 'base64'));
+    const iterations = iterationsBase64
+        ? Buffer.from(iterationsBase64, 'base64').toString()
+        : undefined;
+    // decrypt and return the private key.
+    const decrypted = await (0, crypto_js_1.decrypt)({ cipherText, iv, iterations }, password, salt).catch(() => undefined);
+    if (decrypted)
+        return new Uint8Array(decrypted);
+    throw new Error('Decryption failed');
+}
+exports.kadenaDecrypt = kadenaDecrypt;
+/**
+ * Changes the password of an encrypted data.
+ *
+ * @param privateKey - The encrypted private key as a Base64 encoded string.
+ * @param password - The current password used to encrypt the private key.
+ * @param newPassword - The new password to encrypt the private key with.
+ * @returns The newly encrypted private key as a Base64 encoded string.
+ * @throws Throws an error if the old password is empty, new password is incorrect empty passwords are empty, or if encryption with the new password fails.
+ * @public
+ */
+async function kadenaChangePassword(password, encryptedData, newPassword, encode = 'base64') {
+    if (typeof password !== 'string' || typeof newPassword !== 'string') {
+        throw new Error('The old and new passwords must be strings.');
+    }
+    if (password === '') {
+        throw new Error('The old password cannot be empty.');
+    }
+    if (newPassword === '') {
+        throw new Error('The new password cannot be empty.');
+    }
+    if (password === newPassword) {
+        throw new Error('The new password must be different from the old password.');
+    }
+    let decryptedPrivateKey;
+    try {
+        decryptedPrivateKey = await kadenaDecrypt(password, encryptedData);
+    }
+    catch (error) {
+        throw new Error(`Failed to decrypt the private key with the old password: ${error.message}`);
+    }
+    try {
+        return kadenaEncrypt(newPassword, decryptedPrivateKey, encode);
+    }
+    catch (error) {
+        throw new Error(`Failed to encrypt the private key with the new password: ${error.message}`);
+    }
+}
+exports.kadenaChangePassword = kadenaChangePassword;
+//# sourceMappingURL=kadenaEncryption.js.map

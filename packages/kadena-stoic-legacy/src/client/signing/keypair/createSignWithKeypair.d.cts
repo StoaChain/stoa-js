@@ -1,4 +1,4 @@
-import type { IKeyPair } from '@kadena/types';
+import type { IKeyPair } from '@stoachain/kadena-stoic-legacy/types';
 import type { ISignFunction } from '../ISignFunction';
 /**
  * interface for the `createSignWithKeypair` function {@link createSignWithKeypair}

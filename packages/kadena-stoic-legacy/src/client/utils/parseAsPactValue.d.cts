@@ -1,4 +1,4 @@
-import type { PactValue } from '@kadena/types';
+import type { PactValue } from '@stoachain/kadena-stoic-legacy/types';
 import { Literal } from './pact-helpers';
 /**
  * @public

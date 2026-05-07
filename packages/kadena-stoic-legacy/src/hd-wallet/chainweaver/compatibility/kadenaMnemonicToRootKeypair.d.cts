@@ -1,0 +1,2 @@
+export declare const kadenaMnemonicToRootKeypair: <TEncode extends "base64" | "buffer" = "base64">(password: string | Uint8Array, mnemonic: string, encode?: TEncode) => Promise<TEncode extends "base64" ? import("../../index.js").EncryptedString : Uint8Array>;
+//# sourceMappingURL=kadenaMnemonicToRootKeypair.d.ts.map

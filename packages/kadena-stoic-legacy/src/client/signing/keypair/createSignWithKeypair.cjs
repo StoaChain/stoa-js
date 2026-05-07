@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createSignWithKeypair = void 0;
-const cryptography_utils_1 = require("@kadena/cryptography-utils");
+const cryptography_utils_1 = require("@stoachain/kadena-stoic-legacy/cryptography-utils");
 const debug_1 = __importDefault(require("debug"));
 const addSignatures_1 = require("../utils/addSignatures");
 const parseTransactionCommand_1 = require("../utils/parseTransactionCommand");

@@ -1,0 +1,9 @@
+export declare const kadenaMnemonicToRootKeypair: (password: string | Uint8Array, mnemonic: string) => Promise<Uint8Array>;
+export declare const kadenaChangePassword: (privateKey: string | Uint8Array, oldPassword: string, newPassword: string) => Promise<Uint8Array>;
+export declare const kadenaCheckMnemonic: (mnemonic: string) => boolean;
+export declare const kadenaGetPublic: (secretKey: Uint8Array) => Promise<Uint8Array>;
+export declare const kadenaSign: (password: string | Uint8Array, message: Uint8Array, privateKey: string | Uint8Array) => Promise<Uint8Array>;
+export declare const kadenaVerify: (message: string, publicKey: string, signature: string) => Promise<boolean>;
+export declare const kadenaGenKeypair: (password: string | Uint8Array, rootKey: string | Uint8Array, index: number) => Promise<[Uint8Array, Uint8Array]>;
+export declare const kadenaGenMnemonic: () => string;
+//# sourceMappingURL=kadena-crypto.d.ts.map

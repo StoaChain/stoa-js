@@ -1,4 +1,4 @@
-import type { ICap, IExecPayload, IUnsignedCommand } from '@kadena/types';
+import type { ICap, IExecPayload, IUnsignedCommand } from '@stoachain/kadena-stoic-legacy/types';
 import type { ValidDataTypes } from '../composePactCommand/utils/addData';
 import type { IVerifier } from '../composePactCommand/utils/addVerifier';
 import type { AddCapabilities } from '../composePactCommand/utils/payload';

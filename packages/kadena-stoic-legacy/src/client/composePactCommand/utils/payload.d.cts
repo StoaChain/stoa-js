@@ -1,4 +1,4 @@
-import type { ICap } from '@kadena/types';
+import type { ICap } from '@stoachain/kadena-stoic-legacy/types';
 import type { IContinuationPayloadObject, IExecutionPayloadObject } from '../../interfaces/IPactCommand';
 import type { ExtractPactModule } from '../../interfaces/type-utilities';
 export type AddCapabilities<T> = {

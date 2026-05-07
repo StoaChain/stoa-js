@@ -1,4 +1,4 @@
-import type { ICap } from '@kadena/types';
+import type { ICap } from '@stoachain/kadena-stoic-legacy/types';
 import type { IPartialPactCommand, ISigner } from '../../interfaces/IPactCommand';
 import type { ExtractCapabilityType, IGeneralCapability } from '../../interfaces/type-utilities';
 interface IAddSigner {

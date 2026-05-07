@@ -1,4 +1,4 @@
-import type { ISigningCap } from '@kadena/types';
+import type { ISigningCap } from '@stoachain/kadena-stoic-legacy/types';
 import type { IPactCommand } from './IPactCommand';
 /**
  * @alpha

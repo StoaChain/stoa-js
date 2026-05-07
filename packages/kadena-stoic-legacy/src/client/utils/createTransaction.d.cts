@@ -1,4 +1,4 @@
-import type { IUnsignedCommand } from '@kadena/types';
+import type { IUnsignedCommand } from '@stoachain/kadena-stoic-legacy/types';
 import type { IPartialPactCommand } from '../interfaces/IPactCommand';
 /**
  * Prepare a transaction object. Creates an object with hash, cmd and sigs ({@link @kadena/types#IUnsignedCommand})

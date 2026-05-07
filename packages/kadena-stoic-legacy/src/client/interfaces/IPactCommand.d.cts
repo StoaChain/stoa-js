@@ -1,4 +1,4 @@
-import type { ChainId, ICap, PactValue } from '@kadena/types';
+import type { ChainId, ICap, PactValue } from '@stoachain/kadena-stoic-legacy/types';
 import type { AllPartial } from './type-utilities';
 /**
  * The payload of a Execution transaction

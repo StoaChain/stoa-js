@@ -1,4 +1,4 @@
-import type { ICommand, IUnsignedCommand } from '@kadena/types';
+import type { ICommand, IUnsignedCommand } from '@stoachain/kadena-stoic-legacy/types';
 import type { IPactCommand } from '../../interfaces/IPactCommand';
 /**
  * parse a ICommand or IUnsignedCommand JSON object to IPactCommand

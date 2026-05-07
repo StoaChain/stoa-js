@@ -1,4 +1,4 @@
-import type { ICap, PactValue } from '@kadena/types';
+import type { ICap, PactValue } from '@stoachain/kadena-stoic-legacy/types';
 import type { IPartialPactCommand } from '../../interfaces/IPactCommand';
 import type { ExtractType } from './addSigner';
 export interface IVerifier {
