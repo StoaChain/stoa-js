@@ -4,6 +4,29 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.1.0 — 2026-05-07
+
+**MINOR — sovereign supply-chain migration (atomic with `@stoachain/stoa-core@4.1.0` + `@stoachain/kadena-stoic-legacy@4.1.0`).** Retargets every internal `@kadena/*` import in `src/interactions/` to the new sibling subpaths under [`@stoachain/kadena-stoic-legacy`](https://www.npmjs.com/package/@stoachain/kadena-stoic-legacy) — a sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship.
+
+### Why
+
+Post-Kadena-LLC, the StoaChain ecosystem cannot accept supply-chain risk on unmaintained upstream npm packages. v4.0.0 pinned the `@kadena/*` peer-deps to exact versions (no `^`) as prep work — v4.1.0 is the follow-through: drop the upstream peer-deps entirely, depend on the StoaChain-stewarded vendored sibling, lock the migration with a runtime regression test that fails if any `@kadena/*` literal sneaks back into source or built output.
+
+### What changed
+
+  - **12 imports retargeted across `src/interactions/`.** All 12 internal `@kadena/*` imports across the 13 `interactions/*` modules (`ouroFunctions`, `coilFunctions`, `pensionFunctions`, `guardFunctions`, `infoOneFunctions`, `wrapFunctions`, etc.) rewired to `@stoachain/kadena-stoic-legacy/{client,types}`. Each retarget preserves the imported symbol set byte-identically — `Pact`, `createClient`, `ICommand`, `IUnsignedCommand`, `ChainId` — the vendored module re-exports the upstream surface verbatim.
+  - **Peer-deps trimmed.** Three `@kadena/*` peer-dep declarations (`@kadena/client@1.18.3`, `@kadena/cryptography-utils@0.4.4`, `@kadena/types@0.7.0`) removed from `package.json`. Single `@stoachain/kadena-stoic-legacy: "4.1.0"` exact-pin added. `@stoachain/stoa-core` peer-dep bumped `4.0.1 → 4.1.0` (atomic-version invariant — all three packages always release at the same version).
+  - **Public function signatures unchanged.** Every interactions function (`getOuronetKdaDetails`, `getCoilPreviewGeneric`, every `pension*` / `guard*` / `infoOne*` / `wrap*` / `unwrap*` / `migrate*` builder) retains byte-identical shape. Consumers who import via `@stoachain/ouronet-core/interactions/*` see no breaking change.
+  - **Regression-lock added.** `tests/v4-1-0-no-kadena-imports.test.ts` (43 specs) walks `dist/**/*.{js,d.ts}` + `src/**/*.ts` and asserts no `@kadena/*` literal occurs in any import statement, type reference, or string. Fails the CI build if a future regression silently reintroduces an upstream `@kadena/*` dependency.
+
+### Tests
+
+**261/261 pass** (was 218 in v4.0.1; +43 from the new regression-lock).
+
+### Migration
+
+For consumers importing through subpath, **no migration required** — every `interactions/*` and `pact/cfm` public surface keeps its byte-identical shape. The upstream `@kadena/*` peer-deps are gone from this package's `package.json`, but consumers who keep a direct dependency on those upstream packages in their own code are unaffected (npm dedupes the @kadena tree at the consumer level). See [`MIGRATION-v4.1.md`](https://github.com/StoaChain/stoa-js/blob/main/MIGRATION-v4.1.md) at the monorepo root for the full upgrade map.
+
 ## 4.0.1 — 2026-05-06
 
 **PATCH, cosmetic (published-metadata cleanup).** Strips the redundant `devDependencies` block from `package.json`. Pre-v4.0.1 the published manifest carried a `devDependencies` block that contained `@stoachain/stoa-core: "*"` (workspace-resolution plumbing — meaningless on a published artifact since the `peerDependency` already pins `@stoachain/stoa-core@4.0.1`) plus duplicates of the `@kadena/*` peer entries. The npmjs.com page now shows the cleaner shape: zero `dependencies`, just the canonical `peerDependencies` (the @kadena/* set + `@stoachain/stoa-core@4.0.1` exact-pin). The peer-dep on `@stoachain/stoa-core` was bumped from `4.0.0` to `4.0.1` (atomic-version invariant — both packages always release at the same version). NO source-code change. NO behaviour change. NO breaking change. **218/218 tests pass** (regression-lock test `tests/package-version.test.ts` updated to assert `4.0.1`).

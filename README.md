@@ -1,15 +1,16 @@
 # stoa-js
 
-The StoaChain TypeScript stack — a two-package npm workspace under one GitHub monorepo.
+The StoaChain TypeScript stack — a three-package npm workspace under one GitHub monorepo.
 
 ## Packages
 
 | Package | Purpose | Direct link |
 |---|---|---|
+| [`@stoachain/kadena-stoic-legacy`](./packages/kadena-stoic-legacy) | Sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship. Five subpath exports preserved byte-identical to upstream at `1.18.3 / 0.4.4 / 0.7.0 / 0.6.2`. Born at v4.1.0 in response to upstream supply-chain risk. BSD-3-Clause. | [npm](https://www.npmjs.com/package/@stoachain/kadena-stoic-legacy) · [README](./packages/kadena-stoic-legacy/README.md) · [CHANGELOG](./packages/kadena-stoic-legacy/CHANGELOG.md) |
 | [`@stoachain/stoa-core`](./packages/stoa-core) | Chain-generic StoaChain foundation: signing, wallet, crypto envelope, network failover, gas calibration, guard analysis, DALOS key-gen, observability seam, error taxonomy, on-chain read primitives, Pact-code format helpers. | [npm](https://www.npmjs.com/package/@stoachain/stoa-core) · [README](./packages/stoa-core/README.md) · [CHANGELOG](./packages/stoa-core/CHANGELOG.md) |
 | [`@stoachain/ouronet-core`](./packages/ouronet-core) | Ouronet protocol business logic: codex backup format, the 13 `interactions/*` Pact builders for the `ouronet-ns` modules, the `STOA_AUTONOMIC_*` autonomic accounts, and the cfm Pact-code assembler. | [npm](https://www.npmjs.com/package/@stoachain/ouronet-core) · [README](./packages/ouronet-core/README.md) · [CHANGELOG](./packages/ouronet-core/CHANGELOG.md) |
 
-`@stoachain/ouronet-core` peer-depends on `@stoachain/stoa-core` at the same exact version. Both packages release atomically out of this monorepo at the same version — a single `vX.Y.Z` git tag publishes both.
+Build / publish order: `kadena-stoic-legacy → stoa-core → ouronet-core`. `@stoachain/stoa-core` peer-depends on `@stoachain/kadena-stoic-legacy`; `@stoachain/ouronet-core` peer-depends on both. All three packages release atomically at the same version — a single `vX.Y.Z` git tag publishes all three (or any subset whose `package.json` version matches the tag, via the smart per-package CI workflow).
 
 ## Why split?
 
@@ -62,11 +63,11 @@ stoa-js/
 Run from the monorepo root — npm workspaces iterate both packages:
 
 ```bash
-npm install                   # one install for both packages (deduped)
-npm run typecheck             # tsc --noEmit across both
-npm test                      # 703 specs (485 stoa-core + 218 ouronet-core)
-npm run build                 # stoa-core first, then ouronet-core (dependency order)
-npm run clean                 # rimraf dist/ in both packages
+npm install                   # one install for all 3 packages (deduped)
+npm run typecheck             # tsc --noEmit across all 3
+npm test                      # 819 specs (7 kadena-stoic-legacy + 551 stoa-core + 261 ouronet-core)
+npm run build                 # kadena-stoic-legacy → stoa-core → ouronet-core (dependency order)
+npm run clean                 # rimraf dist/ across all 3 packages
 ```
 
 Per-package work — each `packages/*` directory has the same script names:
@@ -110,7 +111,9 @@ Breaking changes → major bump → consumers upgrade deliberately. Never silent
 
 ## Status
 
-**v4.0.0 (2026-05-06)** — Initial monorepo release. Both packages at `4.0.0`. **703 tests passing** (485 + 218). See [`MIGRATION-v4.md`](./MIGRATION-v4.md) for the v3.3.8 → v4.0.0 upgrade path.
+**v4.1.0 (2026-05-07)** — Sovereign vendoring of `@kadena/*` upstream packages under StoaChain stewardship. New third package [`@stoachain/kadena-stoic-legacy`](./packages/kadena-stoic-legacy) ships `@kadena/{client,cryptography-utils,types,hd-wallet}` byte-identical to upstream at `1.18.3 / 0.4.4 / 0.7.0 / 0.6.2`. `stoa-core` and `ouronet-core` retargeted: 27 internal `@kadena/*` imports rewired onto the new sibling subpaths. All 3 packages atomically at `4.1.0`. **819 tests passing** (7 + 551 + 261). See [`MIGRATION-v4.1.md`](./MIGRATION-v4.1.md) for the v4.0.x → v4.1.0 consumer upgrade path. The v3.3.8 → v4.0.0 monorepo-split upgrade is [`MIGRATION-v4.md`](./MIGRATION-v4.md).
+
+**v4.0.0 (2026-05-06)** — Initial monorepo release. Both v4.0.x packages at `4.0.0` / `4.0.1`. **703 tests passing** (485 + 218). See [`MIGRATION-v4.md`](./MIGRATION-v4.md) for the v3.3.8 → v4.0.0 upgrade path.
 
 ## License
 

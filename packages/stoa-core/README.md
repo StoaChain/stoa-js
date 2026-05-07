@@ -6,6 +6,8 @@ This package was born from the v4.0.0 split of `@stoachain/ouronet-core` v3.3.8 
 
 ## Status
 
+**`4.1.0` on public npmjs** — **MIGRATION (atomic with `@stoachain/kadena-stoic-legacy@4.1.0` + `@stoachain/ouronet-core@4.1.0`).** Retargets all 25 internal `@kadena/*` imports (15 src + 10 test) to the new sibling subpaths under [`@stoachain/kadena-stoic-legacy`](https://www.npmjs.com/package/@stoachain/kadena-stoic-legacy) — a sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship. Drops the four `@kadena/*` peer-dep declarations; replaces with a single `@stoachain/kadena-stoic-legacy: "4.1.0"` entry. The publicly-exported type surfaces (`IKadenaKeypair`, `ICommand`, `IUnsignedCommand`, `ChainId`, `KeyPair`, etc.) are unchanged — consumers who import via `@stoachain/stoa-core/{signing,wallet,reads,pact}` see no surface change. Test count: 551 (was 485; +66 from new `tests/v4-1-0-no-kadena-imports.test.ts` runtime regression-lock).
+
 **`4.0.1` on public npmjs** — **PATCH, cosmetic (published-metadata cleanup).** Strips the redundant `devDependencies` block from `package.json`. Pre-v4.0.1 the published manifest carried a `devDependencies` block that duplicated the `peerDependencies` entries verbatim (workspace-tooling cruft visible on npmjs.com as "Dev Dependencies" alongside "Peer Dependencies"). v4.0.1 drops the dupes — the npmjs.com page now shows only `dependencies` (`@stoachain/dalos-crypto@4.0.3`) and `peerDependencies` (the @kadena/* + @noble/curves + @scure/bip39 set). NO source-code change. NO behaviour change. **485/485 tests pass.**
 
 **`v4.0.0`** — **INITIAL RELEASE — born from the monorepo split.** `@stoachain/stoa-core` is the chain-generic StoaChain TypeScript foundation, extracted from `@stoachain/ouronet-core` v3.3.8 as part of the `stoa-js` monorepo restructure. Twelve subpath exports, one per chain-generic domain (constants / network / observability / signing / wallet / crypto / errors / gas / guard / reads / pact / dalos). The root entry (`@stoachain/stoa-core`) is intentionally near-empty — consumers MUST reach into a subpath for tree-shaking. Architecture preserved from `@stoachain/ouronet-core` v3.3.8: three pluggable seams (`setPactReader(fn)`, `KeyResolver` + `PactClient` interfaces, `BalanceResolver` function-shaped seam) so core stays environment-agnostic without a framework. Node failover is global state — anything making an HTTP call routes through `withFailover`. Codex backup format and the Ouronet-specific `interactions/*` are NOT in this package — those live in `@stoachain/ouronet-core`. **485 tests pass** in this package; **703/703 across both packages** (485 stoa-core + 218 ouronet-core). Pre-v4 history of the chain-generic surfaces lives in the `@stoachain/ouronet-core` CHANGELOG v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped this infrastructure baked into the same package.
@@ -20,14 +22,11 @@ npm install @stoachain/stoa-core
 
 It declares the following peer dependencies (must be present in the consumer's tree):
 
-  - `@kadena/client` `1.18.3`
-  - `@kadena/cryptography-utils` `0.4.4`
-  - `@kadena/hd-wallet` `0.6.2`
-  - `@kadena/types` `0.7.0`
+  - `@stoachain/kadena-stoic-legacy` `4.1.0`
   - `@noble/curves` `1.9.7`
   - `@scure/bip39` `1.6.0`
 
-Pinned to exact versions (no `^`) — supply-chain hardening prep work for v4.1.0's selective `@kadena/client` vendoring after Kadena LLC's dissolution.
+Pinned to exact versions (no `^`). As of v4.1.0 the four `@kadena/*` peer-deps were dropped in favour of a single `@stoachain/kadena-stoic-legacy` entry — a sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship (supply-chain hardening after Kadena LLC's dissolution).
 
 If you use `@stoachain/ouronet-core` (the Ouronet protocol layer) you'll get this package transitively, but a direct dependency is fine and doesn't double the install — npm dedupes both consumers down to a single `node_modules/@stoachain/stoa-core/`.
 
@@ -78,6 +77,8 @@ Strict semver. `@stoachain/stoa-core` and `@stoachain/ouronet-core` always relea
 The `CHANGELOG.md` in this package is the source of truth for what changed in `@stoachain/stoa-core` per version. Pre-v4 changes to chain-generic surfaces (signing, wallet, crypto, network, etc.) are documented in `@stoachain/ouronet-core`'s pre-v4 CHANGELOG entries — those releases shipped this code baked into the single package.
 
 ## Version history
+
+**v4.1.0** — sovereign supply-chain migration. **MINOR (atomic with `@stoachain/kadena-stoic-legacy@4.1.0` + `@stoachain/ouronet-core@4.1.0`).** Retargets all 25 internal `@kadena/*` imports (15 src + 10 test) to the new sibling subpaths under [`@stoachain/kadena-stoic-legacy`](https://www.npmjs.com/package/@stoachain/kadena-stoic-legacy) — a sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship, born at v4.1.0 in response to Kadena LLC's dissolution and the resulting unmaintained-upstream supply-chain risk. The four `@kadena/*` peer-dep declarations are dropped from `package.json`; a single `@stoachain/kadena-stoic-legacy@4.1.0` peer-dep replaces them (+ the unchanged `@noble/curves@1.9.7` and `@scure/bip39@1.6.0` pins). The publicly-exported type surfaces (`IKadenaKeypair`, `ICommand`, `IUnsignedCommand`, `ChainId`, `KeyPair`, etc.) are unchanged — consumers who import via `@stoachain/stoa-core/{signing,wallet,reads,pact}` see ZERO surface change; every Pact-builder, hash, key-generation, and HD-wallet call site rewires under the hood to the vendored module. Test count: **551** (was 485; +66 from the new `tests/v4-1-0-no-kadena-imports.test.ts` runtime regression-lock that asserts no `@kadena/*` literal appears in any built or source file under `dist/` or `src/`). Release is atomic — `vX.Y.Z` git tag publishes all three packages simultaneously via `.github/workflows/publish.yml` in dependency order (kadena-stoic-legacy first, stoa-core second, ouronet-core third), each with its own `--provenance` SLSA attestation.
 
 **v4.0.1** — cosmetic published-metadata cleanup. **PATCH.** Strips the redundant `devDependencies` block from `package.json` — the block duplicated the `peerDependencies` entries verbatim, which was workspace-tooling cruft visible on npmjs.com but not actually doing anything useful for consumers (npm 7+ auto-installs peer-deps in development; the duplicate dev-dep entries were leftover from pre-workspace publishing patterns). NO source-code change. NO behaviour change. **485/485 tests pass.** Regression-lock at `tests/package-version.test.ts` updated to assert `4.0.1`.
 

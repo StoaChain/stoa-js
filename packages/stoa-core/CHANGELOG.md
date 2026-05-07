@@ -4,6 +4,29 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.1.0 — 2026-05-07
+
+**MINOR — sovereign supply-chain migration (atomic with `@stoachain/kadena-stoic-legacy@4.1.0` + `@stoachain/ouronet-core@4.1.0`).** Retargets every internal `@kadena/*` import in this package to the new sibling subpaths under [`@stoachain/kadena-stoic-legacy`](https://www.npmjs.com/package/@stoachain/kadena-stoic-legacy) — a sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship.
+
+### Why
+
+Post-Kadena-LLC, the StoaChain ecosystem cannot accept supply-chain risk on unmaintained upstream npm packages. v4.0.0 pinned the four `@kadena/*` peer-deps to exact versions (no `^`) as prep work — v4.1.0 is the follow-through: drop the upstream peer-deps entirely, depend on the StoaChain-stewarded vendored sibling, lock the migration with a runtime regression test that fails if any `@kadena/*` literal sneaks back into source or built output.
+
+### What changed
+
+  - **15 src + 10 test imports retargeted.** All 25 internal `@kadena/*` imports across `src/{signing,wallet,reads,pact}/` and `tests/` rewired to `@stoachain/kadena-stoic-legacy/{client,cryptography-utils,types,hd-wallet,hd-wallet/chainweaver}`. Each retarget preserves the imported symbol set byte-identically (`Pact`, `createClient`, `hash`, `binToHex`, `ICommand`, `IUnsignedCommand`, `ChainId`, `kadenaSign`, etc.) — the vendored module re-exports the upstream surface verbatim.
+  - **Peer-deps trimmed.** Four `@kadena/*` peer-dep declarations removed from `package.json`. Single `@stoachain/kadena-stoic-legacy: "4.1.0"` exact-pin added. `@noble/curves: "1.9.7"` and `@scure/bip39: "1.6.0"` unchanged.
+  - **Public type surface unchanged.** `IKadenaKeypair`, `ICommand`, `IUnsignedCommand`, `ChainId`, `KeyPair`, `IKeyset`, etc. — every type exported through `@stoachain/stoa-core/{signing,wallet,reads,pact}` retains the same shape. Consumers who import via subpath see no breaking change. The atomic-release invariant means `@stoachain/ouronet-core@4.1.0` simultaneously rewires its 12 interactions imports.
+  - **Regression-lock added.** `tests/v4-1-0-no-kadena-imports.test.ts` (66 specs) walks `dist/**/*.{js,d.ts,cjs,d.cts}` + `src/**/*.ts` and asserts no `@kadena/*` literal occurs in any import statement, type reference, or string. Fails the CI build if a future regression silently reintroduces an upstream `@kadena/*` dependency.
+
+### Tests
+
+**551/551 pass** (was 485 in v4.0.1; +66 from the new regression-lock).
+
+### Migration
+
+For consumers importing through subpath, **no migration required** — every public surface keeps its byte-identical shape. Consumers who happen to import `@kadena/*` types directly in their own code can continue to do so (those upstream packages still exist on npmjs.com for the foreseeable future) — but the StoaChain-recommended path is to import the vendored types from `@stoachain/kadena-stoic-legacy/types`. See [`MIGRATION-v4.1.md`](https://github.com/StoaChain/stoa-js/blob/main/MIGRATION-v4.1.md) at the monorepo root for the full upgrade map.
+
 ## 4.0.1 — 2026-05-06
 
 **PATCH, cosmetic (published-metadata cleanup).** Strips the redundant `devDependencies` block from `package.json`. Pre-v4.0.1 the published manifest carried a `devDependencies` block that duplicated the `peerDependencies` entries verbatim — workspace-tooling cruft (npm 7+ peer-dep auto-install in dev mode makes the duplicate unnecessary, but the line shipped to npmjs.com anyway, where it appeared as "Dev Dependencies" on the package page next to the canonical "Peer Dependencies" section). v4.0.1 drops the dupes — the npmjs.com page now shows only `dependencies` (`@stoachain/dalos-crypto@4.0.3`) and `peerDependencies` (the @kadena/* + @noble/curves + @scure/bip39 set). NO source-code change. NO behaviour change. NO breaking change. **485/485 tests pass** (regression-lock test `tests/package-version.test.ts` updated to assert `4.0.1`).
