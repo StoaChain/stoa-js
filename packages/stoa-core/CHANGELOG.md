@@ -4,6 +4,30 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## [4.1.1] - 2026-05-08
+
+### Added — typed error classes (v4.1.1 audit closures)
+- `MnemonicMismatchError` (`src/wallet/errors.ts`, REQ-09 / F-SEC-009): typed wrapping of mnemonic-validation throws in `KadenaWalletBuilder.createWalletPairFromMnemonic`. Message strings unchanged.
+- `SmartAccountAuthError` (`src/signing/errors.ts`, REQ-11 / F-BUG-008): thrown by `CodexSigningStrategy.execute()` when a Σ-prefix smart-account guard is detected on either `keysetRef` or `keys[]` AND no satisfiable codex path exists.
+
+### Changed — audit closures
+- **REQ-07 (F-SEC-006):** `KadenaWallet` adds `toJSON()` and `[Symbol.for("nodejs.util.inspect.custom")]()` methods that omit `secret` (and `balanceResolver`) from JSON.stringify and console.log output. Direct `wallet.secret` access preserved.
+- **REQ-13 (F-API-008):** `SeedType` declaration now lives in `src/wallet/types.ts` only. `ouronet-core/codex/seedTypeMigration.ts` re-exports from `@stoachain/stoa-core/wallet`.
+- **REQ-14 (F-API-012):** `SigningError` constructor now forwards original error via ES2022 `super(message, { cause: originalError })`. 5-arg constructor signature unchanged.
+- **REQ-15 (F-API-013):** `GuardAnalysis.firstSignableButUnsatisfied` is now required (drop `?:`). Producer always populates the field with a -1 sentinel when no signable-but-unsatisfied branch exists.
+
+### Test surface
+- 8 new v4-1-1-*.test.ts files: kadena-wallet-redaction, mnemonic-mismatch, sigma-prefix-guard, signing-error-cause, guard-analysis-required-fields, dalos-import-style, gas-limit-colors-public, dist-structure, esm-roundtrip, type-preservation, package-metadata, peer-dep-coverage.
+- Test count: ~575 → ~640 specs.
+
+### Documentation
+- `GAS_LIMIT_COLORS` marked `@public` JSDoc. Removal deferred to v4.2.0.
+
+### Version
+- Atomic-triplet bump 4.1.0 → 4.1.1 alongside `@stoachain/kadena-stoic-legacy` and `@stoachain/ouronet-core`.
+- `@stoachain/kadena-stoic-legacy` peer-dep aligned to `4.1.1`.
+- `@scure/bip39` peer-dep stays at exact-pin `1.2.1` (post-v4.1.0 hotfix `49d69a3` alignment with kadena-stoic-legacy's vendored copy).
+
 ## 4.1.0 — 2026-05-07
 
 **MINOR — sovereign supply-chain migration (atomic with `@stoachain/kadena-stoic-legacy@4.1.0` + `@stoachain/ouronet-core@4.1.0`).** Retargets every internal `@kadena/*` import in this package to the new sibling subpaths under [`@stoachain/kadena-stoic-legacy`](https://www.npmjs.com/package/@stoachain/kadena-stoic-legacy) — a sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship.

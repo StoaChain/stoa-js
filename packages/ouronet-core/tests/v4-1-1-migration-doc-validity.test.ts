@@ -26,5 +26,8 @@ describe("REQ-30: MIGRATION-v4.1.md doc validity", () => {
     expect(doc).toMatch(/v4\.1\.0|4\.1\.0/);
   });
 
-  it.todo("Phase 8 lands the v4.1.1 appendix in MIGRATION-v4.1.md");
+  it("MIGRATION-v4.1.md contains a v4.1.1 appendix section", () => {
+    const doc = readFileSync(migrationPath, "utf8");
+    expect(doc).toMatch(/##\s+What's new in v?4\.?1\.?1/i);
+  });
 });

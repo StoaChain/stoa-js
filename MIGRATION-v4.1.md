@@ -162,3 +162,111 @@ This is verifiable: post-migration `tsc --noEmit -p packages/stoa-core/tsconfig.
 - Vendor manifest: [`packages/kadena-stoic-legacy/VENDOR-MANIFEST.sha256`](./packages/kadena-stoic-legacy/VENDOR-MANIFEST.sha256)
 - Phase 0 baseline snapshots: [`.bee/specs/2026-05-06-kadena-stoic-legacy-vendoring/baseline-snapshots/`](./.bee/specs/2026-05-06-kadena-stoic-legacy-vendoring/baseline-snapshots/)
 - v3.3.8 → v4.0.0 migration: [`MIGRATION-v4.md`](./MIGRATION-v4.md)
+
+---
+
+## What's new in v4.1.1
+
+v4.1.1 is a patch release on top of v4.1.0. The 3-package atomic-triplet
+(`@stoachain/{kadena-stoic-legacy,stoa-core,ouronet-core}`) bumps together;
+all peer-dep declarations align to 4.1.1.
+
+### Migration impact
+
+**No breaking changes.** v4.1.1 is patch-semver compliant. Most consumer code
+needs zero changes. Two areas may surface NEW typed errors that consumers
+should be prepared to catch:
+
+#### 1. `kadenaFunctions.getBalance` / `accountDescription` — typed throw replaces silent "0" fallback (REQ-01)
+
+Pre-v4.1.1: shape-mismatched RPC envelopes silently fabricated `balance: "0"`.
+Post-v4.1.1: shape mismatches throw typed `KadenaShapeError` (extends Error
+with ES2022 `cause`).
+
+```ts
+import { getBalance } from "@stoachain/ouronet-core/interactions/kadenaFunctions";
+import { KadenaShapeError } from "@stoachain/ouronet-core/interactions/errors";
+
+try {
+  const result = await getBalance(account);
+  console.log(result.balance);
+} catch (err) {
+  if (err instanceof KadenaShapeError) {
+    // The chain returned an envelope shape we did not expect.
+    // err.cause carries the original envelope for debugging.
+    console.error("Unexpected balance envelope:", err.cause);
+  } else {
+    throw err;
+  }
+}
+```
+
+The legitimate fallbacks at lines 28-29 (`account || address`, `guard || null`)
+are preserved — `accountDescription` still returns isNewAccount-style defaults
+for `result.status === "failure"` envelopes.
+
+#### 2. `getSublimateInfo` deprecation shim (REQ-02)
+
+Pre-v4.1.1: the `getSublimateInfo` function was duplicated at both
+`ouroFunctions.ts:2148` (with signature `(patron, resident, amount: string)`)
+and `infoOneFunctions.ts:179` (canonical, with `(client, target, amount: number)`).
+
+Post-v4.1.1: the canonical lives at `infoOneFunctions.ts:179` only. The
+old location at `ouroFunctions.ts` retains a `@deprecated` JSDoc compat
+shim that adapts the legacy signature. The shim accepts BOTH the old
+string-amount form AND the new number-amount form for one release. Will
+be removed in v4.2.0.
+
+Recommended: import from canonical:
+```ts
+// Preferred (v4.1.1+):
+import { getSublimateInfo } from "@stoachain/ouronet-core/interactions/infoOneFunctions";
+
+// Still works in v4.1.1 (emits @deprecated JSDoc warning):
+import { getSublimateInfo } from "@stoachain/ouronet-core/interactions/ouroFunctions";
+```
+
+### Audit-closure summary
+
+v4.1.1 closes 4 HIGH and 16 MEDIUM/LOW findings from the 2026-05-05 audit:
+
+- **HIGH closed:** F-ERR-022, F-API-005, F-API-006, F-API-007
+- **SEC closed:** F-SEC-006 (wallet redaction), F-SEC-007 (codex strict-shape), F-SEC-009 (MnemonicMismatchError)
+- **BUG closed:** F-BUG-008 (Σ-prefix guard), F-BUG-010 (migrateSeedType strict)
+- **API closed:** F-API-008 (SeedType dedup), F-API-012 (SigningError cause), F-API-013 (firstSignableButUnsatisfied required), F-API-014 (getSparksBalance narrow)
+- **ARCH:** F-ARCH-012 lock-test added; F-ARCH-013 marked @public + lock test
+- **PERF/TEST:** REQ-19..24 verified intact (closed in v3.x)
+- **TEST surface:** Phase 7 LITE catch-up tests landed (REQ-25..33) — peer-dep coverage, publish-workflow simulation, vendor-fidelity, build-artifact, type-preservation, doc-gates, cross-platform helper scripts.
+
+Tier 4 architectural debt (god files F-ARCH-001/002/003, type-readonly sweep
+F-API-018, etc.) explicitly DEFERRED to v4.2.0 architectural spec.
+
+### New typed error classes
+
+Consumers can opt into structured error handling by importing these classes:
+
+| Class | Subpath | Trigger |
+|-------|---------|---------|
+| `KadenaShapeError` | `@stoachain/ouronet-core/interactions/errors` | RPC envelope shape mismatch |
+| `MnemonicMismatchError` | `@stoachain/stoa-core/wallet` | KadenaWalletBuilder mnemonic mismatch (12-word or 24-word) |
+| `SmartAccountAuthError` | `@stoachain/stoa-core/signing` | Σ-prefix guard not satisfiable in CodexSigningStrategy |
+| `CodexUnknownFieldError` | `@stoachain/ouronet-core/codex` | deserializeCodex finds an unknown top-level field |
+| `UnknownSeedTypeError` | `@stoachain/ouronet-core/codex` | migrateSeedType called with an unrecognized seed type |
+
+All extend `Error` (with ES2022 `cause`) — none extend `TypeError`.
+
+### Peer-dep alignment
+
+- `@scure/bip39` stays at exact-pin `1.2.1` across kadena-stoic-legacy + stoa-core (post-v4.1.0 hotfix `49d69a3`).
+- `@stoachain/kadena-stoic-legacy@4.1.1` and `@stoachain/stoa-core@4.1.1` peer-pinned where applicable.
+
+### Publish-workflow stability
+
+Phase 7 LITE catch-up tests in v4.1.1 add proactive regression coverage for
+both v4.1.0 hotfix classes:
+- T7.10 (peer-dep coverage tests across all 3 packages) would have caught the
+  bip39 mismatch at PR-time pre-49d69a3.
+- T7.11 (publish-workflow simulation test) asserts `typecheck → build → test`
+  ordering, which would have caught the workflow-ordering hotfix pre-0c64fb9.
+
+After v4.1.1 ships, future hotfixes for these classes become extremely rare.

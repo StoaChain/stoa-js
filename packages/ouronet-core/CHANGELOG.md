@@ -4,6 +4,31 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## [4.1.1] - 2026-05-08
+
+### Added — typed error classes (v4.1.1 audit closures)
+- `KadenaShapeError` (`src/interactions/errors.ts`, REQ-01 / F-ERR-022): RPC envelope shape-mismatch error. Mirrors `InvalidEnvelopeError` from stoa-core (extends Error with ES2022 `cause`).
+- `CodexUnknownFieldError` and `UnknownSeedTypeError` (`src/codex/errors.ts`, REQ-08 / REQ-12): codex-domain validation errors.
+
+### Changed — audit closures
+- **REQ-01 (F-ERR-022):** `kadenaFunctions.ts` lines 16+27 — fabricated `?? "0"` and `|| "0"` fallbacks dropped. Now throws typed `KadenaShapeError` on shape-mismatched RPC envelopes. The legitimate `account || address` and `guard || null` fallbacks at lines 28-29 are preserved.
+- **REQ-02 (F-API-005):** `getSublimateInfo` dedup — duplicate body at `ouroFunctions.ts:2148` removed and replaced with a `@deprecated` JSDoc compat shim that adapts the legacy `(patron, resident, amount-as-string)` signature to canonical form. Canonical at `infoOneFunctions.ts:179`. Shim removed in v4.2.0.
+- **REQ-03 (F-API-006):** `describeKeyset` dedup — private duplicate at `urStoaFunctions.ts:89` removed. Helper `describeKeysetOrNull` preserves the two behaviors the canonical does NOT have: `pred ?? "keys-all"` coercion and map-keys-not-array-to-null. Canonical at `guardFunctions.ts:62`.
+- **REQ-08 (F-SEC-007):** `deserializeCodex` rejects envelopes with unknown top-level fields (against KNOWN_TOP_LEVEL_FIELDS = {version, exportedAt, kadenaWallets, ouronetWallets, addressBook, uiSettings}).
+- **REQ-12 (F-BUG-010):** `migrateSeedType` no longer silently returns `"koala"` for unknown seed types. Now throws `UnknownSeedTypeError`. The idempotence test at `codex-codec.test.ts:345-352` updated to drop `"garbage"` from the inputs array.
+- **REQ-16 (F-API-014):** `getSparksBalance` return type narrowed from `Promise<any>` to `Promise<any | null>`.
+
+### Test surface
+- 11 new v4-1-1-*.test.ts files: kadena-no-fallbacks, codec-strict-shape, seed-type-strict, seed-type-dedup, sparks-balance-narrow, dist-structure, esm-roundtrip, type-preservation, doc-gates, migration-doc-validity, package-metadata, peer-dep-coverage, full-chain-integration, cross-package-version-pin, publish-workflow-simulation, coil-functions-memoization.
+- Test count: ~245 → ~330 specs.
+
+### Version
+- Atomic-triplet bump 4.1.0 → 4.1.1.
+- Peer-deps `@stoachain/kadena-stoic-legacy` and `@stoachain/stoa-core` both aligned to `4.1.1`.
+
+### Migration
+- See `MIGRATION-v4.1.md` v4.1.1 appendix for caller-impact details (typed throws replacing fallbacks, deprecation shim, new error classes).
+
 ## 4.1.0 — 2026-05-07
 
 **MINOR — sovereign supply-chain migration (atomic with `@stoachain/stoa-core@4.1.0` + `@stoachain/kadena-stoic-legacy@4.1.0`).** Retargets every internal `@kadena/*` import in `src/interactions/` to the new sibling subpaths under [`@stoachain/kadena-stoic-legacy`](https://www.npmjs.com/package/@stoachain/kadena-stoic-legacy) — a sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}` under StoaChain stewardship.

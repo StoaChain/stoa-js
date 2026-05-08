@@ -4,6 +4,24 @@ All notable changes to `@stoachain/kadena-stoic-legacy`.
 
 This package was born at v4.1.0 as a sovereign supply-chain replacement for the upstream `@kadena/*` npm packages following Kadena LLC's dissolution. Released atomically alongside `@stoachain/stoa-core@4.1.0` + `@stoachain/ouronet-core@4.1.0` out of the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo — a single `vX.Y.Z` git tag publishes all three packages.
 
+## [4.1.1] - 2026-05-08
+
+### Added
+- 7 new vendor-fidelity test files validate the vendored `@kadena/*` source surface remains intact:
+  - `exports.test.ts` — 5 subpath exports resolve with named exports
+  - `pact-builder-snapshot.test.ts` — 10 baseline pact-builder snapshots round-trip
+  - `cryptography-utils-snapshots.test.ts` — 4 baseline crypto-utils snapshots round-trip (URL-safe base64 + restoreKeyPairFromSecretKey)
+  - `hd-wallet-snapshots.test.ts` — 4 baseline koala+chainweaver derivation snapshots
+  - `signing-snapshots.test.ts` — 2 baseline single-sig+multi-sig snapshots; cross-snapshot keypair-reuse invariant locked
+  - `cross-subpath-imports.test.ts` — each subpath imports in isolation
+  - `types-shape.test.ts` — type-only ./types subpath compiles
+- 3 new build-artifact tests: `v4-1-1-dist-structure.test.ts`, `v4-1-1-esm-roundtrip.test.ts`, `v4-1-1-no-side-effects.test.ts`.
+- 2 new package-metadata + peer-dep coverage tests assert atomic-triplet invariants.
+
+### Changed
+- Version bump 4.1.0 → 4.1.1 (atomic-triplet alongside `@stoachain/stoa-core` and `@stoachain/ouronet-core`).
+- Vendor source: NO changes (byte-identical to upstream `@kadena/{client,cryptography-utils,types,hd-wallet}` at v1.18.3 / 0.4.4 / 0.7.0 / 0.6.2).
+
 ## 4.1.0 — 2026-05-07
 
 **INITIAL RELEASE — sovereign vendoring of the @kadena/* upstream supply chain.**
