@@ -97,6 +97,16 @@ class KadenaWallet {
     this.balance = await this.balanceResolver(this.address);
     return this.balance;
   }
+
+  toJSON() {
+    const { secret, balanceResolver, ...rest } = this;
+    return rest;
+  }
+
+  [Symbol.for("nodejs.util.inspect.custom")]() {
+    const { secret, balanceResolver, ...rest } = this;
+    return rest;
+  }
 }
 
 export default KadenaWallet;

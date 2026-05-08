@@ -17,6 +17,7 @@
  */
 
 import type { CodexExportV1_2, PlaintextCodex } from "./types";
+import { CodexUnknownFieldError } from "./errors";
 
 /**
  * Build a `CodexExportV1_2` payload from a PlaintextCodex. Stamps
@@ -93,6 +94,15 @@ export function deserializeCodex<
   if (parsed.version !== "1.2") {
     throw new Error(
       `deserializeCodex: unsupported version ${String(parsed.version)} — expected "1.2"`,
+    );
+  }
+  const KNOWN_TOP_LEVEL_FIELDS = new Set([
+    "version", "exportedAt", "kadenaWallets", "ouronetWallets", "addressBook", "uiSettings",
+  ]);
+  const unknownFields = Object.keys(parsed).filter(k => !KNOWN_TOP_LEVEL_FIELDS.has(k));
+  if (unknownFields.length > 0) {
+    throw new CodexUnknownFieldError(
+      `Codex envelope contains unknown top-level field(s): ${unknownFields.join(", ")}`,
     );
   }
   if (!Array.isArray(parsed.kadenaWallets)) {

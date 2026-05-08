@@ -35,6 +35,7 @@ import {
   kadenaGenKeypair,
 } from "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver";
 import type { SeedType } from "./types";
+import { MnemonicMismatchError } from "./errors";
 
 class KadenaWalletBuilder {
   /** Standard SLIP-10 derivation from a pre-existing encrypted seed blob. */
@@ -63,7 +64,7 @@ class KadenaWalletBuilder {
       case "chainweaver":
       case "eckowallet": {
         if (!kadenaCheckMnemonic(mnemonic)) {
-          throw new Error("Invalid 12-word Chainweaver mnemonic.");
+          throw new MnemonicMismatchError("Invalid 12-word Chainweaver mnemonic.");
         }
         const chainweaverSeed = await kadenaMnemonicToRootKeypair(
           password,
@@ -78,7 +79,7 @@ class KadenaWalletBuilder {
       case "koala":
       default: {
         if (!bip39.validateMnemonic(mnemonic, wordlist)) {
-          throw new Error("Invalid 24-word BIP39 mnemonic.");
+          throw new MnemonicMismatchError("Invalid 24-word BIP39 mnemonic.");
         }
         const standardSeed = await kadenaMnemonicToSeed(password, mnemonic);
         const [publicKey, secretKey] = await kadenaGenKeypairFromSeed(

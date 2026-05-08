@@ -24,6 +24,7 @@ import {
   serializeCodex,
   deserializeCodex,
   migrateSeedType,
+  UnknownSeedTypeError,
   type PlaintextCodex,
   type SeedType,
 } from "../src/codex";
@@ -91,9 +92,9 @@ describe("migrateSeedType — codex round-trip integration", () => {
 
 // ─── 2. Locked unknown-input fallback invariant ──────────────────────────────
 
-describe("migrateSeedType — locked unknown-input fallback invariant", () => {
-  it('falls back to "koala" for "v3-future-seed" (audit-locked default; distinct from the "unknown" / "" / "KOALA" / "garbage" strings already exercised in codex-codec.test.ts)', () => {
-    expect(migrateSeedType("v3-future-seed")).toBe("koala");
+describe("migrateSeedType — locked unknown-input throw invariant", () => {
+  it('throws UnknownSeedTypeError for "v3-future-seed" (strict contract; distinct from the "unknown" / "" / "KOALA" / "garbage" strings already exercised in codex-codec.test.ts)', () => {
+    expect(() => migrateSeedType("v3-future-seed")).toThrow(UnknownSeedTypeError);
   });
 });
 

@@ -24,6 +24,7 @@ import { calculateAutoGasLimit } from "../gas";
 import { runWithTimeout } from "../network";
 import { createTimeoutError } from "../errors";
 import { fromKeypair, universalSignTransaction } from "./universalSign";
+import { SmartAccountAuthError } from "./errors";
 import type {
   IKadenaKeypair,
   KeyResolver,
@@ -90,6 +91,51 @@ export class CodexSigningStrategy implements SigningStrategy {
     // `listCodexPubs()` once here and reusing it downstream avoids a
     // duplicate resolver hop.
     const codexPubs = await this.resolver.listCodexPubs();
+
+    // ── B½. Σ-prefix smart-account guard detection ───────────────────
+    // Best-effort detection at the strategy boundary. Smart-account
+    // synthesis emits Σ. in either the keysetRef name or the keys[]
+    // entries. When that pattern is present AND the codex cannot satisfy
+    // the guard (no signable codex paths), the strategy throws
+    // SmartAccountAuthError so the caller can surface a meaningful
+    // "switch to smart-account auth flow" error instead of failing deep
+    // in the signing pipeline with an opaque message.
+    //
+    // REQ-11 closure is best-effort detection at the strategy boundary.
+    // Smart-account address-level enforcement is upstream in
+    // `smartAccountAuth.analyzeSmartAccountAuthPaths`. v4.2 architectural
+    // review may consolidate the two detection points.
+    for (const guard of guards) {
+      const keysetRefHasSigma =
+        guard.keysetRef !== undefined && guard.keysetRef.includes("Σ.");
+      const keysHaveSigma =
+        Array.isArray(guard.keys) && guard.keys.some((k) => k.includes("Σ."));
+      const isSmartAccountGuard = keysetRefHasSigma || keysHaveSigma;
+
+      if (isSmartAccountGuard) {
+        const analysis = analyzeGuard(guard, codexPubs);
+        // Fire when codex holds no signable keys for this guard. The empty-keys
+        // case (keys: []) satisfies analyzeGuard trivially (threshold 0) but a
+        // Σ.-keyed guard with no inline keys is a keyset-ref pointing at a
+        // smart-account keyset the codex cannot resolve — treat as unsatisfiable.
+        const noCodexPath =
+          analysis.codexKeys.length === 0 &&
+          (guard.keys.length === 0 || !analysis.satisfied);
+        if (noCodexPath) {
+          const matchedSurface =
+            keysetRefHasSigma && keysHaveSigma
+              ? "keysetRef + keys"
+              : keysetRefHasSigma
+                ? "keysetRef"
+                : "keys";
+          throw new SmartAccountAuthError(
+            `Smart account guard not satisfiable by codex keys (Σ-prefix detected on ${matchedSurface}, no signable codex paths). ` +
+              `Smart-account address-level enforcement is upstream in smartAccountAuth.analyzeSmartAccountAuthPaths; ` +
+              `this is a best-effort strategy-boundary check.`,
+          );
+        }
+      }
+    }
 
     // ── B'. Foreign-key resolver pre-flight (REQ-03 / F-CORE-014) ────
     // If the resolver omits `requestForeignKey`, any guard pub that is

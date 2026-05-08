@@ -32,6 +32,7 @@ import * as bip39 from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
 import { kadenaCheckMnemonic, kadenaSign } from "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver";
 import KadenaWalletBuilder from "../src/wallet/KadenaWalletBuilder";
+import { MnemonicMismatchError } from "../src/wallet";
 
 // ── Vendor test vectors (pinned regression) ─────────────────────────────────
 
@@ -160,7 +161,7 @@ describe("KadenaWalletBuilder.createWalletPairFromMnemonic — mnemonic / seedTy
         0,
         "koala",
       ),
-    ).rejects.toThrow(/Invalid 24-word BIP39 mnemonic\./);
+    ).rejects.toThrow(MnemonicMismatchError);
 
     await expect(
       KadenaWalletBuilder.createWalletPairFromMnemonic(
@@ -169,7 +170,7 @@ describe("KadenaWalletBuilder.createWalletPairFromMnemonic — mnemonic / seedTy
         0,
         "chainweaver",
       ),
-    ).rejects.toThrow(/Invalid 12-word Chainweaver mnemonic\./);
+    ).rejects.toThrow(MnemonicMismatchError);
   });
 });
 

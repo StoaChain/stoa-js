@@ -17,6 +17,8 @@
  * consumer (UI + future HUB) needs.
  */
 
+import { UnknownSeedTypeError } from "./errors";
+
 /** The three canonical seed types a Codex entry can have today. */
 export type SeedType = "koala" | "chainweaver" | "eckowallet";
 
@@ -32,11 +34,23 @@ const SEED_TYPE_MIGRATION: Record<string, SeedType> = {
 };
 
 /**
- * Map a raw seed-type string to the canonical form. Unknown strings default
- * to `"koala"` — this matches the UI's historical behaviour and avoids a
- * throw during load; the alternative (throw) would lock users out of their
- * codex over a typo.
+ * Migrate a raw seed-type string from a v1.x codex into a canonical SeedType.
+ *
+ * Throws `UnknownSeedTypeError` if the input is not in the recognized migration
+ * map — strict-by-default contract per REQ-12 (F-BUG-010, v4.1.1). Replaces the
+ * pre-v4.1.1 silent `|| "koala"` fallback that could route unknown seed types
+ * through koala derivation, masking codex-import drift.
+ *
+ * @param rawType - The seed-type string from the v1.x codex envelope
+ * @returns Canonical SeedType ("koala" | "chainweaver" | "eckowallet")
+ * @throws UnknownSeedTypeError when rawType is not in SEED_TYPE_MIGRATION
  */
 export function migrateSeedType(rawType: string): SeedType {
-  return SEED_TYPE_MIGRATION[rawType] || "koala";
+  const result = SEED_TYPE_MIGRATION[rawType];
+  if (result === undefined) {
+    throw new UnknownSeedTypeError(
+      `Unknown seed type: "${rawType}". Expected one of: ${Object.keys(SEED_TYPE_MIGRATION).join(", ")}`
+    );
+  }
+  return result;
 }

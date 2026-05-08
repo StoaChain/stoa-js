@@ -28,3 +28,4 @@ export {
 } from "./codec";
 export type { SeedType, RawSeedType } from "./seedTypeMigration";
 export { migrateSeedType } from "./seedTypeMigration";
+export { CodexUnknownFieldError, UnknownSeedTypeError } from "./errors";

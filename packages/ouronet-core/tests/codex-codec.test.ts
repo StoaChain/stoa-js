@@ -15,6 +15,8 @@ import {
   serializeCodex,
   deserializeCodex,
   migrateSeedType,
+  UnknownSeedTypeError,
+  CodexUnknownFieldError,
   type PlaintextCodex,
   type CodexExportV1_2,
   type SeedType,
@@ -144,17 +146,13 @@ describe("deserializeCodex", () => {
     expect(() => deserializeCodex("null")).toThrow(/not an object/i);
   });
 
-  it("preserves unknown extra fields through the parse cast (forward-compat pin)", () => {
-    // Hand-crafted JSON with an unknown extra field. We bypass serializeCodex
-    // because it strips unknowns at the buildCodexExport layer; the forward-
-    // compat guarantee lives in deserializeCodex's `parsed as CodexExportV1_2`
-    // cast, which leaves the parsed object's own keys intact at runtime.
-    // If a future refactor swaps the cast for a field-by-field rebuild this
-    // test fails, signalling a breaking change for downstream consumers that
-    // rely on reading newer-shape v1.2 exports through older core versions.
+  it("throws CodexUnknownFieldError for unknown top-level fields (strict-shape enforcement)", () => {
+    // REQ-08 supersedes the old forward-compat pass-through: unknown fields
+    // are rejected at the deserialization boundary to prevent attacker-controlled
+    // import files from smuggling unexpected keys into the parsed codex object.
     const json = '{"version":"1.2","kadenaWallets":[],"ouronetWallets":[],"addressBook":[],"uiSettings":{},"futureFieldX":"x"}';
-    const parsed = deserializeCodex(json);
-    expect((parsed as any).futureFieldX).toBe("x");
+    expect(() => deserializeCodex(json)).toThrow(CodexUnknownFieldError);
+    expect(() => deserializeCodex(json)).toThrow(/futureFieldX/);
   });
 });
 
@@ -343,7 +341,7 @@ describe("migrateSeedType", () => {
   });
 
   it("is idempotent: migrate(migrate(x)) === migrate(x)", () => {
-    const inputs = ["legacy", "new", "koala", "chainweaver", "eckowallet", "garbage"];
+    const inputs = ["legacy", "new", "koala", "chainweaver", "eckowallet"];
     for (const x of inputs) {
       const once = migrateSeedType(x);
       const twice = migrateSeedType(once);
@@ -351,10 +349,10 @@ describe("migrateSeedType", () => {
     }
   });
 
-  it("falls back to koala for unknown strings (matches historical UI behaviour)", () => {
-    expect(migrateSeedType("unknown")).toBe("koala");
-    expect(migrateSeedType("")).toBe("koala");
-    expect(migrateSeedType("KOALA")).toBe("koala"); // case-sensitive, unknown → default
+  it("throws UnknownSeedTypeError for unknown strings (strict contract)", () => {
+    expect(() => migrateSeedType("unknown")).toThrow(UnknownSeedTypeError);
+    expect(() => migrateSeedType("")).toThrow(UnknownSeedTypeError);
+    expect(() => migrateSeedType("KOALA")).toThrow(UnknownSeedTypeError);
   });
 });
 

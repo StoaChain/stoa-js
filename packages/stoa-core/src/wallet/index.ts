@@ -5,6 +5,7 @@
 // implements against its own storage backend (browser: localStorage,
 // server: encrypted file, etc.).
 
+export * from "./errors";
 export * from "./types";
 export * from "./storageAdapter";
 
