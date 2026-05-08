@@ -1461,7 +1461,7 @@ export async function getMaxBuyMovieBooster(
 }
 
 
-export async function getSparksBalance(account: string): Promise<any> {
+export async function getSparksBalance(account: string): Promise<any | null> {
   try {
     const response = await pactRead(`(${KADENA_NAMESPACE}.MB.UR_Sparks "${account}")`, { tier: "T5" });
 

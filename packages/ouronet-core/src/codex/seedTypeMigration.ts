@@ -18,9 +18,9 @@
  */
 
 import { UnknownSeedTypeError } from "./errors";
+import type { SeedType } from "@stoachain/stoa-core/wallet";
 
-/** The three canonical seed types a Codex entry can have today. */
-export type SeedType = "koala" | "chainweaver" | "eckowallet";
+export type { SeedType } from "@stoachain/stoa-core/wallet";
 
 /** The string you might find in a raw codex blob — includes legacy names. */
 export type RawSeedType = SeedType | "legacy" | "new" | string;

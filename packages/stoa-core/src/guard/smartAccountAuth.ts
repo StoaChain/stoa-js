@@ -266,12 +266,12 @@ export interface SmartAccountAuthPaths {
   readonly firstSatisfied: number; // 0 | 1 | 2 | -1
   /**
    * Index of the first branch where `keyBased === true` AND
-   * `analysis.satisfied === false`. `-1` when no such branch exists.
-   * Optional on the interface so consumers compiled against the
-   * v1.6.0 surface remain type-compatible; the producer always
-   * populates the field.
+   * `analysis.satisfied === false`. Required; sentinel value `-1`
+   * when no signable-but-unsatisfied branch exists. The producer
+   * initialises this to `-1` and overwrites it when such a branch
+   * is found.
    */
-  readonly firstSignableButUnsatisfied?: number; // 0 | 1 | 2 | -1
+  readonly firstSignableButUnsatisfied: number; // 0 | 1 | 2 | -1
 }
 
 /**

@@ -25,7 +25,7 @@ export class SigningError extends Error implements TransactionError {
     originalError?: any,
     suggestions?: string[]
   ) {
-    super(message);
+    super(message, { cause: originalError });
     this.name = "SigningError";
     this.code = code;
     this.context = context;

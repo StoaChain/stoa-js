@@ -72,7 +72,17 @@ export function getGasLimitStatus(limit: number): GasLimitStatus {
   return "safe";
 }
 
-/** Color mappings for each gas limit status (dark theme inline styles) */
+/**
+ * Public consumer-facing UI hex colors for gas-limit visualization.
+ *
+ * Marked `@public` per Phase 3 D-001/P-001 override (audit-closures-v4-1-1):
+ * REQ-18 originally proposed removing this export, but the export is plausibly
+ * consumed by OuronetUI (and possibly AncientHolder HUB) as a presentation-layer
+ * constant. Removal is a breaking change unsuitable for v4.1.1 patch semver.
+ * Removal deferred to v4.2.0 architectural spec pending consumer confirmation.
+ *
+ * @public
+ */
 export const GAS_LIMIT_COLORS: Record<
   GasLimitStatus,
   { bg: string; text: string; border: string }
