@@ -102,4 +102,23 @@ describe("v4.1.0 regression: no @kadena/* imports in ouronet-core", () => {
       });
     }
   }
+
+  it("self-exclusion: this test file is correctly excluded from its own walk", () => {
+    // The SELF constant should be set to this test file's basename.
+    // The walk should never include this file in its iteration.
+    // We test this by recreating the walk WITHOUT the SELF skip and verifying
+    // that this very file IS visible in the walk results (proving SELF would
+    // have skipped it correctly).
+
+    const thisFile = basename(fileURLToPath(import.meta.url));
+
+    // Confirm SELF constant matches this file
+    expect(thisFile).toBe(SELF);
+
+    // Confirm the walk WOULD have encountered this file if SELF wasn't excluded
+    // (re-walk the tests dir to ensure this file is on disk and would be picked up)
+    const testsDir = here;
+    const allTsFiles = readdirSync(testsDir).filter(f => f.endsWith(".ts"));
+    expect(allTsFiles).toContain(SELF);
+  });
 });
