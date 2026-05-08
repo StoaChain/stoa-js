@@ -33,10 +33,19 @@ import { resolve } from "node:path";
 // T1.6) → `src/*/index.ts`. Both work; only Vitest's runtime alias
 // path was incompatible.
 const stoaCoreSrc = resolve(__dirname, "../stoa-core/src");
+const ouronetCoreSrc = resolve(__dirname, "src");
 
 export default defineConfig({
   resolve: {
     alias: [
+      // Self-referencing subpath aliases so test files can import from
+      // `@stoachain/ouronet-core/interactions/*` without a built dist.
+      { find: /^@stoachain\/ouronet-core\/interactions\/(.+)$/, replacement: `${ouronetCoreSrc}/interactions/$1.ts` },
+      { find: /^@stoachain\/ouronet-core\/interactions$/, replacement: `${ouronetCoreSrc}/interactions/index.ts` },
+      { find: /^@stoachain\/ouronet-core\/constants$/, replacement: `${ouronetCoreSrc}/constants/index.ts` },
+      { find: /^@stoachain\/ouronet-core\/codex$/, replacement: `${ouronetCoreSrc}/codex/index.ts` },
+      { find: /^@stoachain\/ouronet-core\/pact$/, replacement: `${ouronetCoreSrc}/pact/index.ts` },
+      { find: /^@stoachain\/ouronet-core$/, replacement: `${ouronetCoreSrc}/index.ts` },
       { find: /^@stoachain\/stoa-core\/constants$/, replacement: `${stoaCoreSrc}/constants/index.ts` },
       { find: /^@stoachain\/stoa-core\/network$/, replacement: `${stoaCoreSrc}/network/index.ts` },
       { find: /^@stoachain\/stoa-core\/observability$/, replacement: `${stoaCoreSrc}/observability/index.ts` },

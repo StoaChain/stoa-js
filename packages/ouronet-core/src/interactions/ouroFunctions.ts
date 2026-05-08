@@ -2145,21 +2145,18 @@ export async function getDPTFIssueInfo(
   }
 }
 
+/**
+ * @deprecated Use `getSublimateInfo` from `@stoachain/ouronet-core/interactions/infoOneFunctions` instead.
+ * This compat shim accepts the legacy (patron, resident, amount-as-string) signature and forwards to the canonical
+ * (client, target, amount-as-number) form. Will be removed in v4.2.0.
+ */
 export async function getSublimateInfo(
-  patron: string,
-  resident: string,
-  amount: string
-): Promise<any | null> {
-  try {
-    const decimalAmount = formatDecimalForPact(amount);
-    const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.ORBR|INFO_Sublimate "${patron}" "${resident}" ${decimalAmount})`;
-    const response = await pactRead(pactCode, { tier: "T2" });
-    if (response?.result?.status === "success") return (response.result as any).data;
-    return null;
-  } catch (error) {
-    getLogger().error("Error in getSublimateInfo:", error);
-    return null;
-  }
+  a: string,
+  b: string,
+  c: string | number
+): Promise<any> {
+  const { getSublimateInfo: canonical } = await import("./infoOneFunctions");
+  return canonical(a, b, typeof c === "string" ? Number(c) : c);
 }
 
 export async function getCompressInfo(

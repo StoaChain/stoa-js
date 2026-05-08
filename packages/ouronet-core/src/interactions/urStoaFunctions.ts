@@ -21,6 +21,7 @@ import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pac
 import { createSimulationError, logDetailedError } from "@stoachain/stoa-core/errors";
 import { getLogger } from "@stoachain/stoa-core/observability";
 import { ed25519 } from "@noble/curves/ed25519";
+import { describeKeyset, type IDescribedKeyset } from "./guardFunctions";
 
 
 // ── Signature verification ──────────────────────────────────────────────────
@@ -86,19 +87,13 @@ export async function getUrStoaBalance(account: string): Promise<number | null> 
 
 // ── Describe keyset ref ─────────────────────────────────────────────────────
 
-async function describeKeyset(ksRef: string): Promise<{ keys: string[]; pred: string } | null> {
+async function describeKeysetOrNull(ksRef: string): Promise<IDescribedKeyset | null> {
   try {
-    const pactCode = `(describe-keyset "${ksRef}")`;
-    const response = await pactRead(pactCode, { tier: "T7" });
-    if (response?.result?.status === "success") {
-      const data = (response.result as any).data;
-      if (data && Array.isArray(data.keys)) {
-        return { keys: data.keys, pred: data.pred ?? "keys-all" };
-      }
-    }
-    return null;
-  } catch (error) {
-    getLogger().error("Error in describeKeyset:", error);
+    const r = await describeKeyset(ksRef);
+    if (!Array.isArray(r.keys)) return null;
+    return { keys: r.keys, pred: r.pred ?? "keys-all" };
+  } catch (err) {
+    getLogger().error("Error in describeKeysetOrNull:", err);
     return null;
   }
 }
@@ -127,7 +122,7 @@ export async function getUrStoaGuard(account: string): Promise<UrStoaGuardResult
 
         // Case 2: Keyset reference — unpack via (describe-keyset <ref>)
         if (data.keysetref && typeof data.keysetref === "string") {
-          const resolved = await describeKeyset(data.keysetref);
+          const resolved = await describeKeysetOrNull(data.keysetref);
           if (resolved) {
             return {
               exists: true,
@@ -141,7 +136,7 @@ export async function getUrStoaGuard(account: string): Promise<UrStoaGuardResult
         // Also handle keysetref nested in a ks-name field
         const ksName = data["ks-name"] ?? data.keysetref ?? data["keysetref-name"];
         if (ksName && typeof ksName === "string" && !data.keys?.length) {
-          const resolved = await describeKeyset(ksName);
+          const resolved = await describeKeysetOrNull(ksName);
           if (resolved) {
             return {
               exists: true,

@@ -49,11 +49,14 @@ export interface EncryptedDataV2 {
  * return `{ plaintext, wasLegacyV1 }` so consumers can react
  * programmatically.
  */
-export interface EncryptedDataV1 {
-  ciphertext: string;
-  iv: string;
-  salt: string;
-}
+/**
+ * V1 envelope shape — alias for EncryptedData from v1.ts.
+ * Re-exported here so existing imports of `EncryptedDataV1` from `./v2` keep working.
+ * (Phase 1 closure of REQ-04 / F-API-007: byte-identical duplicate interfaces collapsed.)
+ *
+ * (PRESERVE the existing OWASP / v3.3.7 / F-SEC-004 JSDoc context above this line.)
+ */
+export type { EncryptedData as EncryptedDataV1 } from "./v1";
 
 /**
  * Result shape returned by `decryptStringV2WithDetails` /
