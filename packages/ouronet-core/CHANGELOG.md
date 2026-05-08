@@ -4,7 +4,7 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
-## [4.1.1] - 2026-05-08
+## 4.1.1 — 2026-05-08
 
 ### Added — typed error classes (v4.1.1 audit closures)
 - `KadenaShapeError` (`src/interactions/errors.ts`, REQ-01 / F-ERR-022): RPC envelope shape-mismatch error. Mirrors `InvalidEnvelopeError` from stoa-core (extends Error with ES2022 `cause`).

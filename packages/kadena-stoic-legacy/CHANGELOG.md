@@ -4,7 +4,7 @@ All notable changes to `@stoachain/kadena-stoic-legacy`.
 
 This package was born at v4.1.0 as a sovereign supply-chain replacement for the upstream `@kadena/*` npm packages following Kadena LLC's dissolution. Released atomically alongside `@stoachain/stoa-core@4.1.0` + `@stoachain/ouronet-core@4.1.0` out of the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo — a single `vX.Y.Z` git tag publishes all three packages.
 
-## [4.1.1] - 2026-05-08
+## 4.1.1 — 2026-05-08
 
 ### Added
 - 7 new vendor-fidelity test files validate the vendored `@kadena/*` source surface remains intact:

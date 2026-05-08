@@ -4,7 +4,7 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
-## [4.1.1] - 2026-05-08
+## 4.1.1 — 2026-05-08
 
 ### Added — typed error classes (v4.1.1 audit closures)
 - `MnemonicMismatchError` (`src/wallet/errors.ts`, REQ-09 / F-SEC-009): typed wrapping of mnemonic-validation throws in `KadenaWalletBuilder.createWalletPairFromMnemonic`. Message strings unchanged.
