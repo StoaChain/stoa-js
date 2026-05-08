@@ -25,7 +25,7 @@ describe("REQ-05: kadena-stoic-legacy peer-dep coverage", () => {
   });
 
   it("all peer-dep version specifiers are well-formed", () => {
-    for (const [name, version] of Object.entries(peers)) {
+    for (const version of Object.values(peers)) {
       expect(typeof version).toBe("string");
       expect(version).toMatch(/^(\d+\.\d+\.\d+|\^\d+\.\d+\.\d+)$/);
     }

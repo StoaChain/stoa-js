@@ -48,11 +48,11 @@ describe("REQ-29: stoa-core public type-shape preservation", () => {
     expectTypeOf<InvalidPactReaderError>().toMatchTypeOf<TypeError>();
   });
 
-  it("KadenaWallet class is constructable", () => {
-    expectTypeOf<typeof KadenaWallet>().toBeFunction();
+  it("KadenaWallet class is a constructor function", () => {
+    expectTypeOf<typeof KadenaWallet>().toMatchTypeOf<new (...args: any[]) => unknown>();
   });
 
-  it("CodexSigningStrategy class is constructable", () => {
-    expectTypeOf<typeof CodexSigningStrategy>().toBeFunction();
+  it("CodexSigningStrategy class is a constructor function", () => {
+    expectTypeOf<typeof CodexSigningStrategy>().toMatchTypeOf<new (...args: any[]) => unknown>();
   });
 });

@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+// @ts-expect-error -- js-yaml v4 ships its own bundled types via .d.ts inside the package; no @types/js-yaml needed at runtime, but tsc resolution needs the suppression in CI
 import yaml from "js-yaml";
 
 describe("REQ-06: publish.yml workflow invariants", () => {
@@ -46,7 +47,6 @@ describe("REQ-06: publish.yml workflow invariants", () => {
     );
     expect(verifyStep).toBeDefined();
     const run = verifyStep!.run as string;
-    const typecheckIdx = run.indexOf("typecheck");
     const buildIdx = run.indexOf("npm run build");
     const testIdx = run.indexOf("npm test");
     // Build MUST come before test (the v4.1.0 hotfix #2 invariant)
