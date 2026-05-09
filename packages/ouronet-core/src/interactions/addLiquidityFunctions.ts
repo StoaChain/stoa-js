@@ -7,7 +7,7 @@ import {
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
-import { IOuroAccountKeypair } from "./dexFunctions";
+import type { IOuroAccountKeypair } from "./dexTypes";
 import { mayComeWithDeimal, safeCreationTime } from "@stoachain/stoa-core/pact";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
