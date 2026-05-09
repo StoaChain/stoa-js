@@ -19,38 +19,38 @@ import { getLogger } from "@stoachain/stoa-core/observability";
 
 // Liquidity Data object interface
 export interface LiquidityData {
-  [key: string]: any; // Will be defined based on actual Pact structure
+  readonly [key: string]: any; // Will be defined based on actual Pact structure
 }
 
 // Deviation validation result
 export interface DeviationResult {
-  deviation: number;
-  maxDeviation: number;
-  isValid: boolean;
+  readonly deviation: number;
+  readonly maxDeviation: number;
+  readonly isValid: boolean;
 }
 
 // Add Liquidity parameters
 export interface AddLiquidityParams {
-  patronKeypair: IOuroAccountKeypair;
-  kadenaKeypair: IKadenaKeypair;
-  guardKeypair: IKadenaKeypair;
-  account: string;
-  swpair: string;
-  inputAmounts: string[];
+  readonly patronKeypair: IOuroAccountKeypair;
+  readonly kadenaKeypair: IKadenaKeypair;
+  readonly guardKeypair: IKadenaKeypair;
+  readonly account: string;
+  readonly swpair: string;
+  readonly inputAmounts: string[];
 }
 
 // LP Type information
 export interface LPTypeInfo {
-  hasFrozenLP: boolean | null;
-  hasSleepingLP: boolean | null;
+  readonly hasFrozenLP: boolean | null;
+  readonly hasSleepingLP: boolean | null;
 }
 
 // Special LP Type parameters
 export interface SpecialLPParams {
-  type: "iced" | "glacial" | "frozen" | "sleeping";
-  frozenDptf?: string; // For frozen LP
-  sleepingDpmf?: string; // For sleeping LP
-  nonce?: number; // For sleeping LP
+  readonly type: "iced" | "glacial" | "frozen" | "sleeping";
+  readonly frozenDptf?: string; // For frozen LP
+  readonly sleepingDpmf?: string; // For sleeping LP
+  readonly nonce?: number; // For sleeping LP
 }
 
 /**

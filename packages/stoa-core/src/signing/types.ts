@@ -20,13 +20,13 @@ import type { IKeyset } from "../guard";
  * structurally identical type for backwards-compat with Phase 2b imports.
  */
 export interface IKadenaKeypair {
-  publicKey:          string;
-  privateKey:         string;
-  seedType?:          "koala" | "chainweaver" | "eckowallet" | "foreign";
+  readonly publicKey:          string;
+  readonly privateKey:         string;
+  readonly seedType?:          "koala" | "chainweaver" | "eckowallet" | "foreign";
   /** Chainweaver/Ecko only: the EncryptedString from @kadena/hd-wallet. */
-  encryptedSecretKey?: unknown;
+  readonly encryptedSecretKey?: unknown;
   /** Chainweaver/Ecko only: wallet password (used by kadenaSign WASM). */
-  password?:          string;
+  readonly password?:          string;
 }
 
 /**

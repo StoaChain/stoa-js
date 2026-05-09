@@ -6,17 +6,17 @@
 import { getLogger } from "../observability";
 
 export interface TransactionError extends Error {
-  code: string;
-  context: string;
-  originalError?: any;
-  suggestions?: string[];
+  readonly code: string;
+  readonly context: string;
+  readonly originalError?: any;
+  readonly suggestions?: string[];
 }
 
 export class SigningError extends Error implements TransactionError {
-  public code: string;
-  public context: string;
-  public originalError?: any;
-  public suggestions?: string[];
+  public readonly code: string;
+  public readonly context: string;
+  public readonly originalError?: any;
+  public readonly suggestions?: string[];
 
   constructor(
     message: string,

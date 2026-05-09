@@ -35,12 +35,13 @@ const throwingDefaultResolver: BalanceResolver = () => {
 };
 
 class KadenaWallet {
-  public parentId: string;
-  public index: number;
-  public secret: string;
-  public address: string;
-  public publicKey: string;
-  public derivationPath: string;
+  public readonly parentId: string;
+  public readonly index: number;
+  public readonly secret: string;
+  public readonly address: string;
+  public readonly publicKey: string;
+  public readonly derivationPath: string;
+  // not readonly: assigned by getBalance() (LC-5-B-rule-2 exception)
   public balance: string;
 
   /**

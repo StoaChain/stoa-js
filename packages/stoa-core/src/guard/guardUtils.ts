@@ -21,9 +21,9 @@ import {
  * rather than an inline keyset.
  */
 export interface IKeyset {
-  pred: "keys-all" | "keys-any" | "keys-2" | string;
-  keys: string[];
-  keysetRef?: string;
+  readonly pred: "keys-all" | "keys-any" | "keys-2" | string;
+  readonly keys: string[];
+  readonly keysetRef?: string;
 }
 
 /**
@@ -145,10 +145,10 @@ export function predicateLabel(pred: string, keyCount: number): string {
 
 export interface GuardAnalysis {
   /** All keys declared in the guard keyset */
-  keys: string[];
-  pred: string;
+  readonly keys: string[];
+  readonly pred: string;
   /** Minimum signatures needed */
-  threshold: number;
+  readonly threshold: number;
   /**
    * `false` when the predicate string was not recognised by
    * {@link computeThreshold} (it threw {@link UnknownPredicateError}); the
@@ -159,21 +159,21 @@ export interface GuardAnalysis {
    * previous unobservable console-only warning diagnostic in
    * {@link computeThreshold}.
    */
-  predicateRecognized: boolean;
+  readonly predicateRecognized: boolean;
   /** Keys immediately signable from Codex */
-  codexKeys: string[];
+  readonly codexKeys: string[];
   /** Keys NOT found in Codex and not yet manually resolved */
-  foreignKeys: string[];
+  readonly foreignKeys: string[];
   /** Subset of foreignKeys that user has resolved via manual private key input */
-  resolvedForeignKeys: string[];
+  readonly resolvedForeignKeys: string[];
   /** Total keys currently able to sign: codexKeys + resolvedForeignKeys */
-  signable: number;
+  readonly signable: number;
   /** Whether the guard is satisfied */
-  satisfied: boolean;
+  readonly satisfied: boolean;
   /** How many more keys are still needed (0 when satisfied) */
-  neededMore: number;
+  readonly neededMore: number;
   /** Human-readable predicate label */
-  predLabel: string;
+  readonly predLabel: string;
 }
 
 /**
@@ -239,10 +239,10 @@ export function analyzeGuard(
 export type PaymentKeyType = "k-account" | "custom-account";
 
 export interface PaymentKeyInfo {
-  address: string;
-  type: PaymentKeyType;
+  readonly address: string;
+  readonly type: PaymentKeyType;
   /** Only defined for k-account: the raw pubkey (address without "k:") */
-  pubkey: string | null;
+  readonly pubkey: string | null;
 }
 
 /**

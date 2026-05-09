@@ -80,13 +80,13 @@ export const PARTIAL_SIG_VERSION = 1 as const;
  * correctness.
  */
 export interface PartialSigEnvelope {
-  format: typeof PARTIAL_SIG_FORMAT;
-  version: typeof PARTIAL_SIG_VERSION;
-  transaction: IUnsignedCommand;
-  metadata?: {
-    exportedAt?: string;
-    exportedBy?: string;
-    note?: string;
+  readonly format: typeof PARTIAL_SIG_FORMAT;
+  readonly version: typeof PARTIAL_SIG_VERSION;
+  readonly transaction: IUnsignedCommand;
+  readonly metadata?: {
+    readonly exportedAt?: string;
+    readonly exportedBy?: string;
+    readonly note?: string;
   };
 }
 
@@ -323,8 +323,8 @@ export function isFullySigned(transaction: IUnsignedCommand | ICommand): boolean
  * and a brief reason — empty array on the all-valid happy path.
  */
 export interface VerifyExistingSignaturesResult {
-  allValid: boolean;
-  invalid: Array<{ publicKey: string; reason: string }>;
+  readonly allValid: boolean;
+  readonly invalid: ReadonlyArray<{ readonly publicKey: string; readonly reason: string }>;
 }
 
 /** Hex string → Uint8Array. */
@@ -351,7 +351,8 @@ function hexToBytes(hex: string): Uint8Array {
 export function verifyExistingSignatures(
   transaction: IUnsignedCommand | ICommand,
 ): VerifyExistingSignaturesResult {
-  const invalid: VerifyExistingSignaturesResult["invalid"] = [];
+  // Mutable local accumulator; widens to ReadonlyArray on return via covariance.
+  const invalid: Array<{ publicKey: string; reason: string }> = [];
   const pubKeys = readSignerPubKeys(transaction);
 
   let hashBytes: Uint8Array;

@@ -25,26 +25,26 @@ export interface PlaintextCodex<
   UiSettings       = unknown,
 > {
   /** HD seeds (koala / chainweaver / eckowallet variants) known to this codex. */
-  kadenaWallets: KadenaSeed[];
+  readonly kadenaWallets: KadenaSeed[];
   /** Resident OURO accounts the user controls. */
-  ouronetWallets: OuroAccount[];
+  readonly ouronetWallets: OuroAccount[];
   /** Address-book entries (cached or user-added). */
-  addressBook: AddressBookEntry[];
+  readonly addressBook: AddressBookEntry[];
   /** Raw pure Pact keypairs stored directly (encrypted privateKey). */
-  pureKeypairs: PureKeypair[];
+  readonly pureKeypairs: PureKeypair[];
   /** Non-sensitive UI preferences (dock position, zone state, etc). */
-  uiSettings: UiSettings;
+  readonly uiSettings: UiSettings;
 
   /**
    * Schema version of this codex. `0` = pre-upgrade V1-encrypted; `1+` =
    * post-upgrade V2-encrypted. Consumers can read this to decide whether
    * to run the encryption upgrade on unlock.
    */
-  schemaVersion: number;
+  readonly schemaVersion: number;
   /** ISO timestamp of the last write to this codex (across any device). */
-  lastUpdatedAt: string | null;
+  readonly lastUpdatedAt: string | null;
   /** Which device family last wrote — used for dev/main cross-sync UX. */
-  lastUpdatedDevice: "dev" | "main";
+  readonly lastUpdatedDevice: "dev" | "main";
 }
 
 /**
@@ -64,10 +64,10 @@ export interface CodexExportV1_2<
   AddressBookEntry = unknown,
   UiSettings       = unknown,
 > {
-  version: "1.2";
-  exportedAt: string;
-  kadenaWallets: KadenaSeed[];
-  ouronetWallets: OuroAccount[];
-  addressBook: AddressBookEntry[];
-  uiSettings: UiSettings;
+  readonly version: "1.2";
+  readonly exportedAt: string;
+  readonly kadenaWallets: KadenaSeed[];
+  readonly ouronetWallets: OuroAccount[];
+  readonly addressBook: AddressBookEntry[];
+  readonly uiSettings: UiSettings;
 }

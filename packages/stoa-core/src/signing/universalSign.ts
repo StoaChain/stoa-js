@@ -36,11 +36,11 @@ import { publicKeyFromPrivateKey } from "./primitives";
  * to work.
  */
 export interface UniversalKeypair {
-  publicKey?: string;
-  secretKey: string;
-  seedType?: "koala" | "chainweaver" | "eckowallet" | "foreign";
-  encryptedSecretKey?: any;
-  password?: string;
+  readonly publicKey?: string;
+  readonly secretKey: string;
+  readonly seedType?: "koala" | "chainweaver" | "eckowallet" | "foreign";
+  readonly encryptedSecretKey?: any;
+  readonly password?: string;
 }
 
 /**
