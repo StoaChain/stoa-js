@@ -1,8 +1,11 @@
 /**
  * Phase 5 catch-block routing regression guard — closes F-CORE-019.
  *
- * Pins that the seven catch-block sites in `src/interactions/ouroFunctions.ts`
- * route via `getLogger().error(...)` from `../observability` rather than:
+ * Pins that the seven catch-block sites (now distributed across
+ * `ouroBalanceFunctions.ts`, `ouroRotateFunctions.ts`, `ouroWrapFunctions.ts`,
+ * `ouroPriceFunctions.ts` after the v4.2.0 ouro split — historically all in
+ * `src/interactions/ouroFunctions.ts`) route via `getLogger().error(...)` from
+ * `../observability` rather than:
  *
  *   - calling `console.error(...)` directly (the pre-Phase-5 routed shape on
  *     three of the seven sites — `getRotateKadenaInfo`, `getUnwrapStoaTarget`,

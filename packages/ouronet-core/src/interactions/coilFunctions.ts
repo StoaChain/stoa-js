@@ -10,7 +10,7 @@ import { formatDecimalForPact, safeCreationTime } from "@stoachain/stoa-core/pac
 import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
 import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
 export type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
-import type { IOuroAccountKeypair } from "./ouroFunctions";
+import type { IOuroAccountKeypair } from "./ouroTypes";
 import { getLogger } from "@stoachain/stoa-core/observability";
 
 // Generic coiling configuration

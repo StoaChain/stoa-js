@@ -21,11 +21,13 @@
  *     mnemonic passwords, or commit messages embedded in the source. These
  *     are documentation/data, not module resolution. The line-start anchor on
  *     each pattern keeps them out of the match set.
- *   - The commented-out import line at `src/interactions/ouroFunctions.ts:114`
- *     (`// import { kadenaSignWithKeyPair } from "@kadena/hd-wallet";`). The
- *     leading `//` makes it a comment, not an import statement; the line-start
- *     anchor naturally exempts it (the `^\s*` allows leading whitespace but
- *     not the `//` comment marker between whitespace and `import`).
+ *   - Commented-out `// import { … } from "@kadena/…"` lines anywhere in
+ *     source. The leading `//` makes them comments, not import statements;
+ *     the line-start anchor naturally exempts them (the `^\s*` allows leading
+ *     whitespace but not the `//` comment marker between whitespace and
+ *     `import`). The original `ouroFunctions.ts:114` reference no longer
+ *     exists post-Phase-2 (the file is now a thin re-export shim); the
+ *     convention is preserved across the split entity files.
  *
  * Excluded from the walk:
  *   - This file itself (matched by basename) — would otherwise match its own

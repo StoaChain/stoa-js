@@ -14,7 +14,7 @@ describe("REQ-16: getSparksBalance source annotation narrowed to Promise<any | n
   // the WRITTEN annotation, NOT a type-level expectTypeOf assertion.
 
   it("source regex: getSparksBalance declared as Promise<any | null> (RED gate)", () => {
-    const file = readFileSync(resolve(repoRoot, "packages/ouronet-core/src/interactions/ouroFunctions.ts"), "utf8");
+    const file = readFileSync(resolve(repoRoot, "packages/ouronet-core/src/interactions/ouroMovieBoosterFunctions.ts"), "utf8");
     expect(file).toMatch(/export async function getSparksBalance\([^)]*\):\s*Promise<any\s*\|\s*null>/);
   });
 
