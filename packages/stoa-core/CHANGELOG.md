@@ -4,6 +4,33 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.2.0 — 2026-05-09
+
+**MINOR — architectural closures + atomic-triplet bump (atomic with `@stoachain/kadena-stoic-legacy@4.2.0` + `@stoachain/ouronet-core@4.2.0`).** Released 2026-05-09. Closes audit findings F-API-018 (readonly sweep) and F-TEST-002 (foreign-key fixture in universal-sign).
+
+### Changed — audit closures
+
+- **REQ-21 / F-API-018 — Readonly sweep across stoa-core public types.** Aggressive `readonly` modifier sweep across ~30 public type fields: `signing/types.ts` (`IKadenaKeypair`, `KeyResolver`, `PactClient`), `wallet/types.ts` (`BalanceResolver`-adjacent shapes), `guard/guardUtils.ts` (`GuardAnalysis`), `errors/transactionErrors.ts`, `signing/universalSign.ts` (`UniversalKeypair`), `signing/partialSig.ts`. TypeScript-only signal — no runtime change. Carry-forward snippet (Phase 5 T5.11): _"v4.2.0 — Aggressive readonly sweep across ~85 public type fields (F-API-018). All public-type object-property fields in stoa-core and ouronet-core now carry readonly. Consumer impact: TypeScript-only signal; immutable spread/struct-copy required for previously-in-place mutations. Zero runtime change."_
+
+- **REQ-25 / REQ-26 / F-TEST-002 — Universal-sign foreign-key fixture.** New foreign-key (`seedType: "foreign"`) fixture coverage in `tests/universal-sign.test.ts` — 3 new it-blocks asserting the universal-sign pipeline handles foreign-keypairs correctly without falling back to the dalos default-primitive path.
+
+### Test surface
+
+- 1 new regression-lock test file: `tests/v4-2-0-readonly-invariant.test.ts` (~12-15 type-level assertions verifying the readonly modifiers compile to TS2540 errors when consumer code attempts in-place mutation).
+- 3 new it-blocks in `tests/universal-sign.test.ts` covering the foreign-key fixture (F-TEST-002).
+- Test count: ~640 (v4.1.1) → ~668 (v4.2.0).
+
+### Version
+
+- Atomic-triplet bump 4.1.1 → 4.2.0 alongside `@stoachain/kadena-stoic-legacy` and `@stoachain/ouronet-core`.
+- `@stoachain/kadena-stoic-legacy` peer-dep aligned to `4.2.0`.
+- `@scure/bip39` peer-dep stays at exact-pin `1.2.1`; `@noble/curves` at `1.9.7` (independent upstream-version pins, unrelated to the StoaChain triplet bump).
+
+### Migration
+
+- Consumer impact: TypeScript-only. Code that mutated public-type fields in place (e.g., `kp.publicKey = '...'`, `analysis.threshold = 5`) now produces TS2540 at compile time. Switch to immutable spread copy: `const updatedKp = { ...kp, publicKey: newPub };`. Emitted JavaScript is byte-identical to v4.1.1.
+- See [`MIGRATION-v4.2.md`](https://github.com/StoaChain/stoa-js/blob/main/MIGRATION-v4.2.md) at the monorepo root for the full v4.1.x → v4.2.0 transition guide and [`INTEGRATION-GUIDE.md`](https://github.com/StoaChain/stoa-js/blob/main/INTEGRATION-GUIDE.md) for cold-start consumer onboarding.
+
 ## 4.1.1 — 2026-05-08
 
 ### Added — typed error classes (v4.1.1 audit closures)

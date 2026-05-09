@@ -35,6 +35,7 @@ const repoRoot = resolve(here, "..", "..", "..");
 const integrationPath = resolve(repoRoot, "INTEGRATION-GUIDE.md");
 const migrationV4Path = resolve(repoRoot, "MIGRATION-v4.md");
 const migrationV41Path = resolve(repoRoot, "MIGRATION-v4.1.md");
+const migrationV42Path = resolve(repoRoot, "MIGRATION-v4.2.md");
 
 describe("REQ-31..34: INTEGRATION-GUIDE.md doc validity", () => {
   describe("File existence and length", () => {
@@ -247,6 +248,10 @@ describe("REQ-31..34: INTEGRATION-GUIDE.md doc validity", () => {
       expect(doc).toMatch(/MIGRATION-v4\.1\.md/);
     });
 
-    it.todo("MIGRATION-v4.2.md exists at repo root and is cross-referenced (Phase 9 deliverable — flipped to it() in Phase 9)");
+    it("MIGRATION-v4.2.md exists at repo root and is cross-referenced", () => {
+      expect(existsSync(migrationV42Path)).toBe(true);
+      const doc = readFileSync(integrationPath, "utf8");
+      expect(doc).toMatch(/MIGRATION-v4\.2\.md/);
+    });
   });
 });

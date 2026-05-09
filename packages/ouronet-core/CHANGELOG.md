@@ -4,6 +4,43 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.2.0 — 2026-05-09
+
+**MINOR — architectural closures + INTEGRATION-GUIDE deliverable + atomic-triplet bump (atomic with `@stoachain/kadena-stoic-legacy@4.2.0` + `@stoachain/stoa-core@4.2.0`).** Released 2026-05-09. Closes 6 audit findings (F-ARCH-001/002/003 god-file splits + F-API-002 nullable contract + F-API-018 readonly sweep + F-TEST-006 coverage expansion) plus a NEW deliverable (`INTEGRATION-GUIDE.md` at repo root).
+
+### Changed — audit closures
+
+- **REQ-03..REQ-07 / F-ARCH-001 — Phase 1 dex god-file split.** `interactions/dexFunctions.ts` (~600 LOC, 7-entity Ouronet taxonomy) decomposed into ~10 entity-oriented files: `dexSwapPairCalcFunctions.ts`, `dexSwapPairExecFunctions.ts`, `dexLiquidityCalcFunctions.ts`, `dexLiquidityExecFunctions.ts`, `dexFuelCalcFunctions.ts`, `dexFuelExecFunctions.ts`, `dexDashboardFunctions.ts`, `dexAccountSuppliesFunctions.ts`, `dexCappedInverseFunctions.ts`, `dexTypes.ts` (the shared types module). Old import path `@stoachain/ouronet-core/interactions/dexFunctions` continues to work as a thin re-export shim for backward compatibility; new entity-oriented subpaths are recommended for tree-shaking.
+
+- **REQ-08..REQ-13 / F-ARCH-002 — Phase 2 ouro god-file split + chain/UI surgical separation.** `interactions/ouroFunctions.ts` (~2200 LOC) decomposed into ~11 entity-oriented files separating chain-side (RPC builders, signing pipelines) from UI-side (display formatting, dashboard reads) surfaces per the locked principle. Old import path `@stoachain/ouronet-core/interactions/ouroFunctions` continues to work as a thin re-export shim.
+
+- **REQ-14..REQ-17 / F-ARCH-003 — Phase 3 parameterized liquidity executor.** `executeAddLiquiditySingle`, `executeAddLiquidity`, `executeSpecialAddLiquidity`, `executeFuel`, `executeRemoveLiquidity` consolidated into 5 thin wrappers + 1 internal `executeLiquidityOp` (LOC reduction ~600 → ~200). Public function signatures preserved verbatim — zero consumer impact. Buffer-strategy reconciliation note (Phase 3 T3.5): _"spec text mentioned 3 buffer strategies; codebase has 2 distinct (`fixed-5k`, `auto-gas-limit`); the third is a degenerate no-rebuild sub-branch of `auto-gas-limit`, not a separate strategy. The 2-member union is technically correct."_
+
+- **REQ-18..REQ-20 / F-API-002 — Phase 4 nullable contract honoring.** 12 swap-calc and dashboard-read functions whose declared return type was `Promise<T | null>` now honor that contract — they return `null` on RPC failure (with `logger.error` invoked first) instead of rethrowing. Affected functions include `getSWPairDashboardInfo`, `getPoolPreviewData`, `getSWPairMultiDashboardInfo`, `getSwpairInternalDashboard`, `calculateDirectSwap`, `calculateInverseSwap`, `calculateDirectSwapB`, `calculateInverseSwapB`, `getCappedInverseAmount`, `getUserAccountSupplies`, plus 2 additional dashboard-read functions. Carry-forward snippet (Phase 4 T4.4): _"The 10 swap-calc and dashboard-read functions whose declared return type was `Promise<T | null>` now honor that contract — they return null on RPC failure (with logger.error invoked first) instead of rethrowing. Existing try/catch consumer patterns continue to work. New code can rely on the static-type signature with the `if (result === null)` pattern."_
+
+- **REQ-21..REQ-24 / F-API-018 — Phase 5 readonly sweep across ouronet-core public types.** Aggressive `readonly` modifier sweep across ~50 public type fields in `codex/types.ts` and all `*Params` interfaces. TypeScript-only signal — no runtime change.
+
+- **REQ-27..REQ-30 / F-TEST-006 — Phase 7 coverage expansion.** +127 specs across 6 modules: `infoOneFunctions`, `coilFunctions`, `kpayFunctions`, `pensionFunctions`, `activateFunctions`, `guardFunctions`. The audit's stated 37 untested functions corrected to 38 (the 2026-05-05 audit missed `guardFunctions.describeKeyset`); absorbed by Phase 7 as +1 function = +3 it-blocks; closure transition is from "PARTIAL — 38 untested" → "CLOSED-VERIFIED".
+
+### Added — NEW deliverable
+
+- **REQ-31..REQ-34 / Phase 8 — INTEGRATION-GUIDE.md at repo root.** New comprehensive cold-start consumer onboarding doc at `Z:\OuronetCore\INTEGRATION-GUIDE.md` (sibling to `MIGRATION-v4.md` + `MIGRATION-v4.1.md` + `MIGRATION-v4.2.md`). 13 mandated sections covering the full v4.0 → v4.1 → v4.2 architectural arc: install + peer-deps, the 3-package atomic-release model, subpath imports per package, the 5 typed error classes, the 7-entity Ouronet taxonomy, the 3 pluggable seams (`setPactReader`, `KeyResolver`+`PactClient`, `BalanceResolver`), codex backup format `"1.2"`, smart-account auth, gas calibration, full quick-start example. Doc-validity test (`tests/v4-2-0-integration-guide-validity.test.ts`) verifies all cited subpaths resolve, all cited error classes import, all cited seam functions are exported.
+
+### Test surface
+
+- 8 new `v4-2-0-*.test.ts` files in this package: `dex-split-subpaths`, `ouro-split-subpaths`, `add-liquidity-executor-parity`, `f-api-002-null-contract`, `readonly-invariant`, `info-one-coverage`/`coil-coverage`/`kpay-coverage`/`pension-coverage`/`activate-coverage`/`guard-functions-coverage` (Phase 7 coverage expansion fans out to 6 module-specific files), `integration-guide-validity` (Phase 8 doc-validity test).
+- Test count: ~330 (v4.1.1) → ~710 (v4.2.0). Aggregate growth: +127 from Phase 7 + ~250 from Phases 1-5 + 8 regression-lock specs.
+
+### Version
+
+- Atomic-triplet bump 4.1.1 → 4.2.0.
+- Peer-deps `@stoachain/kadena-stoic-legacy` and `@stoachain/stoa-core` both aligned to `4.2.0`.
+
+### Migration
+
+- For consumers using the documented subpath APIs: most changes are transparent. The two consumer-visible deltas are (a) public-type fields are now `readonly` (TypeScript-only signal — switch in-place mutations to spread-copy patterns) and (b) the 12 nullable-contract functions reliably return `null` on failure (existing try/catch patterns continue to work; new code can use the `if (result === null)` pattern).
+- See [`MIGRATION-v4.2.md`](https://github.com/StoaChain/stoa-js/blob/main/MIGRATION-v4.2.md) for the full upgrade map and [`INTEGRATION-GUIDE.md`](https://github.com/StoaChain/stoa-js/blob/main/INTEGRATION-GUIDE.md) for cold-start onboarding.
+
 ## 4.1.1 — 2026-05-08
 
 ### Added — typed error classes (v4.1.1 audit closures)
