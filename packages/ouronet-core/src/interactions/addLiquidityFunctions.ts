@@ -230,6 +230,138 @@ export async function getLPTypeInfo(swpair: string): Promise<LPTypeInfo> {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal parameter shapes for the parameterized liquidity executor.
+// These are NOT exported — they describe the contract between the 5 thin
+// public wrappers (executeAddLiquiditySingle / executeAddLiquidity /
+// executeSpecialAddLiquidity / executeFuel / executeRemoveLiquidity) and the
+// shared internal `executeLiquidityOp` pipeline. Authored readonly-from-
+// inception per the Phase 1/2 precedent and to preempt the Phase 5 readonly
+// sweep.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Signing-set for the liquidity pipeline. Two signers only:
+ * `kadenaKeypair` carries DALOS.GAS_PAYER, `guardKeypair` is the keyset guard.
+ * `patronKeypair` is NOT part of this set — it never signs; the wrapper
+ * interpolates `patronKeypair.address` into the Pact code string before
+ * invoking the executor.
+ */
+interface LiquiditySigners {
+  readonly kadenaKeypair: IKadenaKeypair;
+  readonly guardKeypair: IKadenaKeypair;
+}
+
+/**
+ * Gas-buffer policy.
+ *
+ * Two strategies:
+ *  - `"fixed-5k"`: ALWAYS rebuild after simulation with `(simulation.gas ?? defaultGasLimit) + 5_000`.
+ *    Used by single, fuel, remove (3 of 5 wrappers).
+ *  - `"auto-gas-limit"`: rebuild ONLY when `simulation.gas > defaultGasLimit`
+ *    via `calculateAutoGasLimit(simulation.gas)`; otherwise reuse the
+ *    simulation transaction unchanged. Used by special (1 of 5 wrappers,
+ *    inherited by addLiquidity through single).
+ *
+ * Spec text mentioned 3 strategies; the codebase has 2 distinct strategies —
+ * the third is the degenerate "no-rebuild" sub-branch of `"auto-gas-limit"`,
+ * not a separate strategy. The 2-member union is technically correct.
+ */
+interface GasPolicy {
+  readonly defaultGasLimit: number;
+  readonly bufferStrategy: "fixed-5k" | "auto-gas-limit";
+}
+
+/**
+ * Locked 4-key shape consumed by the internal `executeLiquidityOp`.
+ * The wrapper is responsible for amount formatting and patron-address
+ * interpolation into `pactCode` before calling the executor.
+ */
+interface LiquidityOpInput {
+  readonly pactCode: string;
+  readonly signers: LiquiditySigners;
+  readonly gasPolicy: GasPolicy;
+  readonly errorPrefix: string;
+}
+
+/**
+ * @internal
+ * Shared liquidity-execution pipeline behind the 5 public wrappers
+ * (executeAddLiquiditySingle, executeAddLiquidity, executeSpecialAddLiquidity,
+ * executeFuel, executeRemoveLiquidity).
+ *
+ * Steps:
+ *   1. Build a simulation transaction with `defaultGasLimit`.
+ *   2. Run dirtyRead; on failure throw with `errorPrefix`.
+ *   3. Apply the buffer strategy:
+ *        - "fixed-5k":      always rebuild with `(simulation.gas ?? defaultGasLimit) + 5_000`.
+ *        - "auto-gas-limit": rebuild only if `simulation.gas > defaultGasLimit`,
+ *                            otherwise reuse the simulation transaction unchanged.
+ *   4. Sign with `[kadenaKeypair, guardKeypair]` via universalSignTransaction.
+ *   5. Submit and return the result.
+ *
+ * `patronKeypair` does NOT appear here — it is interpolated into `pactCode` by
+ * the wrapper before invocation and never participates in signing.
+ */
+async function executeLiquidityOp(opts: LiquidityOpInput): Promise<any> {
+  const keysetName = `ks`;
+  const { defaultGasLimit, bufferStrategy } = opts.gasPolicy;
+  const { kadenaKeypair, guardKeypair } = opts.signers;
+
+  const buildTransaction = (gasLimitOverride?: number) => {
+    return Pact.builder
+      .execution(opts.pactCode)
+      .addData(keysetName, {
+        keys: [guardKeypair.publicKey],
+        pred: "keys-all",
+      })
+      .setMeta({
+        senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
+        creationTime: safeCreationTime(),
+        chainId: KADENA_CHAIN_ID,
+        gasLimit: gasLimitOverride ?? defaultGasLimit,
+      })
+      .setNetworkId(KADENA_NETWORK)
+      .addSigner(kadenaKeypair.publicKey, (withCapability: any) => [
+        withCapability(
+          `${KADENA_NAMESPACE}.DALOS.GAS_PAYER`,
+          "",
+          { int: 0 },
+          { decimal: "0.0" },
+        ),
+      ])
+      .addSigner(guardKeypair.publicKey)
+      .createTransaction();
+  };
+
+  const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
+
+  let transaction = buildTransaction(defaultGasLimit);
+  const simulation = await dirtyRead(transaction);
+
+  if (simulation.result.status === "failure") {
+    const errorMessage = simulation.result.error?.message || "Transaction simulation failed";
+    throw new Error(`${opts.errorPrefix} ${errorMessage}`);
+  }
+
+  if (bufferStrategy === "fixed-5k") {
+    const actualGasLimit = (simulation.gas || defaultGasLimit) + 5_000;
+    transaction = buildTransaction(actualGasLimit);
+  } else {
+    const requiredGas = simulation.gas;
+    if (requiredGas && requiredGas > defaultGasLimit) {
+      transaction = buildTransaction(calculateAutoGasLimit(requiredGas));
+    }
+  }
+
+  const signedTransaction: any = await universalSignTransaction(transaction, [
+    fromKeypair(kadenaKeypair),
+    fromKeypair(guardKeypair),
+  ]);
+
+  return await submit(signedTransaction);
+}
+
 /**
  * Execute single-step add liquidity (TS01-C3 module)
  */
@@ -241,67 +373,21 @@ export async function executeAddLiquiditySingle(
       const amountStr = typeof amount === 'string' ? amount : String(amount);
       return amountStr.includes('.') ? amountStr : `${amountStr}.0`;
     }).join(' ')}]`;
-    
+
     const pactCode = `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_AddLiquidity "${params.patronKeypair.address}" "${params.account}" "${params.swpair}" ${pactInputAmounts})`;
-  
-    const keysetName = `ks`;
-    // Scale gas limit based on pool token count: 60k per token
-    const tokenCount = params.inputAmounts.length;
-    const defaultGasLimit = tokenCount * 100_000;
-    
-    const buildTransaction = (gasLimitOverride?: number) => {
-      return Pact.builder
-        .execution(pactCode)
-        .addData(keysetName, {
-          keys: [params.guardKeypair.publicKey],
-          pred: "keys-all",
-        })
-        .setMeta({
-          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
-        creationTime: safeCreationTime(),
-          chainId: KADENA_CHAIN_ID,
-          gasLimit: gasLimitOverride ?? defaultGasLimit,
-        })
-        .setNetworkId(KADENA_NETWORK)
-        .addSigner(params.kadenaKeypair.publicKey, (withCapability: any) => [
-          withCapability(
-            `${KADENA_NAMESPACE}.DALOS.GAS_PAYER`,
-            "",
-            { int: 0 },
-            { decimal: "0.0" },
-          ),
-        ])
-        .addSigner(params.guardKeypair.publicKey)
-        .createTransaction();
-    };
 
-    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
-    
-    // Simulate to estimate gas
-    const simTransaction = buildTransaction(defaultGasLimit);
-    const simulation = await dirtyRead(simTransaction);
-
-    // Check if simulation failed
-    if (simulation.result.status === "failure") {
-      const errorMessage = simulation.result.error?.message || "Transaction simulation failed";
-      throw new Error(`Add liquidity simulation failed: ${errorMessage}`);
-    }
-
-    // Set actual gas limit = simulation gas + 5K buffer
-    const actualGasLimit = (simulation.gas || defaultGasLimit) + 5_000;
-    const transaction = buildTransaction(actualGasLimit);
-
-    // Sign the transaction
-    const signedTransaction: any = await universalSignTransaction(transaction, [
-    fromKeypair(params.kadenaKeypair),
-    fromKeypair(params.guardKeypair),
-  ]);
-
-    // Submit the signed transaction
-    const result = await submit(signedTransaction);
-    
-    return result;
-    
+    return await executeLiquidityOp({
+      pactCode,
+      signers: {
+        kadenaKeypair: params.kadenaKeypair,
+        guardKeypair: params.guardKeypair,
+      },
+      gasPolicy: {
+        defaultGasLimit: params.inputAmounts.length * 100_000,
+        bufferStrategy: "fixed-5k",
+      },
+      errorPrefix: "Add liquidity simulation failed:",
+    });
   } catch (error) {
     throw error instanceof Error ? error : new Error("Unknown error occurred");
   }
@@ -353,13 +439,12 @@ export async function executeSpecialAddLiquidity(
   specialParams: SpecialLPParams
 ): Promise<any> {
   try {
-    let pactCode: string;
-
     const pactInputAmounts = `[${params.inputAmounts.map(amount => {
       const amountStr = typeof amount === 'string' ? amount : String(amount);
       return amountStr.includes('.') ? amountStr : `${amountStr}.0`;
     }).join(' ')}]`;
-    
+
+    let pactCode: string;
     switch (specialParams.type) {
       case "iced":
         pactCode = `(${KADENA_NAMESPACE}.TS01-CP.SWP|C_AddIcedLiquidity "${params.patronKeypair.address}" "${params.account}" "${params.swpair}" ${pactInputAmounts})`;
@@ -367,15 +452,16 @@ export async function executeSpecialAddLiquidity(
       case "glacial":
         pactCode = `(${KADENA_NAMESPACE}.TS01-CP.SWP|C_AddGlacialLiquidity "${params.patronKeypair.address}" "${params.account}" "${params.swpair}" ${pactInputAmounts})`;
         break;
-      case "frozen":
+      case "frozen": {
         if (!specialParams.frozenDptf) {
           throw new Error("frozenDptf parameter required for frozen liquidity");
         }
-        // Note: Frozen liquidity uses single input amount, not array
+        // Frozen liquidity uses a single input amount, not the array.
         const frozenAmount = params.inputAmounts[0] || 0;
         const frozenAmountStr = frozenAmount.toString().includes('.') ? frozenAmount.toString() : `${frozenAmount}.0`;
         pactCode = `(${KADENA_NAMESPACE}.TS01-CP.SWP|C_AddFrozenLiquidity "${params.patronKeypair.address}" "${params.account}" "${params.swpair}" "${specialParams.frozenDptf}" ${frozenAmountStr})`;
         break;
+      }
       case "sleeping":
         if (!specialParams.sleepingDpmf || specialParams.nonce === undefined) {
           throw new Error("sleepingDpmf and nonce parameters required for sleeping liquidity");
@@ -385,69 +471,19 @@ export async function executeSpecialAddLiquidity(
       default:
         throw new Error(`Unsupported special LP type: ${specialParams.type}`);
     }
-    
-    const keysetName = `ks`;
-    let gasLimit = 2_000_000;
-    
-    const buildTransaction = (gasLimitOverride?: number) => {
-      return Pact.builder
-        .execution(pactCode)
-        .addData(keysetName, {
-          keys: [params.guardKeypair.publicKey],
-          pred: "keys-all",
-        })
-        .setMeta({
-          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
-        creationTime: safeCreationTime(),
-          chainId: KADENA_CHAIN_ID,
-          gasLimit: gasLimitOverride || gasLimit,
-        })
-        .setNetworkId(KADENA_NETWORK)
-        .addSigner(params.kadenaKeypair.publicKey, (withCapability: any) => [
-          withCapability(
-            `${KADENA_NAMESPACE}.DALOS.GAS_PAYER`,
-            "",
-            { int: 0 },
-            { decimal: "0.0" },
-          ),
-        ])
-        .addSigner(params.guardKeypair.publicKey)
-        .createTransaction();
-    };
 
-    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
-    
-    // First do a simulation to check gas
-    let transaction = buildTransaction();
-    const simulation = await dirtyRead(transaction);
-    
-
-    
-    // Check if simulation failed
-    if (simulation.result.status === "failure") {
-      const errorMessage = simulation.result.error?.message || "Transaction simulation failed";
-      throw new Error(`Add ${specialParams.type} liquidity simulation failed: ${errorMessage}`);
-    }
-
-    // Check if we need to adjust gas limit
-    const requiredGas = simulation.gas;
-    if (requiredGas && requiredGas > gasLimit) {
-      gasLimit = calculateAutoGasLimit(requiredGas);
-      transaction = buildTransaction(gasLimit);
-    }
-
-    // Sign the transaction
-    const signedTransaction: any = await universalSignTransaction(transaction, [
-    fromKeypair(params.kadenaKeypair),
-    fromKeypair(params.guardKeypair),
-  ]);
-
-    // Submit the transaction
-    const result = await submit(signedTransaction);
-    
-    
-    return result;
-    
+    return await executeLiquidityOp({
+      pactCode,
+      signers: {
+        kadenaKeypair: params.kadenaKeypair,
+        guardKeypair: params.guardKeypair,
+      },
+      gasPolicy: {
+        defaultGasLimit: 2_000_000,
+        bufferStrategy: "auto-gas-limit",
+      },
+      errorPrefix: `Add ${specialParams.type} liquidity simulation failed:`,
+    });
   } catch (error) {
     getLogger().error(`Add ${specialParams.type} Liquidity Error:`, error);
     throw error instanceof Error ? error : new Error("Special add liquidity execution failed");
@@ -561,60 +597,21 @@ export async function executeFuel(
       const amountStr = typeof amount === 'string' ? amount : String(amount);
       return amountStr.includes('.') ? amountStr : `${amountStr}.0`;
     }).join(' ')}]`;
-    
+
     const pactCode = `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_Fuel "${params.patronKeypair.address}" "${params.account}" "${params.swpair}" ${pactInputAmounts})`;
-  
-    const keysetName = `ks`;
-    const tokenCount = params.inputAmounts.length;
-    const defaultGasLimit = tokenCount * 100_000;
-    
-    const buildTransaction = (gasLimitOverride?: number) => {
-      return Pact.builder
-        .execution(pactCode)
-        .addData(keysetName, {
-          keys: [params.guardKeypair.publicKey],
-          pred: "keys-all",
-        })
-        .setMeta({
-          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
-        creationTime: safeCreationTime(),
-          chainId: KADENA_CHAIN_ID,
-          gasLimit: gasLimitOverride ?? defaultGasLimit,
-        })
-        .setNetworkId(KADENA_NETWORK)
-        .addSigner(params.kadenaKeypair.publicKey, (withCapability: any) => [
-          withCapability(
-            `${KADENA_NAMESPACE}.DALOS.GAS_PAYER`,
-            "",
-            { int: 0 },
-            { decimal: "0.0" },
-          ),
-        ])
-        .addSigner(params.guardKeypair.publicKey)
-        .createTransaction();
-    };
 
-    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
-    
-    const simTransaction = buildTransaction(defaultGasLimit);
-    const simulation = await dirtyRead(simTransaction);
-
-    if (simulation.result.status === "failure") {
-      const errorMessage = simulation.result.error?.message || "Transaction simulation failed";
-      throw new Error(`Fuel simulation failed: ${errorMessage}`);
-    }
-
-    const actualGasLimit = (simulation.gas || defaultGasLimit) + 5_000;
-    const transaction = buildTransaction(actualGasLimit);
-
-    const signedTransaction: any = await universalSignTransaction(transaction, [
-      fromKeypair(params.kadenaKeypair),
-      fromKeypair(params.guardKeypair),
-    ]);
-
-    const result = await submit(signedTransaction);
-    return result;
-    
+    return await executeLiquidityOp({
+      pactCode,
+      signers: {
+        kadenaKeypair: params.kadenaKeypair,
+        guardKeypair: params.guardKeypair,
+      },
+      gasPolicy: {
+        defaultGasLimit: params.inputAmounts.length * 100_000,
+        bufferStrategy: "fixed-5k",
+      },
+      errorPrefix: "Fuel simulation failed:",
+    });
   } catch (error) {
     throw error instanceof Error ? error : new Error("Fuel execution failed");
   }
@@ -637,56 +634,31 @@ export async function executeRemoveLiquidity(
   try {
     const decLpAmount = params.lpAmount.includes(".") ? params.lpAmount : params.lpAmount + ".0";
     const pactCode = `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_RemoveLiquidity "${params.patronKeypair.address}" "${params.account}" "${params.swpair}" ${decLpAmount})`;
-    const keysetName = `ks`;
-    const defaultGasLimit = 200_000;
-    
-    const buildTransaction = (gasLimitOverride?: number) => {
-      return Pact.builder
-        .execution(pactCode)
-        .addData(keysetName, {
-          keys: [params.guardKeypair.publicKey],
-          pred: "keys-all",
-        })
-        .setMeta({
-          senderAccount: STOA_AUTONOMIC_OURONETGASSTATION,
-        creationTime: safeCreationTime(),
-          chainId: KADENA_CHAIN_ID,
-          gasLimit: gasLimitOverride ?? defaultGasLimit,
-        })
-        .setNetworkId(KADENA_NETWORK)
-        .addSigner(params.kadenaKeypair.publicKey, (withCapability: any) => [
-          withCapability(
-            `${KADENA_NAMESPACE}.DALOS.GAS_PAYER`,
-            "",
-            { int: 0 },
-            { decimal: "0.0" },
-          ),
-        ])
-        .addSigner(params.guardKeypair.publicKey)
-        .createTransaction();
-    };
 
-    const { dirtyRead, submit } = getFailoverClient(KADENA_CHAIN_ID);
-    
-    const simTransaction = buildTransaction(defaultGasLimit);
-    const simulation = await dirtyRead(simTransaction);
-
-    if (simulation.result.status === "failure") {
-      const errorMessage = simulation.result.error?.message || "Transaction simulation failed";
-      throw new Error(`Remove liquidity simulation failed: ${errorMessage}`);
-    }
-
-    const actualGasLimit = (simulation.gas || defaultGasLimit) + 5_000;
-    const transaction = buildTransaction(actualGasLimit);
-
-    const signedTransaction: any = await universalSignTransaction(transaction, [
-      fromKeypair(params.kadenaKeypair),
-      fromKeypair(params.guardKeypair),
-    ]);
-
-    const result = await submit(signedTransaction);
-    return result;
-    
+    // Inline `secretKey` is the legacy field name; `IKadenaKeypair` (the
+    // executor's signer-type contract) uses `privateKey`. Explicit field-name
+    // conversion is preferred over `as IKadenaKeypair` casts because TypeScript
+    // rejects narrow casts between structurally-distinct types — and a double
+    // `as unknown as IKadenaKeypair` would erase the type-safety guard. Both
+    // compile to identical runtime values.
+    return await executeLiquidityOp({
+      pactCode,
+      signers: {
+        kadenaKeypair: {
+          publicKey: params.kadenaKeypair.publicKey,
+          privateKey: params.kadenaKeypair.secretKey,
+        },
+        guardKeypair: {
+          publicKey: params.guardKeypair.publicKey,
+          privateKey: params.guardKeypair.secretKey,
+        },
+      },
+      gasPolicy: {
+        defaultGasLimit: 200_000,
+        bufferStrategy: "fixed-5k",
+      },
+      errorPrefix: "Remove liquidity simulation failed:",
+    });
   } catch (error) {
     throw error instanceof Error ? error : new Error("Remove liquidity execution failed");
   }
