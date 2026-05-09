@@ -14,6 +14,8 @@ import type {
 
 /**
  * Fetch all swap pair IDs from the SWP contract
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getPoolIds(): Promise<string[] | null> {
   try {
@@ -31,7 +33,8 @@ export async function getPoolIds(): Promise<string[] | null> {
     return Array.isArray(data) ? (data as string[]) : null;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getPoolIds:", error);
+    return null;
   }
 }
 
@@ -53,6 +56,8 @@ export async function getPrimordialPool(): Promise<string | null> {
 
 /**
  * Fetch general information for all swap pairs
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getSWPairGeneralInfo(): Promise<any> {
   try {
@@ -69,12 +74,15 @@ export async function getSWPairGeneralInfo(): Promise<any> {
     return response.result.data;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getSWPairGeneralInfo:", error);
+    return null;
   }
 }
 
 /**
  * Fetch detailed dashboard information for a specific swap pair
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getSWPairDashboardInfo(swpair: string): Promise<SwapPoolData | null> {
   try {
@@ -102,13 +110,16 @@ export async function getSWPairDashboardInfo(swpair: string): Promise<SwapPoolDa
     }
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getSWPairDashboardInfo:", error);
+    return null;
   }
 }
 
 /**
  * Fetch enhanced pool preview/dashboard data for a specific pool
  * Returns richer data structure with formatted values and weights
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getPoolPreviewData(poolId: string): Promise<PoolPreviewData | null> {
   try {
@@ -136,12 +147,15 @@ export async function getPoolPreviewData(poolId: string): Promise<PoolPreviewDat
     }
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getPoolPreviewData:", error);
+    return null;
   }
 }
 
 /**
  * Fetch detailed dashboard information for multiple swap pairs
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getSWPairMultiDashboardInfo(swpairs: string[]): Promise<SwapPoolData[] | null> {
   try {
@@ -162,13 +176,16 @@ export async function getSWPairMultiDashboardInfo(swpairs: string[]): Promise<Sw
     return Array.isArray(data) ? (data as SwapPoolData[]) : null;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getSWPairMultiDashboardInfo:", error);
+    return null;
   }
 }
 
 /**
  * Fetch comprehensive internal dashboard data for a specific swap pair
  * Contains all pool stats including detailed analytics
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getSwpairInternalDashboard(swpair: string): Promise<SwpairInternalDashboard | null> {
   try {
@@ -190,6 +207,7 @@ export async function getSwpairInternalDashboard(swpair: string): Promise<Swpair
     return data as SwpairInternalDashboard;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getSwpairInternalDashboard:", error);
+    return null;
   }
 }

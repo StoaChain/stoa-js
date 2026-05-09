@@ -15,6 +15,8 @@ import type {
 
 /**
  * Calculate direct swap output amounts
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function calculateDirectSwap(
   account: string,
@@ -53,12 +55,15 @@ export async function calculateDirectSwap(
     return data as SwapCalculationResult;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in calculateDirectSwap:", error);
+    return null;
   }
 }
 
 /**
  * Calculate reverse swap input amounts (user specifies desired output)
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function calculateInverseSwap(
   account: string,
@@ -90,12 +95,15 @@ export async function calculateInverseSwap(
     return data as InverseSwapResult;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in calculateInverseSwap:", error);
+    return null;
   }
 }
 
 /**
  * URC_0006b — Direct swap calculation, returns numeric output amount directly
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function calculateDirectSwapB(
   account: string,
@@ -115,13 +123,16 @@ export async function calculateDirectSwapB(
     if (!response?.result) throw new Error("No response");
     if (response.result.status === "failure") throw new Error(response.result.error?.message ?? "Failed");
     return response.result.data as any;
-  } catch (e) {
-    throw e instanceof Error ? e : new Error("Unknown error");
+  } catch (error) {
+    getLogger().error("Error in calculateDirectSwapB:", error);
+    return null;
   }
 }
 
 /**
  * URC_0007b — Inverse swap calculation, returns numeric input amount directly
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function calculateInverseSwapB(
   account: string,
@@ -137,13 +148,16 @@ export async function calculateInverseSwapB(
     if (!response?.result) throw new Error("No response");
     if (response.result.status === "failure") throw new Error(response.result.error?.message ?? "Failed");
     return response.result.data as any;
-  } catch (e) {
-    throw e instanceof Error ? e : new Error("Unknown error");
+  } catch (error) {
+    getLogger().error("Error in calculateInverseSwapB:", error);
+    return null;
   }
 }
 
 /**
  * Get maximum output amount for reverse swap (75% of token supply in pool)
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getCappedInverseAmount(
   swpair: string,
@@ -169,12 +183,15 @@ export async function getCappedInverseAmount(
     return data as CappedInverseResult;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getCappedInverseAmount:", error);
+    return null;
   }
 }
 
 /**
  * Get user's token balances for all tokens in a specific swap pair
+ *
+ * Returns null on RPC failure (catch-and-return-null contract, v4.2.0).
  */
 export async function getUserAccountSupplies(
   account: string,
@@ -202,7 +219,8 @@ export async function getUserAccountSupplies(
     return data as UserAccountSupplies;
 
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Unknown error occurred");
+    getLogger().error("Error in getUserAccountSupplies:", error);
+    return null;
   }
 }
 
