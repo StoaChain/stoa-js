@@ -38,6 +38,12 @@
  *      for the v3.3.3 multi-party signing public surface.
  *   8. Keypairs not in `cmd.signers` are silently ignored (no error,
  *      just skipped — current contract per `universalSign.ts:91`).
+ *   9. Foreign branch in-list — keypair WITH `seedType: "foreign"`
+ *      supplied directly in the keypairs list routes through nacl
+ *      Ed25519 (same path as koala). Output equivalence with koala
+ *      asserted byte-for-byte over the same private-key value.
+ *      Closes F-TEST-002 (audit 2026-05-05): all 4 dispatcher
+ *      branches now have direct in-list runtime coverage.
  *
  * The hash-verification approach uses `nacl.sign.detached.verify`
  * over the base64URL-decoded `signed.hash` bytes. This works for
@@ -338,5 +344,90 @@ describe("universalSignTransaction — partial-signing primitive (v3.3.3 foundat
 
     expect(signed.sigs).toHaveLength(1);
     expect(verifySig(signed, 0, KOALA_PUB_A)).toBe(true);
+  });
+});
+
+// ══ Foreign branch (in-list seedType: "foreign", nacl Ed25519) ══════════════
+describe("universalSignTransaction — foreign branch (in-list seedType: \"foreign\", nacl Ed25519)", () => {
+  it("signs a single-signer foreign tx and produces a valid Ed25519 signature byte-equivalent to koala for the same private key", async () => {
+    const tx = buildTx([KOALA_PUB_A]);
+    const foreignKp: UniversalKeypair = {
+      publicKey: KOALA_PUB_A,
+      secretKey: KOALA_PRIV_A,
+      seedType: "foreign",
+    };
+    const koalaKp: UniversalKeypair = {
+      publicKey: KOALA_PUB_A,
+      secretKey: KOALA_PRIV_A,
+      seedType: "koala",
+    };
+
+    const signedForeign = await universalSignTransaction(tx, [foreignKp]);
+    const signedKoala = await universalSignTransaction(tx, [koalaKp]);
+
+    // Strategy A: shape + verification.
+    expect(signedForeign.sigs).toHaveLength(1);
+    expect(signedForeign.sigs[0]?.sig).toMatch(/^[0-9a-f]{128}$/);
+    expect(verifySig(signedForeign, 0, KOALA_PUB_A)).toBe(true);
+
+    // Strategy B: byte-equivalence with koala for the same private key —
+    // dispatcher's foreign branch falls through the isChainweaver guard at
+    // universalSign.ts:94 into the same naclPairs.push at line 102 as koala.
+    // Ed25519 deterministic signing produces identical bytes for the same
+    // (key, message) pair. If a future refactor re-routes foreign through
+    // a different primitive, this assertion fails immediately.
+    expect(signedForeign.sigs[0]?.sig).toBe(signedKoala.sigs[0]?.sig);
+  });
+
+  it("dispatcher routing — `seedType: \"foreign\"` falls through the chainweaver/eckowallet guard and into nacl Ed25519", async () => {
+    // The isChainweaver guard at universalSign.ts:94-97 requires
+    //   (seedType === "chainweaver" || seedType === "eckowallet")
+    //   && encryptedSecretKey
+    //   && password
+    // For seedType: "foreign" the first conjunct fails (line 95) and
+    // the keypair is pushed onto naclPairs at line 102 — the same path
+    // koala uses. The signature must verify with the standard
+    // nacl.sign.detached.verify primitive (NOT the WASM kadenaSign path).
+    const tx = buildTx([KOALA_PUB_C]);
+    const foreignKp: UniversalKeypair = {
+      publicKey: KOALA_PUB_C,
+      secretKey: KOALA_PRIV_C,
+      seedType: "foreign",
+    };
+
+    const signed = await universalSignTransaction(tx, [foreignKp]);
+
+    expect(signed.sigs).toHaveLength(1);
+    expect(signed.sigs[0]?.sig).toMatch(/^[0-9a-f]{128}$/);
+    // verifySig uses nacl.sign.detached.verify internally; a passing
+    // verification confirms the foreign branch reached the nacl primitive
+    // (not WASM kadenaSign).
+    expect(verifySig(signed, 0, KOALA_PUB_C)).toBe(true);
+  });
+
+  it("signs a 2-signer tx (1 foreign + 1 koala) — both slots filled and verifiable", async () => {
+    // Mixed multi-signer lock: dispatcher's iterate-and-route-each
+    // contract holds for the foreign branch (mirrors the chainweaver+koala
+    // lock above). A foreign-keypair AND a koala-keypair on the same tx
+    // must both end up in naclPairs and produce 2 valid sigs.
+    const tx = buildTx([KOALA_PUB_A, KOALA_PUB_B]);
+    const foreignKp: UniversalKeypair = {
+      publicKey: KOALA_PUB_A,
+      secretKey: KOALA_PRIV_A,
+      seedType: "foreign",
+    };
+    const koalaKp: UniversalKeypair = {
+      publicKey: KOALA_PUB_B,
+      secretKey: KOALA_PRIV_B,
+      seedType: "koala",
+    };
+
+    const signed = await universalSignTransaction(tx, [foreignKp, koalaKp]);
+
+    expect(signed.sigs).toHaveLength(2);
+    expect(signed.sigs[0]?.sig).toMatch(/^[0-9a-f]{128}$/);
+    expect(signed.sigs[1]?.sig).toMatch(/^[0-9a-f]{128}$/);
+    expect(verifySig(signed, 0, KOALA_PUB_A)).toBe(true);
+    expect(verifySig(signed, 1, KOALA_PUB_B)).toBe(true);
   });
 });
