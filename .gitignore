@@ -11,6 +11,9 @@ coverage/
 # Local secrets (token store for git push automation)
 .secrets/
 
+# Wasp local workflow state (cross-pollinate config, state, history) — local-only
+.wasp/
+
 # Bee local workflow state (specs, phases, session artifacts) — local-only, not shipped
 .bee/
 
