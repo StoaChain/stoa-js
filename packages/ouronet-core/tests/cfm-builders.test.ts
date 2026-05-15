@@ -32,6 +32,7 @@ import {
   buildAwakePactCode,
   buildSlumberPactCode,
   buildFirestarterPactCode,
+  buildChangeOwnershipPactCode,
   buildRotateSovereignPactCode,
 } from "../src/pact/cfmBuilders";
 
@@ -273,7 +274,7 @@ describe("buildSlumberPactCode", () => {
   });
 });
 
-// ─── TS01-C3.SWP — Firestarter ──────────────────────────────────────────────
+// ─── TS01-C3.SWP — Firestarter, ChangeOwnership ─────────────────────────────
 
 describe("buildFirestarterPactCode", () => {
   it("emits the 1-arg C_Firestarter shape", () => {
@@ -282,6 +283,33 @@ describe("buildFirestarterPactCode", () => {
     ).toBe(
       `(ouronet-ns.TS01-C3.SWP|C_Firestarter "${RESIDENT}")`,
     );
+  });
+});
+
+describe("buildChangeOwnershipPactCode", () => {
+  const SWPAIR    = "swp:OURO-GSTOA-W-pair-123";
+  const NEW_OWNER = "ouro:NEW-OWNER-D";
+
+  it("emits the canonical 3-arg C_ChangeOwnership shape", () => {
+    expect(
+      buildChangeOwnershipPactCode({
+        patron:   PATRON,
+        swpair:   SWPAIR,
+        newOwner: NEW_OWNER,
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_ChangeOwnership "${PATRON}" "${SWPAIR}" "${NEW_OWNER}")`,
+    );
+  });
+
+  it("uses the SWP module + TS01-C3 namespace + C_ChangeOwnership function", () => {
+    const code = buildChangeOwnershipPactCode({
+      patron: "p", swpair: "s", newOwner: "n",
+    });
+    expect(code).toContain(".TS01-C3.SWP|C_ChangeOwnership ");
+    // Argument ORDER guard — patron → swpair → new-owner.
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"s"`));
+    expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf(`"n"`));
   });
 });
 
@@ -336,6 +364,7 @@ describe("every builder produces a valid Pact call shape", () => {
     () => buildAwakePactCode({ patron: "a", awaker: "b", dpof: "d", nonce: 1 }),
     () => buildSlumberPactCode({ patron: "a", merger: "b", dpof: "d", nonces: [1] }),
     () => buildFirestarterPactCode({ firestarter: "a" }),
+    () => buildChangeOwnershipPactCode({ patron: "a", swpair: "b", newOwner: "c" }),
     () => buildRotateSovereignPactCode({ patron: "a", account: "b", newSovereign: "c" }),
   ];
 

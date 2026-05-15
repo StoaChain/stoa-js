@@ -210,6 +210,28 @@ export async function getFirestarterInfo(firestarter: string): Promise<any> {
 }
 
 /**
+ * Get ChangeOwnership info from INFO-ONE
+ * (ouronet-ns.INFO-ONE.SWP|INFO_ChangeOwnership <patron> <swpair> <new-owner>)
+ */
+export async function getChangeOwnershipInfo(
+  patron:   string,
+  swpair:   string,
+  newOwner: string,
+): Promise<any> {
+  try {
+    const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.SWP|INFO_ChangeOwnership "${patron}" "${swpair}" "${newOwner}")`;
+    const response = await pactRead(pactCode, { tier: "T2" });
+    if (response?.result?.status === "success") {
+      return (response.result as any).data;
+    }
+    return null;
+  } catch (error) {
+    getLogger().error("Error getting change-ownership info:", error);
+    return null;
+  }
+}
+
+/**
  * Get DPTF Transfer info from INFO-ONE
  * (ouronet-ns.INFO-ONE.DPTF|INFO_Transfer <patron> <token-id> <sender> <receiver> <amount>)
  */

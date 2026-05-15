@@ -261,7 +261,7 @@ export function buildSlumberPactCode(p: {
   return `(${KADENA_NAMESPACE}.TS01-C2.VST|C_Slumber "${p.patron}" "${p.merger}" "${p.dpof}" ${nonceList})`;
 }
 
-// ─── TS01-C3.SWP family (Swap — Firestarter) ─────────────────────────────────
+// ─── TS01-C3.SWP family (Swap — Firestarter, ChangeOwnership) ────────────────
 
 /**
  * Firestarter — wrap 10 native STOA → 10 wSTOA. One-time, gasless for
@@ -273,6 +273,23 @@ export function buildFirestarterPactCode(p: {
   firestarter: string;
 }): string {
   return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_Firestarter "${p.firestarter}")`;
+}
+
+/**
+ * ChangeOwnership — transfer ownership of an existing SWP-pair (liquidity
+ * pool) from its current pool-owner to a new Ouronet account. Gated by
+ * the pool's `can-change-owner` flag (must be true) and signed by the
+ * patron + current pool-owner guards.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_ChangeOwnership
+ *     <patron> <swpair> <new-owner>)
+ */
+export function buildChangeOwnershipPactCode(p: {
+  patron:   string;
+  swpair:   string;
+  newOwner: string;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_ChangeOwnership "${p.patron}" "${p.swpair}" "${p.newOwner}")`;
 }
 
 // ─── TS01-C1.DALOS family (Smart Ouronet Account mutations) ──────────────────

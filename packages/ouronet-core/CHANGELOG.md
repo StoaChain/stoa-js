@@ -4,6 +4,20 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.2.1 — 2026-05-16
+
+**PATCH — additive: new `C_ChangeOwnership` CFM builder + matching `INFO_ChangeOwnership` reader for the SWP-pair Transfer Ownership flow.** Solo bump (NOT atomic-triplet — peer-deps `@stoachain/kadena-stoic-legacy` and `@stoachain/stoa-core` stay at `4.2.0`; this change is internal to `ouronet-core` and consumes no new chain-generic surfaces).
+
+### Added
+
+- **`buildChangeOwnershipPactCode({ patron, swpair, newOwner })`** in `src/pact/cfmBuilders.ts` (TS01-C3.SWP family). Emits `(ouronet-ns.TS01-C3.SWP|C_ChangeOwnership "<patron>" "<swpair>" "<new-owner>")`. Companion builder for the OuronetUI `ChangeOwnershipCFMModal` wired on the Pool Settings → Transfer Ownership button.
+- **`getChangeOwnershipInfo(patron, swpair, newOwner)`** in `src/interactions/infoOneFunctions.ts`. Reads `(ouronet-ns.INFO-ONE.SWP|INFO_ChangeOwnership ...)` at T2, returns `null` on RPC failure (honoring the F-API-002 nullable contract).
+- **Tests:** `tests/cfm-builders.test.ts` gains a `describe("buildChangeOwnershipPactCode")` block (canonical 3-arg shape + module/function-name + argument-order guards) and the new builder is added to the cross-cutting valid-shape `it.each` sample list.
+
+### Compatibility
+
+- Pure additive — no signature changes to existing exports, no peer-dep bump. Consumers on `4.2.0` continue to work unchanged; consumers wanting `C_ChangeOwnership` upgrade to `4.2.1`.
+
 ## 4.2.0 — 2026-05-09
 
 **MINOR — architectural closures + INTEGRATION-GUIDE deliverable + atomic-triplet bump (atomic with `@stoachain/kadena-stoic-legacy@4.2.0` + `@stoachain/stoa-core@4.2.0`).** Released 2026-05-09. Closes 6 audit findings (F-ARCH-001/002/003 god-file splits + F-API-002 nullable contract + F-API-018 readonly sweep + F-TEST-006 coverage expansion) plus a NEW deliverable (`INTEGRATION-GUIDE.md` at repo root).
