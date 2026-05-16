@@ -34,7 +34,24 @@ import {
   buildFirestarterPactCode,
   buildChangeOwnershipPactCode,
   buildWrapStoaPactCode,
+  buildWrapUrStoaPactCode,
   buildStakeUrStoaPactCode,
+  buildUnstakeUrStoaPactCode,
+  buildCollectUrStoaPactCode,
+  buildCollectUrStoaWithCreateAccountPactCode,
+  buildNativeUrTransferPactCode,
+  buildNativeUrTransmitPactCode,
+  buildNativeUrTransferAnewPactCode,
+  buildNativeUrTransmitAnewPactCode,
+  buildDeployStandardAccountPactCode,
+  buildAddLiquidityPactCode,
+  buildRemoveLiquidityPactCode,
+  buildSingleSwapWithSlippagePactCode,
+  buildSingleSwapNoSlippagePactCode,
+  buildMultiSwapWithSlippagePactCode,
+  buildMultiSwapNoSlippagePactCode,
+  buildCreateSetPactCode,
+  buildCreateSetNFTPactCode,
   buildRotateSovereignPactCode,
 } from "../src/pact/cfmBuilders";
 
@@ -312,6 +329,26 @@ describe("buildWrapStoaPactCode", () => {
   });
 });
 
+describe("buildWrapUrStoaPactCode", () => {
+  const WRAPPER = "ouro:WRAPPER-W";
+
+  it("emits the canonical 3-arg C_WrapUrStoa shape", () => {
+    expect(
+      buildWrapUrStoaPactCode({ patron: PATRON, wrapper: WRAPPER, amount: "5" }),
+    ).toBe(
+      `(ouronet-ns.TS01-C2.LQD|C_WrapUrStoa "${PATRON}" "${WRAPPER}" 5.0)`,
+    );
+  });
+
+  it("uses the LQD module + TS01-C2 namespace + C_WrapUrStoa function (not C_WrapStoa)", () => {
+    const code = buildWrapUrStoaPactCode({ patron: "p", wrapper: "w", amount: "1" });
+    expect(code).toContain(".TS01-C2.LQD|C_WrapUrStoa ");
+    expect(code).not.toContain("C_WrapStoa ");
+    // Argument ORDER guard — patron then wrapper.
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"w"`));
+  });
+});
+
 describe("buildStakeUrStoaPactCode", () => {
   const PK = "k:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
@@ -332,6 +369,360 @@ describe("buildStakeUrStoaPactCode", () => {
   it("formats amount via formatDecimalForPact", () => {
     const code = buildStakeUrStoaPactCode({ paymentKeyAddress: "k:00", amount: "5" });
     expect(code).toContain(" 5.0)");
+  });
+});
+
+describe("buildUnstakeUrStoaPactCode", () => {
+  const PK = "k:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+  it("emits the canonical 2-arg coin.C_URV|Unstake shape", () => {
+    expect(
+      buildUnstakeUrStoaPactCode({ paymentKeyAddress: PK, amount: "100" }),
+    ).toBe(
+      `(coin.C_URV|Unstake "${PK}" 100.0)`,
+    );
+  });
+
+  it("uses the coin module + Unstake (NOT Stake) function name", () => {
+    const code = buildUnstakeUrStoaPactCode({ paymentKeyAddress: "k:00", amount: "1" });
+    expect(code.startsWith("(coin.C_URV|Unstake ")).toBe(true);
+    expect(code).not.toContain("C_URV|Stake ");
+  });
+});
+
+describe("buildCollectUrStoaPactCode", () => {
+  const PK = "k:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+  it("emits the canonical 1-arg coin.C_URV|Collect shape", () => {
+    expect(buildCollectUrStoaPactCode({ paymentKeyAddress: PK })).toBe(
+      `(coin.C_URV|Collect "${PK}")`,
+    );
+  });
+
+  it("uses the coin module (NOT ouronet-ns)", () => {
+    const code = buildCollectUrStoaPactCode({ paymentKeyAddress: "k:00" });
+    expect(code).not.toContain("ouronet-ns");
+    expect(code.startsWith("(coin.C_URV|Collect ")).toBe(true);
+  });
+});
+
+describe("buildCollectUrStoaWithCreateAccountPactCode", () => {
+  const PK = "k:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+  it("emits a 2-call composite — C_CreateAccount followed by C_URV|Collect", () => {
+    const code = buildCollectUrStoaWithCreateAccountPactCode({ paymentKeyAddress: PK });
+    expect(code).toContain(`(coin.C_CreateAccount "${PK}" (read-keyset "ks"))`);
+    expect(code).toContain(`(coin.C_URV|Collect "${PK}")`);
+    // Create-account MUST come before collect.
+    expect(code.indexOf("C_CreateAccount")).toBeLessThan(code.indexOf("C_URV|Collect"));
+  });
+
+  it("references the 'ks' keyset literal (consumer must addData('ks', {...}))", () => {
+    const code = buildCollectUrStoaWithCreateAccountPactCode({ paymentKeyAddress: "k:00" });
+    expect(code).toContain(`(read-keyset "ks")`);
+  });
+});
+
+describe("buildNativeUrTransferPactCode", () => {
+  it("emits the 3-arg coin.C_UR|Transfer shape (receiver exists, Transfer family)", () => {
+    expect(
+      buildNativeUrTransferPactCode({
+        sender: "k:sender", receiver: "k:receiver", amount: "10",
+      }),
+    ).toBe(
+      `(coin.C_UR|Transfer "k:sender" "k:receiver" 10.0)`,
+    );
+  });
+
+  it("uses the coin module (NOT ouronet-ns)", () => {
+    const code = buildNativeUrTransferPactCode({
+      sender: "s", receiver: "r", amount: "1",
+    });
+    expect(code).not.toContain("ouronet-ns");
+    expect(code.startsWith("(coin.C_UR|Transfer ")).toBe(true);
+  });
+});
+
+describe("buildNativeUrTransmitPactCode", () => {
+  it("emits the 3-arg coin.C_UR|Transmit shape (receiver exists, Transmit family)", () => {
+    expect(
+      buildNativeUrTransmitPactCode({
+        sender: "k:sender", receiver: "k:receiver", amount: "10",
+      }),
+    ).toBe(
+      `(coin.C_UR|Transmit "k:sender" "k:receiver" 10.0)`,
+    );
+  });
+
+  it("differs from Transfer only by function name (same args)", () => {
+    const transfer = buildNativeUrTransferPactCode({ sender: "s", receiver: "r", amount: "1" });
+    const transmit = buildNativeUrTransmitPactCode({ sender: "s", receiver: "r", amount: "1" });
+    expect(transmit).toBe(transfer.replace("C_UR|Transfer", "C_UR|Transmit"));
+  });
+});
+
+describe("buildNativeUrTransferAnewPactCode", () => {
+  it("emits the 4-arg coin.C_UR|TransferAnew shape with (read-keyset 'ks')", () => {
+    expect(
+      buildNativeUrTransferAnewPactCode({
+        sender: "k:sender", receiver: "k:receiver", amount: "10",
+      }),
+    ).toBe(
+      `(coin.C_UR|TransferAnew "k:sender" "k:receiver" (read-keyset "ks") 10.0)`,
+    );
+  });
+
+  it("references the 'ks' keyset literal (consumer must addData('ks', {...}))", () => {
+    const code = buildNativeUrTransferAnewPactCode({
+      sender: "s", receiver: "r", amount: "1",
+    });
+    expect(code).toContain(`(read-keyset "ks")`);
+  });
+});
+
+describe("buildNativeUrTransmitAnewPactCode", () => {
+  it("emits the 4-arg coin.C_UR|TransmitAnew shape with (read-keyset 'ks')", () => {
+    expect(
+      buildNativeUrTransmitAnewPactCode({
+        sender: "k:sender", receiver: "k:receiver", amount: "10",
+      }),
+    ).toBe(
+      `(coin.C_UR|TransmitAnew "k:sender" "k:receiver" (read-keyset "ks") 10.0)`,
+    );
+  });
+
+  it("differs from TransferAnew only by function name (same args)", () => {
+    const xfer = buildNativeUrTransferAnewPactCode({ sender: "s", receiver: "r", amount: "1" });
+    const xmit = buildNativeUrTransmitAnewPactCode({ sender: "s", receiver: "r", amount: "1" });
+    expect(xmit).toBe(xfer.replace("C_UR|TransferAnew", "C_UR|TransmitAnew"));
+  });
+});
+
+describe("buildDeployStandardAccountPactCode", () => {
+  it("emits the canonical 4-arg C_DeployStandardAccount shape with (read-keyset 'ks')", () => {
+    expect(
+      buildDeployStandardAccountPactCode({
+        account:       "Ѻ.NEW-ACCT",
+        kadenaAddress: "k:abc123",
+        publicKey:     "deadbeef",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_DeployStandardAccount "Ѻ.NEW-ACCT" (read-keyset "ks") "k:abc123" "deadbeef")`,
+    );
+  });
+
+  it("uses the DALOS module + TS01-C1 namespace + C_DeployStandardAccount function", () => {
+    const code = buildDeployStandardAccountPactCode({
+      account: "a", kadenaAddress: "k", publicKey: "p",
+    });
+    expect(code).toContain(".TS01-C1.DALOS|C_DeployStandardAccount ");
+  });
+
+  it("references the 'ks' keyset literal in the 2nd argument position", () => {
+    const code = buildDeployStandardAccountPactCode({
+      account: "a", kadenaAddress: "k", publicKey: "p",
+    });
+    // Account comes first, then ks reference, then kadena, then public.
+    expect(code.indexOf(`"a"`)).toBeLessThan(code.indexOf(`(read-keyset "ks")`));
+    expect(code.indexOf(`(read-keyset "ks")`)).toBeLessThan(code.indexOf(`"k"`));
+    expect(code.indexOf(`"k"`)).toBeLessThan(code.indexOf(`"p"`));
+  });
+});
+
+describe("buildAddLiquidityPactCode", () => {
+  const SWPAIR = "swp:OURO-WSTOA-pair-1";
+
+  it("emits the canonical 4-arg C_AddLiquidity shape with bracketed amounts list", () => {
+    expect(
+      buildAddLiquidityPactCode({
+        patron:       PATRON,
+        account:      RESIDENT,
+        swpair:       SWPAIR,
+        inputAmounts: ["100", "50"],
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_AddLiquidity "${PATRON}" "${RESIDENT}" "${SWPAIR}" [100.0 50.0])`,
+    );
+  });
+
+  it("pads integer amounts with .0 inside the list", () => {
+    const code = buildAddLiquidityPactCode({
+      patron: "a", account: "b", swpair: "s", inputAmounts: ["10", "20"],
+    });
+    expect(code).toContain(" [10.0 20.0])");
+  });
+
+  it("preserves fractional amounts verbatim", () => {
+    const code = buildAddLiquidityPactCode({
+      patron: "a", account: "b", swpair: "s", inputAmounts: ["1.5", "2.25"],
+    });
+    expect(code).toContain(" [1.5 2.25])");
+  });
+});
+
+describe("buildRemoveLiquidityPactCode", () => {
+  const SWPAIR = "swp:OURO-WSTOA-pair-1";
+
+  it("emits the canonical 4-arg C_RemoveLiquidity shape (single lp-amount, not list)", () => {
+    expect(
+      buildRemoveLiquidityPactCode({
+        patron:   PATRON,
+        account:  RESIDENT,
+        swpair:   SWPAIR,
+        lpAmount: "5",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_RemoveLiquidity "${PATRON}" "${RESIDENT}" "${SWPAIR}" 5.0)`,
+    );
+  });
+
+  it("argument ORDER — patron → account → swpair → lp-amount", () => {
+    const code = buildRemoveLiquidityPactCode({
+      patron: "p", account: "a", swpair: "s", lpAmount: "1",
+    });
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"a"`));
+    expect(code.indexOf(`"a"`)).toBeLessThan(code.indexOf(`"s"`));
+  });
+});
+
+describe("buildSingleSwapWithSlippagePactCode", () => {
+  it("emits the canonical 6-arg shape with (read-msg 'slippage-bounds)", () => {
+    expect(
+      buildSingleSwapWithSlippagePactCode({
+        patron: PATRON, account: RESIDENT, swpair: "swpair-1",
+        inputId: "OURO", inputAmount: "10", outputId: "WSTOA",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_SingleSwapWithSlippage "${PATRON}" "${RESIDENT}" "swpair-1" "OURO" 10.0 "WSTOA" (read-msg 'slippage-bounds))`,
+    );
+  });
+
+  it("argument ORDER — input then amount then output (NOT input → output → amount)", () => {
+    const code = buildSingleSwapWithSlippagePactCode({
+      patron: "p", account: "a", swpair: "s",
+      inputId: "I", inputAmount: "1", outputId: "O",
+    });
+    const iIdx = code.indexOf(`"I"`);
+    const oIdx = code.indexOf(`"O"`);
+    const amtIdx = code.indexOf(" 1.0 ");
+    expect(iIdx).toBeLessThan(amtIdx);
+    expect(amtIdx).toBeLessThan(oIdx);
+  });
+});
+
+describe("buildSingleSwapNoSlippagePactCode", () => {
+  it("emits the canonical 6-arg shape WITHOUT (read-msg 'slippage-bounds)", () => {
+    expect(
+      buildSingleSwapNoSlippagePactCode({
+        patron: PATRON, account: RESIDENT, swpair: "swpair-1",
+        inputId: "OURO", inputAmount: "10", outputId: "WSTOA",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_SingleSwapNoSlippage "${PATRON}" "${RESIDENT}" "swpair-1" "OURO" 10.0 "WSTOA")`,
+    );
+  });
+
+  it("does NOT reference slippage-bounds (NoSlippage variant)", () => {
+    const code = buildSingleSwapNoSlippagePactCode({
+      patron: "p", account: "a", swpair: "s",
+      inputId: "I", inputAmount: "1", outputId: "O",
+    });
+    expect(code).not.toContain("slippage-bounds");
+    expect(code).not.toContain("read-msg");
+  });
+});
+
+describe("buildMultiSwapWithSlippagePactCode", () => {
+  it("emits the canonical 6-arg shape with [string list] inputs and amounts", () => {
+    expect(
+      buildMultiSwapWithSlippagePactCode({
+        patron: PATRON, account: RESIDENT, swpair: "swpair-1",
+        inputIds: ["OURO", "IGNIS"], inputAmounts: ["10", "5"], outputId: "WSTOA",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_MultiSwapWithSlippage "${PATRON}" "${RESIDENT}" "swpair-1" ["OURO" "IGNIS"] [10.0 5.0] "WSTOA" (read-msg 'slippage-bounds))`,
+    );
+  });
+
+  it("renders inputIds as a bracketed quoted-string list", () => {
+    const code = buildMultiSwapWithSlippagePactCode({
+      patron: "p", account: "a", swpair: "s",
+      inputIds: ["X", "Y"], inputAmounts: ["1", "2"], outputId: "O",
+    });
+    expect(code).toContain(`["X" "Y"]`);
+    expect(code).toContain(` [1.0 2.0] `);
+  });
+});
+
+describe("buildMultiSwapNoSlippagePactCode", () => {
+  it("emits the canonical 6-arg shape with [string list] inputs and amounts, no slippage-bounds", () => {
+    expect(
+      buildMultiSwapNoSlippagePactCode({
+        patron: PATRON, account: RESIDENT, swpair: "swpair-1",
+        inputIds: ["OURO", "IGNIS"], inputAmounts: ["10", "5"], outputId: "WSTOA",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_MultiSwapNoSlippage "${PATRON}" "${RESIDENT}" "swpair-1" ["OURO" "IGNIS"] [10.0 5.0] "WSTOA")`,
+    );
+  });
+
+  it("does NOT reference slippage-bounds (NoSlippage variant)", () => {
+    const code = buildMultiSwapNoSlippagePactCode({
+      patron: "p", account: "a", swpair: "s",
+      inputIds: ["X"], inputAmounts: ["1"], outputId: "O",
+    });
+    expect(code).not.toContain("slippage-bounds");
+  });
+});
+
+describe("buildCreateSetPactCode", () => {
+  it("emits the canonical 6-arg C_Make shape (SFT — semi-fungible) with nonces list + integer set-class + integer how-many-sets", () => {
+    expect(
+      buildCreateSetPactCode({
+        patron: PATRON, account: RESIDENT, tokenId: "TKN-xyz",
+        nonces: [1, 2, 3], setClass: 7, howManySets: 2,
+      }),
+    ).toBe(
+      `(ouronet-ns.TS02-C1.DPSF|C_Make "${PATRON}" "${RESIDENT}" "TKN-xyz" [1 2 3] 7 2)`,
+    );
+  });
+
+  it("uses the DPSF module + TS02-C1 namespace + C_Make function (semi-fungible variant)", () => {
+    const code = buildCreateSetPactCode({
+      patron: "p", account: "a", tokenId: "t",
+      nonces: [1], setClass: 1, howManySets: 1,
+    });
+    expect(code).toContain(".TS02-C1.DPSF|C_Make ");
+  });
+
+  it("nonces are emitted as bare integers in a bracketed list (no .0 padding)", () => {
+    const code = buildCreateSetPactCode({
+      patron: "p", account: "a", tokenId: "t",
+      nonces: [10, 20], setClass: 1, howManySets: 1,
+    });
+    expect(code).toContain("[10 20]");
+    expect(code).not.toContain("10.0");
+  });
+});
+
+describe("buildCreateSetNFTPactCode", () => {
+  it("emits the canonical 5-arg C_Make shape (NFT — non-fungible) without how-many-sets", () => {
+    expect(
+      buildCreateSetNFTPactCode({
+        patron: PATRON, account: RESIDENT, tokenId: "TKN-xyz",
+        nonces: [1, 2, 3], setClass: 7,
+      }),
+    ).toBe(
+      `(ouronet-ns.TS02-C2.DPNF|C_Make "${PATRON}" "${RESIDENT}" "TKN-xyz" [1 2 3] 7)`,
+    );
+  });
+
+  it("uses the DPNF module + TS02-C2 namespace (non-fungible variant, NOT DPSF)", () => {
+    const code = buildCreateSetNFTPactCode({
+      patron: "p", account: "a", tokenId: "t", nonces: [1], setClass: 1,
+    });
+    expect(code).toContain(".TS02-C2.DPNF|C_Make ");
+    expect(code).not.toContain("TS02-C1.DPSF");
   });
 });
 
@@ -415,7 +806,17 @@ describe("every builder produces a valid Pact call shape", () => {
     () => buildFirestarterPactCode({ firestarter: "a" }),
     () => buildChangeOwnershipPactCode({ patron: "a", swpair: "b", newOwner: "c" }),
     () => buildWrapStoaPactCode({ patron: "a", wrapper: "b", amount: "1" }),
+    () => buildWrapUrStoaPactCode({ patron: "a", wrapper: "b", amount: "1" }),
     () => buildRotateSovereignPactCode({ patron: "a", account: "b", newSovereign: "c" }),
+    () => buildDeployStandardAccountPactCode({ account: "a", kadenaAddress: "k", publicKey: "p" }),
+    () => buildAddLiquidityPactCode({ patron: "a", account: "b", swpair: "s", inputAmounts: ["1"] }),
+    () => buildRemoveLiquidityPactCode({ patron: "a", account: "b", swpair: "s", lpAmount: "1" }),
+    () => buildSingleSwapWithSlippagePactCode({ patron: "a", account: "b", swpair: "s", inputId: "i", inputAmount: "1", outputId: "o" }),
+    () => buildSingleSwapNoSlippagePactCode({ patron: "a", account: "b", swpair: "s", inputId: "i", inputAmount: "1", outputId: "o" }),
+    () => buildMultiSwapWithSlippagePactCode({ patron: "a", account: "b", swpair: "s", inputIds: ["i"], inputAmounts: ["1"], outputId: "o" }),
+    () => buildMultiSwapNoSlippagePactCode({ patron: "a", account: "b", swpair: "s", inputIds: ["i"], inputAmounts: ["1"], outputId: "o" }),
+    () => buildCreateSetPactCode({ patron: "a", account: "b", tokenId: "t", nonces: [1], setClass: 1, howManySets: 1 }),
+    () => buildCreateSetNFTPactCode({ patron: "a", account: "b", tokenId: "t", nonces: [1], setClass: 1 }),
   ];
 
   it.each(samples.map((fn, i) => [i, fn]))("sample %i: starts with (ouronet-ns. and ends with )", (_i, fn) => {

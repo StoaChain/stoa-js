@@ -282,6 +282,23 @@ export function buildWrapStoaPactCode(p: {
   return `(${KADENA_NAMESPACE}.TS01-C2.LQD|C_WrapStoa "${p.patron}" "${p.wrapper}" ${dec})`;
 }
 
+/**
+ * Wrap UrStoa — convert native UrStoa → wSTOA. Differs from WrapStoa in
+ * the cap the payment key carries (`coin.UR|TRANSFER` instead of
+ * `coin.TRANSFER`) — the Pact-code shape is otherwise structurally
+ * identical, just a different function name on the same LQD module.
+ *
+ *   (ouronet-ns.TS01-C2.LQD|C_WrapUrStoa <patron> <wrapper> <amount:decimal>)
+ */
+export function buildWrapUrStoaPactCode(p: {
+  patron:  string;
+  wrapper: string;
+  amount:  string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(${KADENA_NAMESPACE}.TS01-C2.LQD|C_WrapUrStoa "${p.patron}" "${p.wrapper}" ${dec})`;
+}
+
 // ─── coin.C_URV family (StoaChain native UrStoa stake / unstake / collect) ───
 //
 // These are PURE StoaChain coin-module operations — no patron, no Ouronet
@@ -304,6 +321,138 @@ export function buildStakeUrStoaPactCode(p: {
 }): string {
   const dec = formatDecimalForPact(p.amount);
   return `(coin.C_URV|Stake "${p.paymentKeyAddress}" ${dec})`;
+}
+
+/**
+ * Unstake UrStoa — releases native UrStoa from the user's payment-key
+ * stake back to the user's payment-key spendable balance. Symmetric to
+ * Stake; the payment key carries `coin.URV|UNSTAKE` (NOT `STAKE`).
+ *
+ *   (coin.C_URV|Unstake <payment-key-account:string> <amount:decimal>)
+ */
+export function buildUnstakeUrStoaPactCode(p: {
+  paymentKeyAddress: string;
+  amount:            string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(coin.C_URV|Unstake "${p.paymentKeyAddress}" ${dec})`;
+}
+
+/**
+ * Collect UrStoa — harvests accrued STOA earnings from the UrStoa Vault to
+ * the user's payment-key coin account. Simple path: the payment-key coin
+ * account already exists; the payment key carries `coin.URV|COLLECT`.
+ *
+ *   (coin.C_URV|Collect <payment-key-account:string>)
+ *
+ * For the case where the payment-key coin account does NOT yet exist,
+ * see `buildCollectUrStoaWithCreateAccountPactCode` below — it builds the
+ * 2-call composite that creates the account first and then collects.
+ */
+export function buildCollectUrStoaPactCode(p: {
+  paymentKeyAddress: string;
+}): string {
+  return `(coin.C_URV|Collect "${p.paymentKeyAddress}")`;
+}
+
+/**
+ * Collect UrStoa with account-creation — used when the payment-key coin
+ * account doesn't yet exist on chain. Emits a 2-call composite Pact body:
+ * the create-account call followed by the collect call. The keyset for
+ * the new account is read from the "ks" data slot — the consumer is
+ * responsible for `.addData("ks", { keys: [pubkey], pred: "keys-all" })`
+ * on the transaction builder.
+ *
+ *   (coin.C_CreateAccount <payment-key> (read-keyset "ks"))
+ *   (coin.C_URV|Collect    <payment-key>)
+ *
+ * Capability set on the build closure is identical to the simple path:
+ * GAS_PAYER + `coin.URV|COLLECT` on the payment key. The composite is
+ * a Pact-side ordering only — both calls execute in a single transaction.
+ */
+export function buildCollectUrStoaWithCreateAccountPactCode(p: {
+  paymentKeyAddress: string;
+}): string {
+  return `(coin.C_CreateAccount "${p.paymentKeyAddress}" (read-keyset "ks"))\n(coin.C_URV|Collect "${p.paymentKeyAddress}")`;
+}
+
+// ─── coin.C_UR family (StoaChain native UrStoa transfer / transmit) ──────────
+//
+// Four Pact-code shapes, selected at runtime by `(receiverExists, isTransferFamily)`:
+//
+//   receiverExists  isTransferFamily  → builder
+//   ──────────────  ────────────────  ────────────────────────────────────────
+//   true            true              buildNativeUrTransferPactCode
+//   true            false             buildNativeUrTransmitPactCode
+//   false           true              buildNativeUrTransferAnewPactCode
+//   false           false             buildNativeUrTransmitAnewPactCode
+//
+// The Anew variants take a 4th `(read-keyset "ks")` argument — the
+// consumer MUST `addData("ks", { keys: [receiverPubKey], pred: "keys-all" })`
+// on the transaction builder. The non-Anew variants take 3 args (no keyset).
+//
+// All four are signed by the payment key carrying `coin.UR|TRANSFER`
+// (Transfer family) or just `coin.UR` (Transmit family) — the capability
+// shape differs between families but the Pact-code shape only differs
+// in the function name.
+
+/**
+ * Native UR Transfer — receiver-exists + Transfer-family branch.
+ *
+ *   (coin.C_UR|Transfer <sender> <receiver> <amount:decimal>)
+ */
+export function buildNativeUrTransferPactCode(p: {
+  sender:   string;
+  receiver: string;
+  amount:   string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(coin.C_UR|Transfer "${p.sender}" "${p.receiver}" ${dec})`;
+}
+
+/**
+ * Native UR Transmit — receiver-exists + Transmit-family branch.
+ *
+ *   (coin.C_UR|Transmit <sender> <receiver> <amount:decimal>)
+ */
+export function buildNativeUrTransmitPactCode(p: {
+  sender:   string;
+  receiver: string;
+  amount:   string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(coin.C_UR|Transmit "${p.sender}" "${p.receiver}" ${dec})`;
+}
+
+/**
+ * Native UR TransferAnew — receiver-does-not-exist + Transfer-family branch.
+ * Reads the receiver keyset from the "ks" data slot; consumer must
+ * `addData("ks", { keys: [receiverPubKey], pred: "keys-all" })`.
+ *
+ *   (coin.C_UR|TransferAnew <sender> <receiver> (read-keyset "ks") <amount:decimal>)
+ */
+export function buildNativeUrTransferAnewPactCode(p: {
+  sender:   string;
+  receiver: string;
+  amount:   string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(coin.C_UR|TransferAnew "${p.sender}" "${p.receiver}" (read-keyset "ks") ${dec})`;
+}
+
+/**
+ * Native UR TransmitAnew — receiver-does-not-exist + Transmit-family branch.
+ * Same keyset contract as TransferAnew.
+ *
+ *   (coin.C_UR|TransmitAnew <sender> <receiver> (read-keyset "ks") <amount:decimal>)
+ */
+export function buildNativeUrTransmitAnewPactCode(p: {
+  sender:   string;
+  receiver: string;
+  amount:   string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(coin.C_UR|TransmitAnew "${p.sender}" "${p.receiver}" (read-keyset "ks") ${dec})`;
 }
 
 // ─── TS01-C3.SWP family (Swap — Firestarter, ChangeOwnership) ────────────────
@@ -337,6 +486,188 @@ export function buildChangeOwnershipPactCode(p: {
   return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_ChangeOwnership "${p.patron}" "${p.swpair}" "${p.newOwner}")`;
 }
 
+// ─── TS01-C3.SWP family — liquidity-pool ops (Add / Remove / Fuel) ───────────
+//
+// `inputAmounts` is rendered as `[a1 a2 a3]` decimal-list literal — each
+// amount routed through `formatDecimalForPact` so an integer "5" becomes
+// "5.0" (Pact decimal lexer rejects bare integers in the decimal slot).
+// AddLiquidity emits the full TS01-C3 path; the four "special" variants
+// (Iced / Glacial / Frozen / Sleeping under TS01-CP.SWP) live in
+// `addLiquidityFunctions.executeSpecialAddLiquidity` and are not yet
+// surfaced by `AddLiquidityInterface.tsx` — builders for those will be
+// added when their modals come online.
+
+/**
+ * Add Liquidity — deposit input-amounts into the SWP-pair pool in exchange
+ * for LP tokens. `inputAmounts` is a per-pool-token decimal vector.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_AddLiquidity
+ *     <patron> <account> <swpair> <inputAmounts:[decimal]>)
+ */
+export function buildAddLiquidityPactCode(p: {
+  patron:       string;
+  account:      string;
+  swpair:       string;
+  inputAmounts: string[];
+}): string {
+  const decimals = p.inputAmounts.map(a => formatDecimalForPact(a));
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_AddLiquidity "${p.patron}" "${p.account}" "${p.swpair}" [${decimals.join(" ")}])`;
+}
+
+/**
+ * Remove Liquidity (Unfold) — burn LP tokens to recover the underlying
+ * pool tokens in proportion to the burned LP share. Single `lpAmount`
+ * decimal (not a list).
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_RemoveLiquidity
+ *     <patron> <account> <swpair> <lp-amount:decimal>)
+ */
+export function buildRemoveLiquidityPactCode(p: {
+  patron:   string;
+  account:  string;
+  swpair:   string;
+  lpAmount: string;
+}): string {
+  const dec = formatDecimalForPact(p.lpAmount);
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_RemoveLiquidity "${p.patron}" "${p.account}" "${p.swpair}" ${dec})`;
+}
+
+// ─── TS01-C3.SWP family — swap ops (Single/Multi × With/No Slippage) ─────────
+//
+// Four shape variants; the modal picks one per click based on
+// (1-vs-N inputs, slippage toggle):
+//
+//   Single + With → C_SingleSwapWithSlippage   (takes (read-msg 'slippage-bounds))
+//   Single + No   → C_SingleSwapNoSlippage     (no slippage arg)
+//   Multi  + With → C_MultiSwapWithSlippage    ([inputIds] [amounts] + slippage)
+//   Multi  + No   → C_MultiSwapNoSlippage      ([inputIds] [amounts], no slippage)
+//
+// The two slippage variants pull `slippage-bounds` from the message data
+// — the consumer must `.addData("slippage-bounds", boundsObj)` on the
+// transaction builder; the bounds object itself is fetched separately
+// via `getSlippageBounds(...)` before signing.
+
+/**
+ * Single-input swap WITH slippage protection.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_SingleSwapWithSlippage
+ *     <patron> <account> <swpair> <inputId> <inputAmount:decimal> <outputId> (read-msg 'slippage-bounds))
+ */
+export function buildSingleSwapWithSlippagePactCode(p: {
+  patron:      string;
+  account:     string;
+  swpair:      string;
+  inputId:     string;
+  inputAmount: string;
+  outputId:    string;
+}): string {
+  const dec = formatDecimalForPact(p.inputAmount);
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_SingleSwapWithSlippage "${p.patron}" "${p.account}" "${p.swpair}" "${p.inputId}" ${dec} "${p.outputId}" (read-msg 'slippage-bounds))`;
+}
+
+/**
+ * Single-input swap WITHOUT slippage protection.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_SingleSwapNoSlippage
+ *     <patron> <account> <swpair> <inputId> <inputAmount:decimal> <outputId>)
+ */
+export function buildSingleSwapNoSlippagePactCode(p: {
+  patron:      string;
+  account:     string;
+  swpair:      string;
+  inputId:     string;
+  inputAmount: string;
+  outputId:    string;
+}): string {
+  const dec = formatDecimalForPact(p.inputAmount);
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_SingleSwapNoSlippage "${p.patron}" "${p.account}" "${p.swpair}" "${p.inputId}" ${dec} "${p.outputId}")`;
+}
+
+/**
+ * Multi-input swap WITH slippage protection. `inputIds` and `inputAmounts`
+ * are parallel arrays; each amount applies to the same-position id.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_MultiSwapWithSlippage
+ *     <patron> <account> <swpair> <inputIds:[string]> <inputAmounts:[decimal]> <outputId> (read-msg 'slippage-bounds))
+ */
+export function buildMultiSwapWithSlippagePactCode(p: {
+  patron:       string;
+  account:      string;
+  swpair:       string;
+  inputIds:     string[];
+  inputAmounts: string[];
+  outputId:     string;
+}): string {
+  const idList  = `[${p.inputIds.map(id => `"${id}"`).join(" ")}]`;
+  const amtList = `[${p.inputAmounts.map(a => formatDecimalForPact(a)).join(" ")}]`;
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_MultiSwapWithSlippage "${p.patron}" "${p.account}" "${p.swpair}" ${idList} ${amtList} "${p.outputId}" (read-msg 'slippage-bounds))`;
+}
+
+/**
+ * Multi-input swap WITHOUT slippage protection.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_MultiSwapNoSlippage
+ *     <patron> <account> <swpair> <inputIds:[string]> <inputAmounts:[decimal]> <outputId>)
+ */
+export function buildMultiSwapNoSlippagePactCode(p: {
+  patron:       string;
+  account:      string;
+  swpair:       string;
+  inputIds:     string[];
+  inputAmounts: string[];
+  outputId:     string;
+}): string {
+  const idList  = `[${p.inputIds.map(id => `"${id}"`).join(" ")}]`;
+  const amtList = `[${p.inputAmounts.map(a => formatDecimalForPact(a)).join(" ")}]`;
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_MultiSwapNoSlippage "${p.patron}" "${p.account}" "${p.swpair}" ${idList} ${amtList} "${p.outputId}")`;
+}
+
+// ─── TS02-Cx.DPSF/DPNF family (Token-Set creation) ───────────────────────────
+//
+// Two C_Make variants — SFT (semi-fungible, DPSF, TS02-C1) takes a
+// `how-many-sets` integer; NFT (non-fungible, DPNF, TS02-C2) always
+// creates exactly one set so the arg is omitted. Both take a nonces
+// integer-list `[n1 n2 n3]` and an integer set-class. The nonces are
+// emitted as bare integers — NOT decimals (no .0 padding).
+
+/**
+ * Create Set (SFT — semi-fungible). Bundles selected DPSF nonces into
+ * `howManySets` sets of class `setClass`.
+ *
+ *   (ouronet-ns.TS02-C1.DPSF|C_Make
+ *     <patron> <account> <id> <nonces:[integer]> <set-class:integer> <how-many-sets:integer>)
+ */
+export function buildCreateSetPactCode(p: {
+  patron:      string;
+  account:     string;
+  tokenId:     string;
+  nonces:      number[];
+  setClass:    number;
+  howManySets: number;
+}): string {
+  const noncesStr = `[${p.nonces.join(" ")}]`;
+  return `(${KADENA_NAMESPACE}.TS02-C1.DPSF|C_Make "${p.patron}" "${p.account}" "${p.tokenId}" ${noncesStr} ${p.setClass} ${p.howManySets})`;
+}
+
+/**
+ * Create Set (NFT — non-fungible). Bundles selected DPNF nonces into a
+ * single set of class `setClass`. No `how-many-sets` parameter — NFT
+ * sets are always 1×.
+ *
+ *   (ouronet-ns.TS02-C2.DPNF|C_Make
+ *     <patron> <account> <id> <nonces:[integer]> <set-class:integer>)
+ */
+export function buildCreateSetNFTPactCode(p: {
+  patron:   string;
+  account:  string;
+  tokenId:  string;
+  nonces:   number[];
+  setClass: number;
+}): string {
+  const noncesStr = `[${p.nonces.join(" ")}]`;
+  return `(${KADENA_NAMESPACE}.TS02-C2.DPNF|C_Make "${p.patron}" "${p.account}" "${p.tokenId}" ${noncesStr} ${p.setClass})`;
+}
+
 // ─── TS01-C1.DALOS family (Smart Ouronet Account mutations) ──────────────────
 
 /**
@@ -365,4 +696,28 @@ export function buildRotateSovereignPactCode(p: {
   newSovereign: string;
 }): string {
   return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_RotateSovereign "${p.patron}" "${p.account}" "${p.newSovereign}")`;
+}
+
+/**
+ * Deploy / activate Standard Ouronet Account. Patronless function — the
+ * Pact code does NOT take a patron argument; the deploying CodexPrime
+ * Key #0 pays gas and signs the 4× coin.TRANSFER caps that fund the
+ * receivers. The guard for the new account is read from the "ks" data
+ * slot — consumer must `.addData("ks", { keys: <guardKeys>, pred: <guardPred> })`
+ * on the transaction builder.
+ *
+ *   (ouronet-ns.TS01-C1.DALOS|C_DeployStandardAccount
+ *     <account> (read-keyset "ks") <kadena-address> <public-key>)
+ *
+ * The 4 coin.TRANSFER capabilities one per kadena-split receiver are NOT
+ * part of the Pact code — they're attached at signer level on the
+ * gas-payer key, with the receiver list + amount list derived from the
+ * INFO call's `kadena-targets` / `kadena-split` fields.
+ */
+export function buildDeployStandardAccountPactCode(p: {
+  account:       string;
+  kadenaAddress: string;
+  publicKey:     string;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_DeployStandardAccount "${p.account}" (read-keyset "ks") "${p.kadenaAddress}" "${p.publicKey}")`;
 }
