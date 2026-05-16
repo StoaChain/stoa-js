@@ -4,6 +4,14 @@ All notable changes to `@stoachain/kadena-stoic-legacy`.
 
 This package was born at v4.1.0 as a sovereign supply-chain replacement for the upstream `@kadena/*` npm packages following Kadena LLC's dissolution. Released atomically alongside `@stoachain/stoa-core@4.1.0` + `@stoachain/ouronet-core@4.1.0` out of the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo — a single `vX.Y.Z` git tag publishes all three packages.
 
+## 4.2.1 — 2026-05-16
+
+**PATCH — atomic-triplet bump aligned with `@stoachain/ouronet-core@4.2.1` additive surface.** No code changes in this package; version bumped solely to maintain the atomic-triplet invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts` (all 3 packages share the same version). Published from the same `v4.2.1` git tag.
+
+### Compatibility
+
+- Functionally identical to `4.2.0`. Consumers MAY pin to either version interchangeably.
+
 ## 4.2.0 — 2026-05-09
 
 **MINOR — atomic-triplet bump (atomic with `@stoachain/stoa-core@4.2.0` + `@stoachain/ouronet-core@4.2.0`).** Released 2026-05-09. NO source-code changes to the vendored upstream files — vendor-fidelity preserved byte-identical to upstream `@kadena/{client,cryptography-utils,types,hd-wallet}` at v1.18.3 / 0.4.4 / 0.7.0 / 0.6.2. NO peer-dep additions or removals; the existing 9-entry peer-dep block is unchanged.

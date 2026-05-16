@@ -6,7 +6,7 @@ This package is the historical continuation of `@stoachain/ouronet-core` v0.x–
 
 ## 4.2.1 — 2026-05-16
 
-**PATCH — additive: new SWP `C_ChangeOwnership` builder + matching INFO reader, the `UR_OwnerKonto` lightweight read, and the full **Phase-3b strategy-migration builder set** (23 new builders + 1 INFO reader total) so the downstream OuronetUI v1.0.7 cycle could migrate every legacy `executeXxx` direct-helper caller (14 modals) onto the canonical `useCFMStrategy + buildXxxPactCode` pattern.** Solo bump (NOT atomic-triplet — peer-deps `@stoachain/kadena-stoic-legacy` and `@stoachain/stoa-core` stay at `4.2.0`; this change is internal to `ouronet-core` and consumes no new chain-generic surfaces).
+**PATCH — additive: new SWP `C_ChangeOwnership` builder + matching INFO reader, the `UR_OwnerKonto` lightweight read, and the full **Phase-3b strategy-migration builder set** (23 new builders + 1 INFO reader total) so the downstream OuronetUI v1.0.7 cycle could migrate every legacy `executeXxx` direct-helper caller (14 modals) onto the canonical `useCFMStrategy + buildXxxPactCode` pattern.** Atomic-triplet bump (`@stoachain/kadena-stoic-legacy@4.2.1` + `@stoachain/stoa-core@4.2.1` + `@stoachain/ouronet-core@4.2.1`) per the invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts`. The other two packages are functionally identical to their 4.2.0 release — version bumped purely to satisfy the triplet model.
 
 ### Added — SWP family (TS01-C3.SWP)
 
@@ -63,7 +63,7 @@ The pre-existing `executeWrapStoa`, `executeStakeUrStoa`, `executeAddLiquidity`,
 
 ### Compatibility
 
-- Pure additive — no signature changes to existing exports, no peer-dep bump. Consumers on `4.2.0` continue to work unchanged; consumers wanting any of the new SWP / Wrap / Unwrap / DALOS / Liquidity / Swap / TokenSet / coin.C_URV / coin.C_UR builders upgrade to `4.2.1`.
+- Pure additive — no signature changes to existing exports. Peer-deps bumped to 4.2.1 only for atomic-triplet alignment (functionally identical to 4.2.0 on the chain-generic side). Consumers on `4.2.0` continue to work unchanged for everything already on 4.2.0; consumers wanting any of the new SWP / Wrap / Unwrap / DALOS / Liquidity / Swap / TokenSet / coin.C_URV / coin.C_UR builders upgrade to `4.2.1`.
 
 ## 4.2.0 — 2026-05-09
 

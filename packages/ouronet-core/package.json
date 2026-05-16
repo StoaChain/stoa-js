@@ -48,8 +48,8 @@
     "clean": "rimraf dist"
   },
   "peerDependencies": {
-    "@stoachain/kadena-stoic-legacy": "4.2.0",
-    "@stoachain/stoa-core": "4.2.0"
+    "@stoachain/kadena-stoic-legacy": "4.2.1",
+    "@stoachain/stoa-core": "4.2.1"
   },
   "repository": {
     "type": "git",

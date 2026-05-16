@@ -4,6 +4,14 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.2.1 — 2026-05-16
+
+**PATCH — atomic-triplet bump aligned with `@stoachain/ouronet-core@4.2.1` additive surface.** No code changes in this package; version bumped solely to maintain the atomic-triplet invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts` (all 3 packages share the same version) AND to keep peer-dep alignment (peer-dep on `@stoachain/kadena-stoic-legacy` bumped 4.2.0 → 4.2.1 in lockstep). Published from the same `v4.2.1` git tag.
+
+### Compatibility
+
+- Functionally identical to `4.2.0`. Consumers MAY pin to either version interchangeably.
+
 ## 4.2.0 — 2026-05-09
 
 **MINOR — architectural closures + atomic-triplet bump (atomic with `@stoachain/kadena-stoic-legacy@4.2.0` + `@stoachain/ouronet-core@4.2.0`).** Released 2026-05-09. Closes audit findings F-API-018 (readonly sweep) and F-TEST-002 (foreign-key fixture in universal-sign).
