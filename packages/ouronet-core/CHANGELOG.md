@@ -4,6 +4,16 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.3.0 — unreleased (in-progress)
+
+**MINOR — additive: new SWP-pair management builders + matching INFO readers + UR\_\* reads** to support the OuronetUI v1.1.0 cycle wiring the remaining 9 Liquidity-Pools-Management page buttons (Modify Can Change Owner, Modify Weights, Modify Amplifier, Toggle Swapping / Provisioning, Activate Frozen / Sleeping LP, Update Fee Targets, Update Branding). Per strict SemVer, additive new public surface = MINOR bump (the prior v4.2.1 stretched PATCH semantics with 23 added builders; this cycle is large enough to honor the rule cleanly). Solo bump — peer-deps `@stoachain/kadena-stoic-legacy@4.2.1` and `@stoachain/stoa-core@4.2.1` unchanged.
+
+### Added — SWP-pair management (TS01-C3.SWP + INFO-ONE.SWP + SWP.UR_*)
+
+- **Modify Can Change Owner** (button #2 of 9): `buildModifyCanChangeOwnerPactCode({ patron, swpair, newBoolean })` in `src/pact/cfmBuilders.ts`; `getModifyCanChangeOwnerInfo(patron, swpair, newBoolean)` in `src/interactions/infoOneFunctions.ts`; `getSwpairCanChangeOwner(swpair)` UR read in `src/interactions/dexSwapPairAdminFunctions.ts`. Tests for the builder in `tests/cfm-builders.test.ts`.
+
+(more builders added as the v1.1.0 cycle progresses — see commit history for the per-button additions)
+
 ## 4.2.1 — 2026-05-16
 
 **PATCH — additive: new SWP `C_ChangeOwnership` builder + matching INFO reader, the `UR_OwnerKonto` lightweight read, and the full **Phase-3b strategy-migration builder set** (23 new builders + 1 INFO reader total) so the downstream OuronetUI v1.0.7 cycle could migrate every legacy `executeXxx` direct-helper caller (14 modals) onto the canonical `useCFMStrategy + buildXxxPactCode` pattern.** Atomic-triplet bump (`@stoachain/kadena-stoic-legacy@4.2.1` + `@stoachain/stoa-core@4.2.1` + `@stoachain/ouronet-core@4.2.1`) per the invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts`. The other two packages are functionally identical to their 4.2.0 release — version bumped purely to satisfy the triplet model.

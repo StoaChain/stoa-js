@@ -56,6 +56,31 @@ export async function getSwpairOwnerKonto(swpair: string): Promise<string | null
   }
 }
 
+/**
+ * Fetch the current `can-change-owner` flag for a SWP pair (boolean).
+ *
+ *   (ouronet-ns.SWP.UR_CanChangeOwner <swpair>)
+ *
+ * Lightweight unprotected read. Used by the OuronetUI ModifyCanChangeOwner
+ * flow to compute the only-allowed `new-boolean` argument (the chain
+ * rejects same-value writes, so `new-boolean` is always the inverse of the
+ * current value — autonomous, never user-typed).
+ */
+export async function getSwpairCanChangeOwner(swpair: string): Promise<boolean | null> {
+  try {
+    const res = await pactRead(`(${KADENA_NAMESPACE}.SWP.UR_CanChangeOwner "${swpair}")`, { tier: "T5" });
+    if (res.result.status === "failure") return null;
+    const d = res.result.data;
+    if (typeof d === "boolean") return d;
+    if (d === "true") return true;
+    if (d === "false") return false;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getSwpairCanChangeOwner:", error);
+    return null;
+  }
+}
+
 /** Fetch SWP spawn limit (WSTOA minimum to create a pool) */
 export async function getSWPSpawnLimit(): Promise<string | null> {
   try {

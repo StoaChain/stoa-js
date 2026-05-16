@@ -232,6 +232,28 @@ export async function getChangeOwnershipInfo(
 }
 
 /**
+ * Get ModifyCanChangeOwner info from INFO-ONE
+ * (ouronet-ns.INFO-ONE.SWP|INFO_ModifyCanChangeOwner <patron> <swpair> <new-boolean:bool>)
+ */
+export async function getModifyCanChangeOwnerInfo(
+  patron:     string,
+  swpair:     string,
+  newBoolean: boolean,
+): Promise<any> {
+  try {
+    const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.SWP|INFO_ModifyCanChangeOwner "${patron}" "${swpair}" ${newBoolean})`;
+    const response = await pactRead(pactCode, { tier: "T2" });
+    if (response?.result?.status === "success") {
+      return (response.result as any).data;
+    }
+    return null;
+  } catch (error) {
+    getLogger().error("Error getting modify-can-change-owner info:", error);
+    return null;
+  }
+}
+
+/**
  * Get DPTF Transfer info from INFO-ONE
  * (ouronet-ns.INFO-ONE.DPTF|INFO_Transfer <patron> <token-id> <sender> <receiver> <amount>)
  */

@@ -604,6 +604,24 @@ export function buildChangeOwnershipPactCode(p: {
   return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_ChangeOwnership "${p.patron}" "${p.swpair}" "${p.newOwner}")`;
 }
 
+/**
+ * ModifyCanChangeOwner — flip the `can-change-owner` flag on a SWP-pair.
+ * Signed by the patron + current pool-owner guards. The `newBoolean` arg
+ * MUST be the inverse of the on-chain current value (the modal computes
+ * it automatically; user does not type it). The chain rejects same-value
+ * writes, so the new boolean is effectively the only allowed value.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_ModifyCanChangeOwner
+ *     <patron> <swpair> <new-boolean:bool>)
+ */
+export function buildModifyCanChangeOwnerPactCode(p: {
+  patron:     string;
+  swpair:     string;
+  newBoolean: boolean;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_ModifyCanChangeOwner "${p.patron}" "${p.swpair}" ${p.newBoolean})`;
+}
+
 // ─── TS01-C3.SWP family — liquidity-pool ops (Add / Remove / Fuel) ───────────
 //
 // `inputAmounts` is rendered as `[a1 a2 a3]` decimal-list literal — each

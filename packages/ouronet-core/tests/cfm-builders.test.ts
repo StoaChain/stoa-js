@@ -33,6 +33,7 @@ import {
   buildSlumberPactCode,
   buildFirestarterPactCode,
   buildChangeOwnershipPactCode,
+  buildModifyCanChangeOwnerPactCode,
   buildWrapStoaPactCode,
   buildWrapUrStoaPactCode,
   buildUnwrapStoaPactCode,
@@ -835,6 +836,43 @@ describe("buildChangeOwnershipPactCode", () => {
     // Argument ORDER guard — patron → swpair → new-owner.
     expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"s"`));
     expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf(`"n"`));
+  });
+});
+
+describe("buildModifyCanChangeOwnerPactCode", () => {
+  const SWPAIR = "swp:OURO-GSTOA-W-pair-123";
+
+  it("emits the canonical 3-arg C_ModifyCanChangeOwner shape (new-boolean=true)", () => {
+    expect(
+      buildModifyCanChangeOwnerPactCode({
+        patron:     PATRON,
+        swpair:     SWPAIR,
+        newBoolean: true,
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_ModifyCanChangeOwner "${PATRON}" "${SWPAIR}" true)`,
+    );
+  });
+
+  it("emits bare `false` (Pact bool literal — NOT quoted as a string)", () => {
+    const code = buildModifyCanChangeOwnerPactCode({
+      patron: "p", swpair: "s", newBoolean: false,
+    });
+    // The boolean must NOT be wrapped in quotes — Pact's bool type is the
+    // unquoted token `true` / `false`. Quoting it would make it a string,
+    // which the chain would reject as a type mismatch.
+    expect(code).toMatch(/ false\)$/);
+    expect(code).not.toContain(`"false"`);
+  });
+
+  it("uses the SWP module + TS01-C3 namespace + C_ModifyCanChangeOwner function", () => {
+    const code = buildModifyCanChangeOwnerPactCode({
+      patron: "p", swpair: "s", newBoolean: true,
+    });
+    expect(code).toContain(".TS01-C3.SWP|C_ModifyCanChangeOwner ");
+    // Argument ORDER guard — patron → swpair → new-boolean.
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"s"`));
+    expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf(" true"));
   });
 });
 
