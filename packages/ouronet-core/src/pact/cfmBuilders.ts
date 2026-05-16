@@ -261,6 +261,51 @@ export function buildSlumberPactCode(p: {
   return `(${KADENA_NAMESPACE}.TS01-C2.VST|C_Slumber "${p.patron}" "${p.merger}" "${p.dpof}" ${nonceList})`;
 }
 
+// ─── TS01-C2.LQD family (Wrap / Unwrap of native STOA + UrStoa) ──────────────
+
+/**
+ * Wrap STOA — convert native STOA → wSTOA. Payment key signs `coin.TRANSFER`
+ * to LIQUIDPOT for the wrapped amount; patron + wrapper guards sign pure.
+ *
+ *   (ouronet-ns.TS01-C2.LQD|C_WrapStoa <patron> <wrapper> <amount:decimal>)
+ *
+ * `amount` is formatted via `formatDecimalForPact` (validates `/^\d+\.?\d*$/`
+ * and pads decimal — closes the F-SEC-001 Pact-code injection vector by
+ * making the field a clean numeric literal).
+ */
+export function buildWrapStoaPactCode(p: {
+  patron:  string;
+  wrapper: string;
+  amount:  string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(${KADENA_NAMESPACE}.TS01-C2.LQD|C_WrapStoa "${p.patron}" "${p.wrapper}" ${dec})`;
+}
+
+// ─── coin.C_URV family (StoaChain native UrStoa stake / unstake / collect) ───
+//
+// These are PURE StoaChain coin-module operations — no patron, no Ouronet
+// account. The signer is the user's PAYMENT KEY, which carries both the
+// `ouronet-ns.DALOS.GAS_PAYER` cap (so the user pays no gas — Ouronet gas
+// station eats it) AND the `coin.URV|<OP>` cap that authorises the stake /
+// unstake on that payment-key account. In strategy.execute() terms the build
+// closure is: empty guards, `paymentKey` = the payment-key pub, capsKeyPub
+// (selected by `selectCapsSigningKey` as the payment key when no guards
+// compete for it) carries both caps as a single signer.
+
+/**
+ * Stake UrStoa — locks native UrStoa on the user's payment-key account.
+ *
+ *   (coin.C_URV|Stake <payment-key-account:string> <amount:decimal>)
+ */
+export function buildStakeUrStoaPactCode(p: {
+  paymentKeyAddress: string;   // "k:<pub>"
+  amount:            string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(coin.C_URV|Stake "${p.paymentKeyAddress}" ${dec})`;
+}
+
 // ─── TS01-C3.SWP family (Swap — Firestarter, ChangeOwnership) ────────────────
 
 /**

@@ -33,6 +33,8 @@ import {
   buildSlumberPactCode,
   buildFirestarterPactCode,
   buildChangeOwnershipPactCode,
+  buildWrapStoaPactCode,
+  buildStakeUrStoaPactCode,
   buildRotateSovereignPactCode,
 } from "../src/pact/cfmBuilders";
 
@@ -286,6 +288,53 @@ describe("buildFirestarterPactCode", () => {
   });
 });
 
+describe("buildWrapStoaPactCode", () => {
+  const WRAPPER = "ouro:WRAPPER-W";
+
+  it("emits the canonical 3-arg C_WrapStoa shape", () => {
+    expect(
+      buildWrapStoaPactCode({ patron: PATRON, wrapper: WRAPPER, amount: "5" }),
+    ).toBe(
+      `(ouronet-ns.TS01-C2.LQD|C_WrapStoa "${PATRON}" "${WRAPPER}" 5.0)`,
+    );
+  });
+
+  it("uses the LQD module + TS01-C2 namespace + C_WrapStoa function", () => {
+    const code = buildWrapStoaPactCode({ patron: "p", wrapper: "w", amount: "1" });
+    expect(code).toContain(".TS01-C2.LQD|C_WrapStoa ");
+    // Argument ORDER guard — patron then wrapper.
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"w"`));
+  });
+
+  it("formats amount via formatDecimalForPact (pads integers)", () => {
+    const code = buildWrapStoaPactCode({ patron: "p", wrapper: "w", amount: "10" });
+    expect(code).toContain(" 10.0)");
+  });
+});
+
+describe("buildStakeUrStoaPactCode", () => {
+  const PK = "k:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+  it("emits the canonical 2-arg coin.C_URV|Stake shape", () => {
+    expect(
+      buildStakeUrStoaPactCode({ paymentKeyAddress: PK, amount: "100" }),
+    ).toBe(
+      `(coin.C_URV|Stake "${PK}" 100.0)`,
+    );
+  });
+
+  it("uses the coin module (NOT ouronet-ns) and C_URV|Stake function", () => {
+    const code = buildStakeUrStoaPactCode({ paymentKeyAddress: "k:00", amount: "1" });
+    expect(code.startsWith("(coin.C_URV|Stake ")).toBe(true);
+    expect(code).not.toContain("ouronet-ns");
+  });
+
+  it("formats amount via formatDecimalForPact", () => {
+    const code = buildStakeUrStoaPactCode({ paymentKeyAddress: "k:00", amount: "5" });
+    expect(code).toContain(" 5.0)");
+  });
+});
+
 describe("buildChangeOwnershipPactCode", () => {
   const SWPAIR    = "swp:OURO-GSTOA-W-pair-123";
   const NEW_OWNER = "ouro:NEW-OWNER-D";
@@ -365,6 +414,7 @@ describe("every builder produces a valid Pact call shape", () => {
     () => buildSlumberPactCode({ patron: "a", merger: "b", dpof: "d", nonces: [1] }),
     () => buildFirestarterPactCode({ firestarter: "a" }),
     () => buildChangeOwnershipPactCode({ patron: "a", swpair: "b", newOwner: "c" }),
+    () => buildWrapStoaPactCode({ patron: "a", wrapper: "b", amount: "1" }),
     () => buildRotateSovereignPactCode({ patron: "a", account: "b", newSovereign: "c" }),
   ];
 
