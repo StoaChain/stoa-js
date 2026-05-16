@@ -34,6 +34,7 @@ import {
   buildFirestarterPactCode,
   buildChangeOwnershipPactCode,
   buildModifyCanChangeOwnerPactCode,
+  buildModifyWeightsPactCode,
   buildWrapStoaPactCode,
   buildWrapUrStoaPactCode,
   buildUnwrapStoaPactCode,
@@ -836,6 +837,46 @@ describe("buildChangeOwnershipPactCode", () => {
     // Argument ORDER guard — patron → swpair → new-owner.
     expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"s"`));
     expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf(`"n"`));
+  });
+});
+
+describe("buildModifyWeightsPactCode", () => {
+  const SWPAIR = "swp:OURO-GSTOA-W-pair-123";
+
+  it("emits the canonical 3-arg C_ModifyWeights shape with a [decimal] list literal", () => {
+    expect(
+      buildModifyWeightsPactCode({
+        patron:     PATRON,
+        swpair:     SWPAIR,
+        newWeights: ["0.5", "0.3", "0.2"],
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_ModifyWeights "${PATRON}" "${SWPAIR}" [0.5 0.3 0.2])`,
+    );
+  });
+
+  it("pads integer-form weights to x.0 (Pact decimal lexer rejects bare integers)", () => {
+    const code = buildModifyWeightsPactCode({
+      patron: "p", swpair: "s", newWeights: ["1"],
+    });
+    expect(code).toContain("[1.0]");
+  });
+
+  it("preserves 4-decimal precision weights verbatim", () => {
+    const code = buildModifyWeightsPactCode({
+      patron: "p", swpair: "s", newWeights: ["0.3333", "0.3333", "0.3334"],
+    });
+    expect(code).toContain("[0.3333 0.3333 0.3334]");
+  });
+
+  it("uses the SWP module + TS01-C3 namespace + C_ModifyWeights function", () => {
+    const code = buildModifyWeightsPactCode({
+      patron: "p", swpair: "s", newWeights: ["0.5", "0.5"],
+    });
+    expect(code).toContain(".TS01-C3.SWP|C_ModifyWeights ");
+    // Argument ORDER guard — patron → swpair → weights-list.
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"s"`));
+    expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf("["));
   });
 });
 

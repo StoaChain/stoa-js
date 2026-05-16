@@ -605,6 +605,29 @@ export function buildChangeOwnershipPactCode(p: {
 }
 
 /**
+ * ModifyWeights — set new token weight ratios on a Weighted SWP-pair.
+ * Weighted pools only (pool-type "W"). The new weights array length MUST
+ * match the pool's token count, each value MUST be a decimal ≤4 fractional
+ * digits, and the SUM MUST equal 1 exactly. UI enforces those constraints;
+ * the chain enforces them again as a defense.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_ModifyWeights
+ *     <patron> <swpair> <new-weights:[decimal]>)
+ *
+ * Pact list literal format: `[w1 w2 w3]` — space-separated, square-bracketed,
+ * each value formatted via `formatDecimalForPact` (closes F-SEC-001 the
+ * same way scalar amounts do).
+ */
+export function buildModifyWeightsPactCode(p: {
+  patron:     string;
+  swpair:     string;
+  newWeights: string[];   // raw decimal strings; builder formats each
+}): string {
+  const weightList = `[${p.newWeights.map(w => formatDecimalForPact(w)).join(" ")}]`;
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_ModifyWeights "${p.patron}" "${p.swpair}" ${weightList})`;
+}
+
+/**
  * ModifyCanChangeOwner — flip the `can-change-owner` flag on a SWP-pair.
  * Signed by the patron + current pool-owner guards. The `newBoolean` arg
  * MUST be the inverse of the on-chain current value (the modal computes

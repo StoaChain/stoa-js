@@ -11,6 +11,7 @@ This package is the historical continuation of `@stoachain/ouronet-core` v0.x–
 ### Added — SWP-pair management (TS01-C3.SWP + INFO-ONE.SWP + SWP.UR_*)
 
 - **Modify Can Change Owner** (button #2 of 9): `buildModifyCanChangeOwnerPactCode({ patron, swpair, newBoolean })` in `src/pact/cfmBuilders.ts`; `getModifyCanChangeOwnerInfo(patron, swpair, newBoolean)` in `src/interactions/infoOneFunctions.ts`; `getSwpairCanChangeOwner(swpair)` UR read in `src/interactions/dexSwapPairAdminFunctions.ts`. Tests for the builder in `tests/cfm-builders.test.ts`.
+- **Modify Weights** (button #3 of 9, Weighted pools only): `buildModifyWeightsPactCode({ patron, swpair, newWeights: string[] })` in `src/pact/cfmBuilders.ts` — emits the canonical 3-arg shape with a Pact `[decimal]` list literal, each weight formatted via `formatDecimalForPact` (closes F-SEC-001). `getModifyWeightsInfo(patron, swpair, newWeights)` in `src/interactions/infoOneFunctions.ts`. UI-side constraints (length matches pool token count, each ≤4 fractional digits, sum exactly 1) enforced in the consuming modal; chain re-validates as defense.
 
 (more builders added as the v1.1.0 cycle progresses — see commit history for the per-button additions)
 

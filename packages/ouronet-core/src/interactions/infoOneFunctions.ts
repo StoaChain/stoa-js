@@ -232,6 +232,32 @@ export async function getChangeOwnershipInfo(
 }
 
 /**
+ * Get ModifyWeights info from INFO-ONE
+ * (ouronet-ns.INFO-ONE.SWP|INFO_ModifyWeights <patron> <swpair> <new-weights:[decimal]>)
+ */
+export async function getModifyWeightsInfo(
+  patron:     string,
+  swpair:     string,
+  newWeights: string[],
+): Promise<any> {
+  try {
+    const weightList = `[${newWeights.map(w => {
+      const s = String(w);
+      return s.includes(".") ? s : `${s}.0`;
+    }).join(" ")}]`;
+    const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.SWP|INFO_ModifyWeights "${patron}" "${swpair}" ${weightList})`;
+    const response = await pactRead(pactCode, { tier: "T2" });
+    if (response?.result?.status === "success") {
+      return (response.result as any).data;
+    }
+    return null;
+  } catch (error) {
+    getLogger().error("Error getting modify-weights info:", error);
+    return null;
+  }
+}
+
+/**
  * Get ModifyCanChangeOwner info from INFO-ONE
  * (ouronet-ns.INFO-ONE.SWP|INFO_ModifyCanChangeOwner <patron> <swpair> <new-boolean:bool>)
  */
