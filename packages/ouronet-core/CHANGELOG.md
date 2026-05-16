@@ -6,17 +6,64 @@ This package is the historical continuation of `@stoachain/ouronet-core` v0.x–
 
 ## 4.2.1 — 2026-05-16
 
-**PATCH — additive: new `C_ChangeOwnership` CFM builder + matching `INFO_ChangeOwnership` reader for the SWP-pair Transfer Ownership flow.** Solo bump (NOT atomic-triplet — peer-deps `@stoachain/kadena-stoic-legacy` and `@stoachain/stoa-core` stay at `4.2.0`; this change is internal to `ouronet-core` and consumes no new chain-generic surfaces).
+**PATCH — additive: new SWP `C_ChangeOwnership` builder + matching INFO reader, the `UR_OwnerKonto` lightweight read, and the full **Phase-3b strategy-migration builder set** (23 new builders + 1 INFO reader total) so the downstream OuronetUI v1.0.7 cycle could migrate every legacy `executeXxx` direct-helper caller (14 modals) onto the canonical `useCFMStrategy + buildXxxPactCode` pattern.** Solo bump (NOT atomic-triplet — peer-deps `@stoachain/kadena-stoic-legacy` and `@stoachain/stoa-core` stay at `4.2.0`; this change is internal to `ouronet-core` and consumes no new chain-generic surfaces).
 
-### Added
+### Added — SWP family (TS01-C3.SWP)
 
-- **`buildChangeOwnershipPactCode({ patron, swpair, newOwner })`** in `src/pact/cfmBuilders.ts` (TS01-C3.SWP family). Emits `(ouronet-ns.TS01-C3.SWP|C_ChangeOwnership "<patron>" "<swpair>" "<new-owner>")`. Companion builder for the OuronetUI `ChangeOwnershipCFMModal` wired on the Pool Settings → Transfer Ownership button.
+- **`buildChangeOwnershipPactCode({ patron, swpair, newOwner })`** in `src/pact/cfmBuilders.ts`. Emits `(ouronet-ns.TS01-C3.SWP|C_ChangeOwnership "<patron>" "<swpair>" "<new-owner>")`. Companion builder for the OuronetUI `ChangeOwnershipCFMModal` wired on the Pool Settings → Transfer Ownership button.
 - **`getChangeOwnershipInfo(patron, swpair, newOwner)`** in `src/interactions/infoOneFunctions.ts`. Reads `(ouronet-ns.INFO-ONE.SWP|INFO_ChangeOwnership ...)` at T2, returns `null` on RPC failure (honoring the F-API-002 nullable contract).
-- **Tests:** `tests/cfm-builders.test.ts` gains a `describe("buildChangeOwnershipPactCode")` block (canonical 3-arg shape + module/function-name + argument-order guards) and the new builder is added to the cross-cutting valid-shape `it.each` sample list.
+- **`getSwpairOwnerKonto(swpair)`** in `src/interactions/dexSwapPairAdminFunctions.ts`. Lightweight T5 read of `(ouronet-ns.SWP.UR_OwnerKonto <swpair>)` returning just the owner-konto string. Used by `ChangeOwnershipCFMModal` to decide which ghost-receiver address to pre-fill so the ghost never collides with the current owner.
+
+### Added — Strategy-migration builders (Phase 3b)
+
+The OuronetUI v1.0.7 cycle migrated all 14 legacy `executeXxx` direct-helper callers to `useCFMStrategy.execute({ build, guards, ... })` + typed builders. The following 22 builders were added in support:
+
+**TS01-C2.LQD family — Wrap / Unwrap of native STOA + UrStoa:**
+- `buildWrapStoaPactCode({ patron, wrapper, amount })`
+- `buildWrapUrStoaPactCode({ patron, wrapper, amount })`
+- `buildUnwrapStoaPactCode({ patron, unwrapper, amount })` — simple shape (target k:account exists)
+- `buildUnwrapStoaWithCreateAccountPactCode({ patron, unwrapper, amount })` — composite multi-line Pact with `(namespace "ouronet-ns")` + `(IGNIS.C_Collect ...)` + `let` block that atomically `coin.C_CreateAccount`s the target then unwraps. Call site MUST `addData("ks", { keys: [<targetPubkey>], pred: "keys-all" })`.
+- `buildUnwrapUrStoaPactCode({ patron, unwrapper, amount })` — simple shape (target exists)
+- `buildUnwrapUrStoaWithCreateAccountPactCode({ patron, unwrapper, amount })` — UR variant; uses `coin.C_UR|CreateAccount` (NOT `coin.C_CreateAccount` — separate coin-module function for UrStoa accounts).
+
+**TS01-C1.DALOS family — account deploy:**
+- `buildDeployStandardAccountPactCode({ account, kadenaAddress, publicKey })`
+
+**TS01-C3.SWP family — liquidity + swap:**
+- `buildAddLiquidityPactCode({ patron, account, swpair, inputAmounts })`
+- `buildRemoveLiquidityPactCode({ patron, account, swpair, lpAmount })`
+- `buildSingleSwapWithSlippagePactCode({ patron, account, swpair, inputId, inputAmount, outputId })` — requires `addData("slippage-bounds", ...)` at call site.
+- `buildSingleSwapNoSlippagePactCode({ patron, account, swpair, inputId, inputAmount, outputId })`
+- `buildMultiSwapWithSlippagePactCode({ patron, account, swpair, inputIds, inputAmounts, outputId })` — requires `addData("slippage-bounds", ...)`.
+- `buildMultiSwapNoSlippagePactCode({ patron, account, swpair, inputIds, inputAmounts, outputId })`
+
+**TS02 token-set creation (SFT + NFT):**
+- `buildCreateSetPactCode({ patron, account, id, nonces, setClass, howManySets })` — TS02-C1.DPSF.
+- `buildCreateSetNFTPactCode({ patron, account, id, nonces, setClass })` — TS02-C2.DPNF (no how-many-sets).
+
+**coin.C_URV family — StoaChain native UrStoa stake / unstake / collect (patronless):**
+- `buildStakeUrStoaPactCode({ paymentKeyAddress, amount })` — emits `(coin.C_URV|Stake "<pk>" <amount>)`.
+- `buildUnstakeUrStoaPactCode({ paymentKeyAddress, amount })` — emits `(coin.C_URV|Unstake "<pk>" <amount>)`.
+- `buildCollectUrStoaPactCode({ paymentKeyAddress })` — simple shape, account exists.
+- `buildCollectUrStoaWithCreateAccountPactCode({ paymentKeyAddress })` — composite with `coin.C_CreateAccount` + `(coin.C_URV|Collect ...)`. Requires `addData("ks", ...)`.
+
+**coin.C_UR family — StoaChain native UrStoa transfer (4 conditional shapes):**
+- `buildNativeUrTransferPactCode({ sender, receiver, amount })` — receiver exists, Transfer family.
+- `buildNativeUrTransmitPactCode({ sender, receiver, amount })` — receiver exists, Transmit family.
+- `buildNativeUrTransferAnewPactCode({ sender, receiver, amount })` — receiver new, Transfer family. Requires `addData("ks", { keys: [<receiverPub>], pred: "keys-all" })`.
+- `buildNativeUrTransmitAnewPactCode({ sender, receiver, amount })` — receiver new, Transmit family. Same `addData` requirement.
+
+### Test surface
+
+- `tests/cfm-builders.test.ts` grew from 52 → **108 specs**. Each new builder gets a canonical-shape test + argument-ORDER guard + module/function-name guard. Decimal-formatting tests for amount-typed builders verify integers pad to `x.0` form (closes the F-SEC-001 Pact-code injection vector). Composite-shape builders (`*WithCreateAccount`, `*Anew`) additionally test the create-account-precedes-the-real-call ordering invariant. Cross-cutting `it.each` valid-shape sample list extended with the simple `ouronet-ns` builders; coin.* builders deliberately excluded (they emit `(coin.* ...)` which fails the `(ouronet-ns.` prefix assertion by design — they're tested in their own describe blocks).
+
+### Note on the legacy `executeXxx` helpers
+
+The pre-existing `executeWrapStoa`, `executeStakeUrStoa`, `executeAddLiquidity`, `executeSingleSwapWithSlippage`, etc. helpers in `src/interactions/*Functions.ts` are **retained** in this release — they're unused by OuronetUI as of v1.0.7 but may have other surfaces or be public API. Deletion deferred to a v4.3 cleanup pass.
 
 ### Compatibility
 
-- Pure additive — no signature changes to existing exports, no peer-dep bump. Consumers on `4.2.0` continue to work unchanged; consumers wanting `C_ChangeOwnership` upgrade to `4.2.1`.
+- Pure additive — no signature changes to existing exports, no peer-dep bump. Consumers on `4.2.0` continue to work unchanged; consumers wanting any of the new SWP / Wrap / Unwrap / DALOS / Liquidity / Swap / TokenSet / coin.C_URV / coin.C_UR builders upgrade to `4.2.1`.
 
 ## 4.2.0 — 2026-05-09
 
