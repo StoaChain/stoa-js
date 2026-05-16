@@ -258,6 +258,50 @@ export async function getModifyWeightsInfo(
 }
 
 /**
+ * Get ToggleSwapCapability info from INFO-ONE
+ * (ouronet-ns.INFO-ONE.SWP|INFO_ToggleSwapCapability <patron> <swpair> <toggle:bool>)
+ */
+export async function getToggleSwapCapabilityInfo(
+  patron: string,
+  swpair: string,
+  toggle: boolean,
+): Promise<any> {
+  try {
+    const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.SWP|INFO_ToggleSwapCapability "${patron}" "${swpair}" ${toggle})`;
+    const response = await pactRead(pactCode, { tier: "T2" });
+    if (response?.result?.status === "success") {
+      return (response.result as any).data;
+    }
+    return null;
+  } catch (error) {
+    getLogger().error("Error getting toggle-swap-capability info:", error);
+    return null;
+  }
+}
+
+/**
+ * Get ToggleAddLiquidity info from INFO-ONE
+ * (ouronet-ns.INFO-ONE.SWP|INFO_ToggleAddLiquidity <patron> <swpair> <toggle:bool>)
+ */
+export async function getToggleAddLiquidityInfo(
+  patron: string,
+  swpair: string,
+  toggle: boolean,
+): Promise<any> {
+  try {
+    const pactCode = `(${KADENA_NAMESPACE}.INFO-ONE.SWP|INFO_ToggleAddLiquidity "${patron}" "${swpair}" ${toggle})`;
+    const response = await pactRead(pactCode, { tier: "T2" });
+    if (response?.result?.status === "success") {
+      return (response.result as any).data;
+    }
+    return null;
+  } catch (error) {
+    getLogger().error("Error getting toggle-add-liquidity info:", error);
+    return null;
+  }
+}
+
+/**
  * Get ModifyCanChangeOwner info from INFO-ONE
  * (ouronet-ns.INFO-ONE.SWP|INFO_ModifyCanChangeOwner <patron> <swpair> <new-boolean:bool>)
  */

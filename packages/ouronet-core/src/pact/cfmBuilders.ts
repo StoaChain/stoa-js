@@ -628,6 +628,37 @@ export function buildModifyWeightsPactCode(p: {
 }
 
 /**
+ * ToggleSwapCapability — flip the SWP-pair's swap-enabled flag (UI label
+ * "Swapping"). Boolean MUST be the inverse of `UR_CanSwap` (chain rejects
+ * same-value writes). Patron + current pool-owner guards sign pure.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_ToggleSwapCapability <patron> <swpair> <toggle:bool>)
+ */
+export function buildToggleSwapCapabilityPactCode(p: {
+  patron: string;
+  swpair: string;
+  toggle: boolean;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_ToggleSwapCapability "${p.patron}" "${p.swpair}" ${p.toggle})`;
+}
+
+/**
+ * ToggleAddLiquidity — flip the SWP-pair's add-liquidity-enabled flag
+ * (UI label "Provisioning"). Boolean MUST be the inverse of `UR_CanAdd`
+ * (chain rejects same-value writes). Patron + current pool-owner guards
+ * sign pure.
+ *
+ *   (ouronet-ns.TS01-C3.SWP|C_ToggleAddLiquidity <patron> <swpair> <toggle:bool>)
+ */
+export function buildToggleAddLiquidityPactCode(p: {
+  patron: string;
+  swpair: string;
+  toggle: boolean;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C3.SWP|C_ToggleAddLiquidity "${p.patron}" "${p.swpair}" ${p.toggle})`;
+}
+
+/**
  * ModifyCanChangeOwner — flip the `can-change-owner` flag on a SWP-pair.
  * Signed by the patron + current pool-owner guards. The `newBoolean` arg
  * MUST be the inverse of the on-chain current value (the modal computes

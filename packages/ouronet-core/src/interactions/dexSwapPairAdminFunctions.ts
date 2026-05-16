@@ -57,6 +57,54 @@ export async function getSwpairOwnerKonto(swpair: string): Promise<string | null
 }
 
 /**
+ * Fetch the current `can-swap` (UI label "Swapping") flag for a SWP pair.
+ *
+ *   (ouronet-ns.SWP.UR_CanSwap <swpair>)
+ *
+ * Used by the OuronetUI ToggleSwapCapability flow to compute the
+ * autonomous `toggle` argument (chain rejects same-value writes; only
+ * allowed value is the inverse of current).
+ */
+export async function getSwpairCanSwap(swpair: string): Promise<boolean | null> {
+  try {
+    const res = await pactRead(`(${KADENA_NAMESPACE}.SWP.UR_CanSwap "${swpair}")`, { tier: "T5" });
+    if (res.result.status === "failure") return null;
+    const d = res.result.data;
+    if (typeof d === "boolean") return d;
+    if (d === "true") return true;
+    if (d === "false") return false;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getSwpairCanSwap:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetch the current `can-add` (UI label "Provisioning") flag for a SWP pair.
+ *
+ *   (ouronet-ns.SWP.UR_CanAdd <swpair>)
+ *
+ * Used by the OuronetUI ToggleAddLiquidity flow to compute the autonomous
+ * `toggle` argument (same chain-rejects-same-value-writes constraint as
+ * the other Toggle flows).
+ */
+export async function getSwpairCanAdd(swpair: string): Promise<boolean | null> {
+  try {
+    const res = await pactRead(`(${KADENA_NAMESPACE}.SWP.UR_CanAdd "${swpair}")`, { tier: "T5" });
+    if (res.result.status === "failure") return null;
+    const d = res.result.data;
+    if (typeof d === "boolean") return d;
+    if (d === "true") return true;
+    if (d === "false") return false;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getSwpairCanAdd:", error);
+    return null;
+  }
+}
+
+/**
  * Fetch the current `can-change-owner` flag for a SWP pair (boolean).
  *
  *   (ouronet-ns.SWP.UR_CanChangeOwner <swpair>)

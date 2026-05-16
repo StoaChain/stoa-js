@@ -35,6 +35,8 @@ import {
   buildChangeOwnershipPactCode,
   buildModifyCanChangeOwnerPactCode,
   buildModifyWeightsPactCode,
+  buildToggleSwapCapabilityPactCode,
+  buildToggleAddLiquidityPactCode,
   buildWrapStoaPactCode,
   buildWrapUrStoaPactCode,
   buildUnwrapStoaPactCode,
@@ -877,6 +879,52 @@ describe("buildModifyWeightsPactCode", () => {
     // Argument ORDER guard — patron → swpair → weights-list.
     expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"s"`));
     expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf("["));
+  });
+});
+
+describe("buildToggleSwapCapabilityPactCode", () => {
+  const SWPAIR = "swp:OURO-GSTOA-W-pair-123";
+
+  it("emits the canonical 3-arg C_ToggleSwapCapability shape (toggle=true)", () => {
+    expect(
+      buildToggleSwapCapabilityPactCode({ patron: PATRON, swpair: SWPAIR, toggle: true }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_ToggleSwapCapability "${PATRON}" "${SWPAIR}" true)`,
+    );
+  });
+
+  it("emits bare `false` (Pact bool literal, not quoted)", () => {
+    const code = buildToggleSwapCapabilityPactCode({ patron: "p", swpair: "s", toggle: false });
+    expect(code).toMatch(/ false\)$/);
+    expect(code).not.toContain(`"false"`);
+  });
+
+  it("uses the SWP module + TS01-C3 namespace + C_ToggleSwapCapability function", () => {
+    const code = buildToggleSwapCapabilityPactCode({ patron: "p", swpair: "s", toggle: true });
+    expect(code).toContain(".TS01-C3.SWP|C_ToggleSwapCapability ");
+    // Distinct from C_ToggleAddLiquidity — guard against accidental shared-source typo
+    expect(code).not.toContain("C_ToggleAddLiquidity");
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"s"`));
+    expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf(" true"));
+  });
+});
+
+describe("buildToggleAddLiquidityPactCode", () => {
+  const SWPAIR = "swp:OURO-GSTOA-W-pair-123";
+
+  it("emits the canonical 3-arg C_ToggleAddLiquidity shape (toggle=true)", () => {
+    expect(
+      buildToggleAddLiquidityPactCode({ patron: PATRON, swpair: SWPAIR, toggle: true }),
+    ).toBe(
+      `(ouronet-ns.TS01-C3.SWP|C_ToggleAddLiquidity "${PATRON}" "${SWPAIR}" true)`,
+    );
+  });
+
+  it("uses the SWP module + TS01-C3 namespace + C_ToggleAddLiquidity function (NOT C_ToggleSwapCapability)", () => {
+    const code = buildToggleAddLiquidityPactCode({ patron: "p", swpair: "s", toggle: false });
+    expect(code).toContain(".TS01-C3.SWP|C_ToggleAddLiquidity ");
+    expect(code).not.toContain("C_ToggleSwapCapability");
+    expect(code).toMatch(/ false\)$/);
   });
 });
 
