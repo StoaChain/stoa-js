@@ -35,6 +35,10 @@ import {
   buildChangeOwnershipPactCode,
   buildWrapStoaPactCode,
   buildWrapUrStoaPactCode,
+  buildUnwrapStoaPactCode,
+  buildUnwrapStoaWithCreateAccountPactCode,
+  buildUnwrapUrStoaPactCode,
+  buildUnwrapUrStoaWithCreateAccountPactCode,
   buildStakeUrStoaPactCode,
   buildUnstakeUrStoaPactCode,
   buildCollectUrStoaPactCode,
@@ -346,6 +350,87 @@ describe("buildWrapUrStoaPactCode", () => {
     expect(code).not.toContain("C_WrapStoa ");
     // Argument ORDER guard — patron then wrapper.
     expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"w"`));
+  });
+});
+
+// ─── Unwrap (LQD) — simple + composite-with-create-account ──────────────────
+
+describe("buildUnwrapStoaPactCode", () => {
+  const UNWRAPPER = "ouro:UNWRAPPER-U";
+
+  it("emits the canonical 3-arg C_UnwrapStoa shape", () => {
+    expect(
+      buildUnwrapStoaPactCode({ patron: PATRON, unwrapper: UNWRAPPER, amount: "10" }),
+    ).toBe(
+      `(ouronet-ns.TS01-C2.LQD|C_UnwrapStoa "${PATRON}" "${UNWRAPPER}" 10.0)`,
+    );
+  });
+
+  it("uses the LQD module + C_UnwrapStoa function (not C_WrapStoa, not the composite shape)", () => {
+    const code = buildUnwrapStoaPactCode({ patron: "p", unwrapper: "u", amount: "1" });
+    expect(code).toContain(".TS01-C2.LQD|C_UnwrapStoa ");
+    expect(code).not.toContain("C_WrapStoa ");
+    expect(code).not.toContain("C_CreateAccount");
+    expect(code).not.toContain("read-keyset");
+    expect(code).not.toContain("namespace");
+  });
+});
+
+describe("buildUnwrapStoaWithCreateAccountPactCode", () => {
+  const UNWRAPPER = "ouro:UNWRAPPER-U";
+
+  it("emits the composite create-account + unwrap shape", () => {
+    const code = buildUnwrapStoaWithCreateAccountPactCode({
+      patron: PATRON, unwrapper: UNWRAPPER, amount: "10",
+    });
+    // Must contain the namespace setter, the IGNIS.C_Collect call, the let
+    // binding, the create-account call, the unwrap call, and the read-keyset
+    // reference (call site is responsible for the addData("ks", ...)).
+    expect(code).toContain(`(namespace "ouronet-ns")`);
+    expect(code).toContain(`(IGNIS.C_Collect "${PATRON}" (IGNIS.UDC_CustomCodeCumulator))`);
+    expect(code).toContain(`(wp:string "${UNWRAPPER}")`);
+    expect(code).toContain(`(target:string (DALOS.UR_AccountKadena wp))`);
+    expect(code).toContain(`(coin.C_CreateAccount target (read-keyset "ks"))`);
+    expect(code).toContain(`(TS01-C2.LQD|C_UnwrapStoa "${PATRON}" "${UNWRAPPER}" 10.0)`);
+  });
+
+  it("create-account precedes the unwrap in the let body (account must exist BEFORE the unwrap pushes STOA to it)", () => {
+    const code = buildUnwrapStoaWithCreateAccountPactCode({ patron: "p", unwrapper: "u", amount: "1" });
+    const create = code.indexOf("C_CreateAccount");
+    const unwrap = code.indexOf("C_UnwrapStoa");
+    expect(create).toBeLessThan(unwrap);
+    expect(create).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("buildUnwrapUrStoaPactCode", () => {
+  const UNWRAPPER = "ouro:UNWRAPPER-U";
+
+  it("emits the canonical 3-arg C_UnwrapUrStoa shape", () => {
+    expect(
+      buildUnwrapUrStoaPactCode({ patron: PATRON, unwrapper: UNWRAPPER, amount: "10" }),
+    ).toBe(
+      `(ouronet-ns.TS01-C2.LQD|C_UnwrapUrStoa "${PATRON}" "${UNWRAPPER}" 10.0)`,
+    );
+  });
+
+  it("uses the UR variant (C_UnwrapUrStoa, not C_UnwrapStoa)", () => {
+    const code = buildUnwrapUrStoaPactCode({ patron: "p", unwrapper: "u", amount: "1" });
+    expect(code).toContain("C_UnwrapUrStoa ");
+    // Word-boundary check: should NOT contain bare C_UnwrapStoa (the non-UR variant)
+    expect(code).not.toMatch(/C_UnwrapStoa\b/);
+  });
+});
+
+describe("buildUnwrapUrStoaWithCreateAccountPactCode", () => {
+  it("emits the composite shape using coin.C_UR|CreateAccount (NOT coin.C_CreateAccount — UR variant)", () => {
+    const code = buildUnwrapUrStoaWithCreateAccountPactCode({
+      patron: "p", unwrapper: "u", amount: "1",
+    });
+    expect(code).toContain(`(coin.C_UR|CreateAccount target (read-keyset "ks"))`);
+    // Must NOT use the non-UR create-account — that's for the STOA variant.
+    expect(code).not.toContain(`(coin.C_CreateAccount `);
+    expect(code).toContain(`(TS01-C2.LQD|C_UnwrapUrStoa `);
   });
 });
 
@@ -807,6 +892,8 @@ describe("every builder produces a valid Pact call shape", () => {
     () => buildChangeOwnershipPactCode({ patron: "a", swpair: "b", newOwner: "c" }),
     () => buildWrapStoaPactCode({ patron: "a", wrapper: "b", amount: "1" }),
     () => buildWrapUrStoaPactCode({ patron: "a", wrapper: "b", amount: "1" }),
+    () => buildUnwrapStoaPactCode({ patron: "a", unwrapper: "b", amount: "1" }),
+    () => buildUnwrapUrStoaPactCode({ patron: "a", unwrapper: "b", amount: "1" }),
     () => buildRotateSovereignPactCode({ patron: "a", account: "b", newSovereign: "c" }),
     () => buildDeployStandardAccountPactCode({ account: "a", kadenaAddress: "k", publicKey: "p" }),
     () => buildAddLiquidityPactCode({ patron: "a", account: "b", swpair: "s", inputAmounts: ["1"] }),

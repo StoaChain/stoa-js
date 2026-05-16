@@ -299,6 +299,124 @@ export function buildWrapUrStoaPactCode(p: {
   return `(${KADENA_NAMESPACE}.TS01-C2.LQD|C_WrapUrStoa "${p.patron}" "${p.wrapper}" ${dec})`;
 }
 
+// ─── Unwrap (LQD) — simple + composite-with-account-creation ──────────────────
+//
+// Two-shape builders. The simple shape runs when the user's target k:account
+// already exists on the native chain. The composite shape runs when the
+// target is a brand-new k: account that has to be coin-created in the same
+// atomic Pact expression as the unwrap — needed because the unwrap PUSHES
+// native STOA / UrStoa to the target, which must exist or the transfer
+// aborts. The composite shape requires the call site to additionally
+// `addData("ks", { keys: [<targetPubkey>], pred: "keys-all" })` so the
+// embedded `(read-keyset "ks")` resolves at chain time.
+//
+// Cap structure (signed via the gas-station signer, NOT the patron):
+//   - UnwrapStoa:    GAS_PAYER + coin.TRANSFER(LIQUIDPOT, target, amount)
+//                    — the LIQUIDPOT releases native STOA to the target.
+//   - UnwrapUrStoa:  GAS_PAYER only — no `coin.TRANSFER` needed because the
+//                    unwrap happens entirely inside the Ouronet UrStoa
+//                    module (DPTF → DPTF, no native-coin movement).
+//
+// Patron + unwrapper-account guards sign pure (no caps). In strategy.execute
+// terms: `guards: [patronGuard, unwrapperGuard]`, `paymentKey: null`,
+// build closure picks the right Pact-code shape based on a `targetExists`
+// flag, and (when composite) sets `addData("ks", ...)` on the builder
+// before `createTransaction()`.
+
+/**
+ * Unwrap STOA — convert wSTOA → native STOA (target k:account already exists).
+ *
+ *   (ouronet-ns.TS01-C2.LQD|C_UnwrapStoa <patron> <unwrapper> <amount:decimal>)
+ */
+export function buildUnwrapStoaPactCode(p: {
+  patron:    string;
+  unwrapper: string;
+  amount:    string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(${KADENA_NAMESPACE}.TS01-C2.LQD|C_UnwrapStoa "${p.patron}" "${p.unwrapper}" ${dec})`;
+}
+
+/**
+ * Unwrap STOA — composite shape that creates the target k:account inline
+ * (via `coin.C_CreateAccount`) then executes the unwrap, all in one atomic
+ * Pact expression. Call site MUST `addData("ks", { keys: [<targetPubkey>],
+ * pred: "keys-all" })` on the builder so the embedded `(read-keyset "ks")`
+ * resolves at chain time.
+ *
+ * Composite shape (multi-line for readability — emitted as one string):
+ *
+ *   (namespace "ouronet-ns")
+ *   (IGNIS.C_Collect <patron> (IGNIS.UDC_CustomCodeCumulator))
+ *   (let
+ *     ((wp:string <unwrapper>) (target:string (DALOS.UR_AccountKadena wp)))
+ *     [(coin.C_CreateAccount target (read-keyset "ks"))
+ *      (TS01-C2.LQD|C_UnwrapStoa <patron> <unwrapper> <amount>)])
+ */
+export function buildUnwrapStoaWithCreateAccountPactCode(p: {
+  patron:    string;
+  unwrapper: string;
+  amount:    string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return (
+    `(namespace "${KADENA_NAMESPACE}")\n` +
+    `(IGNIS.C_Collect "${p.patron}" (IGNIS.UDC_CustomCodeCumulator))\n` +
+    `(let\n` +
+    `  (\n` +
+    `    (wp:string "${p.unwrapper}")\n` +
+    `    (target:string (DALOS.UR_AccountKadena wp))\n` +
+    `  )\n` +
+    `  [\n` +
+    `    (coin.C_CreateAccount target (read-keyset "ks"))\n` +
+    `    (TS01-C2.LQD|C_UnwrapStoa "${p.patron}" "${p.unwrapper}" ${dec})\n` +
+    `  ]\n` +
+    `)`
+  );
+}
+
+/**
+ * Unwrap UrStoa — convert wURSTOA → native UrStoa (target k:account already exists).
+ *
+ *   (ouronet-ns.TS01-C2.LQD|C_UnwrapUrStoa <patron> <unwrapper> <amount:decimal>)
+ */
+export function buildUnwrapUrStoaPactCode(p: {
+  patron:    string;
+  unwrapper: string;
+  amount:    string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return `(${KADENA_NAMESPACE}.TS01-C2.LQD|C_UnwrapUrStoa "${p.patron}" "${p.unwrapper}" ${dec})`;
+}
+
+/**
+ * Unwrap UrStoa — composite shape that creates the target k:account via
+ * `coin.C_UR|CreateAccount` (NOT `coin.C_CreateAccount` — UR is a separate
+ * coin-module variant for UrStoa accounts) then executes the unwrap.
+ * Same `addData("ks", ...)` requirement as `buildUnwrapStoaWithCreateAccountPactCode`.
+ */
+export function buildUnwrapUrStoaWithCreateAccountPactCode(p: {
+  patron:    string;
+  unwrapper: string;
+  amount:    string;
+}): string {
+  const dec = formatDecimalForPact(p.amount);
+  return (
+    `(namespace "${KADENA_NAMESPACE}")\n` +
+    `(IGNIS.C_Collect "${p.patron}" (IGNIS.UDC_CustomCodeCumulator))\n` +
+    `(let\n` +
+    `  (\n` +
+    `    (wp:string "${p.unwrapper}")\n` +
+    `    (target:string (DALOS.UR_AccountKadena wp))\n` +
+    `  )\n` +
+    `  [\n` +
+    `    (coin.C_UR|CreateAccount target (read-keyset "ks"))\n` +
+    `    (TS01-C2.LQD|C_UnwrapUrStoa "${p.patron}" "${p.unwrapper}" ${dec})\n` +
+    `  ]\n` +
+    `)`
+  );
+}
+
 // ─── coin.C_URV family (StoaChain native UrStoa stake / unstake / collect) ───
 //
 // These are PURE StoaChain coin-module operations — no patron, no Ouronet
