@@ -4,9 +4,9 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
-## 4.3.0 — unreleased (in-progress)
+## 4.2.2 — unreleased (in-progress)
 
-**MINOR — additive: new SWP-pair management builders + matching INFO readers + UR\_\* reads** to support the OuronetUI v1.1.0 cycle wiring the remaining 9 Liquidity-Pools-Management page buttons (Modify Can Change Owner, Modify Weights, Modify Amplifier, Toggle Swapping / Provisioning, Activate Frozen / Sleeping LP, Update Fee Targets, Update Branding). Per strict SemVer, additive new public surface = MINOR bump (the prior v4.2.1 stretched PATCH semantics with 23 added builders; this cycle is large enough to honor the rule cleanly). Solo bump — peer-deps `@stoachain/kadena-stoic-legacy@4.2.1` and `@stoachain/stoa-core@4.2.1` unchanged.
+**PATCH — additive: new SWP-pair management builders + matching INFO readers + UR\_\* reads** to support the OuronetUI v1.0.8 cycle wiring the remaining 9 Liquidity-Pools-Management page buttons (Modify Can Change Owner, Modify Weights, Modify Amplifier, Toggle Swapping / Provisioning, Activate Frozen / Sleeping LP, Update Fee Targets, Update Branding). PATCH chosen to match the established project cadence — v4.2.1 was itself 23 additive builders shipped as PATCH; strict SemVer would call this MINOR, but the workspace convention has consistently been PATCH-for-additive (deliberate MINOR/MAJOR moments are user-decided, not automatic). Solo bump — peer-deps `@stoachain/kadena-stoic-legacy@4.2.1` and `@stoachain/stoa-core@4.2.1` unchanged.
 
 ### Added — SWP-pair management (TS01-C3.SWP + INFO-ONE.SWP + SWP.UR_*)
 
