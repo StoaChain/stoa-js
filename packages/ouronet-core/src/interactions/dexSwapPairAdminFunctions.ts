@@ -34,6 +34,28 @@ export async function getSWPPrincipals(): Promise<string[]> {
   }
 }
 
+/**
+ * Fetch the current owner account of a SWP pair (Ouronet account string).
+ *
+ *   (ouronet-ns.SWP.UR_OwnerKonto <swpair>)
+ *
+ * Lightweight unprotected read — returns just the owner-konto string. Used
+ * by the OuronetUI ChangeOwnership flow to decide which ghost address to
+ * pre-fill in the new-owner field (must differ from the current owner so
+ * the ghost-as-default execution path stays valid).
+ */
+export async function getSwpairOwnerKonto(swpair: string): Promise<string | null> {
+  try {
+    const res = await pactRead(`(${KADENA_NAMESPACE}.SWP.UR_OwnerKonto "${swpair}")`, { tier: "T5" });
+    if (res.result.status === "failure") return null;
+    const d = res.result.data;
+    return d == null ? null : String(d);
+  } catch (error) {
+    getLogger().error("Error in getSwpairOwnerKonto:", error);
+    return null;
+  }
+}
+
 /** Fetch SWP spawn limit (WSTOA minimum to create a pool) */
 export async function getSWPSpawnLimit(): Promise<string | null> {
   try {
