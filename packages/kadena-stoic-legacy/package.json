@@ -1,6 +1,6 @@
 {
   "name": "@stoachain/kadena-stoic-legacy",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "Vendored source of @kadena/{client,cryptography-utils,types,hd-wallet} under StoaChain stewardship. Sovereign supply-chain replacement for the upstream @kadena/* npm packages, preserved byte-identical at v1.18.3 / 0.4.4 / 0.7.0 / 0.6.2.",
   "type": "module",
   "main": "./dist/index.js",
