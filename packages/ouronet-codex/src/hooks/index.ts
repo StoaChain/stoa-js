@@ -24,6 +24,9 @@ export type { ActiveWalletView } from "./useActiveWallet";
 export { useCodexAuth } from "./useCodexAuth";
 export type { CodexAuthView } from "./useCodexAuth";
 
+export { useRequestPassword } from "./useRequestPassword";
+export type { RequestPasswordFn } from "./useRequestPassword";
+
 export { useGetKeypair } from "./useGetKeypair";
 export type { GetKeypairFn } from "./useGetKeypair";
 

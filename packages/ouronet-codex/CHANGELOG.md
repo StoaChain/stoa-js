@@ -50,11 +50,82 @@ Tracking under [`stoa-js/.bee/specs/2026-05-24-ouronet-codex-modular-package/spe
   - `useCodexBackup()` — `downloadAsJson` (browser `<a>.click` save), `importFromFile(File)`, `exportForCloud()`, `importFromCloud(json)`, `isDirty`, `clearDirty`. On-disk format is the v1.2 codex file plus `pureKeypairs` (OuronetUI v1.0.9 extension). Imports tolerate the absence of `pureKeypairs` so pre-v1.0.9 backups still restore. The hook bypasses `ouronet-core/codex`'s frozen v1.2 codec to allow the augmented format; codec stays a strict v1.2 wire-format reader for purists.
 - **Tests (63 new)** — `resolver-internal.test.ts` (14), `provider.test.tsx` (4), `hooks.test.tsx` (~25 across all hooks, with real-crypto roundtrips kept in the resolver suite to avoid duplication). Combined with the prior phases: **101 specs total in the ouronet-codex package, all passing.**
 
-### Upcoming phases (per spec)
+### Phase 6a — Headless components (non-rotation) + password-prompt mechanism (2026-05-25)
 
-- Phase 6 — Components: extract headless modals + panels (password, backup/restore, rotate guard/payment/sovereign/governor, etc.).
-- Phase 7 — Provider: flesh out `<CodexProvider>` with the full spec §5.1 surface (passwordCacheMinutes, onCodexDirty, signingClient override, auto-rendered PasswordModal, SSR-safe placeholder).
+Sub-phase split from Phase 6 — the 5 components that don't touch ouronet-core's
+Pact builders. Phase 6b lands the 3 rotation modals after the atomic-triplet
+bump to 4.3.0 adds the missing `buildRotateGuardPactCode` and
+`buildRotatePaymentKeyPactCode` (only `buildRotateSovereignPactCode` exists today).
+Phase 6 spec scope was deliberately not "all 4" — `<RotateGovernorModal>` was
+deferred post-OuronetUI-migration per locked decision: chain has the Pact
+function but no UI surface ships it yet.
+
+State store extensions:
+- `pendingPasswordRequest` slice (single nullable, dedup-to-one-modal contract).
+- `actions.requestPassword()` returns `Promise<string>`. Concurrent calls
+  share a single outstanding request (the dedup fans out resolve/reject
+  to every waiting caller).
+- `actions.submitPasswordRequest(pw)` calls `authenticate` then resolves
+  the awaiting promise.
+- `actions.cancelPasswordRequest()` rejects with `CodexLockedError`.
+
+Hook additions:
+- `useRequestPassword()` — fast-path resolves immediately when unlocked;
+  otherwise triggers the modal-driven prompt via the store action above.
+  Stable function identity, safe in useEffect deps.
+
+Components (`src/components/`):
+- `<PasswordModal>` — observes `pendingPasswordRequest`; renders nothing
+  when null. Default markup is semantic `<div role="dialog">` + `<form>` +
+  `<input type="password">` + submit/cancel. Full theming via `className` +
+  per-slot render-props (renderTitle / renderSubmitButton / renderCancelButton)
+  or whole-component `render` prop override.
+- `<BackupRestorePanel>` — wraps `useCodexBackup`. Default markup shows
+  download + restore-from-file buttons + header (with dirty-state badge).
+  File-restore drives a hidden `<input type="file">` via programmatic click.
+  Errors surface via an `<p role="alert">`. Render-prop slots for every
+  element + a `downloadFilename` prop.
+- `<AddPureKeypairForm>` — pastes a 64-hex private key, derives pub via
+  `tryDerivePublicKey`, validates (length + hex-only), prompts for password
+  via `useRequestPassword`, encrypts with `smartEncrypt`, persists through
+  `usePureKeypairs.addKeypair`. Live derivedPublicKey preview + structured
+  validation message + onSuccess callback.
+- `<ActiveWalletPicker>` — two `<select>` dropdowns (kadena seeds + ouro
+  accounts) wired to `useActiveWallet`. `hideKadenaSeedPicker` /
+  `hideOuroAccountPicker` props for consumers that only surface one. Per-item
+  render-prop slots for full option markup override.
+- `<CodexInfoPanel>` — read-only stats panel. Default markup is a semantic
+  `<dl>` showing status (ready/locked/dirty), per-entity counts, schema
+  version, last-updated. Whole-component `render` prop for custom layouts.
+
+Tests (+18) in `tests/components.test.tsx` — one describe per component
+covering default markup, render-prop overrides, and underlying hook
+integration. Plus `<PasswordModal>` round-trip tests (request → submit
+resolves promise + hides; cancel rejects with CodexLockedError) and
+`useRequestPassword` dedup test.
+
+Workspace test totals after Phase 6a:
+  kadena-stoic-legacy   55
+  ouronet-codex        119 (was 101; +18 in Phase 6a)
+  ouronet-core         788
+  stoa-core            653
+  total              1,615 passing, no regressions
+
+Typecheck clean across all 4 packages.
+
+### Upcoming phases (per spec, with Phase 6 split)
+
+- **Phase 6b** — Rotation modals: bump atomic triplet to 4.3.0 (adds
+  `buildRotateGuardPactCode` + `buildRotatePaymentKeyPactCode` to
+  ouronet-core's `cfmBuilders`, with tests), then `<RotateGuardModal>` /
+  `<RotatePaymentKeyModal>` / `<RotateSovereignModal>`.
+- Phase 7 — Provider: flesh out `<CodexProvider>` with the full spec §5.1
+  surface (passwordCacheMinutes, onCodexDirty, signingClient override,
+  initialUiSettings, SSR-safe placeholder; the auto-rendered PasswordModal
+  is already opt-in by virtue of Phase 6a — consumer just mounts
+  `<PasswordModal />` once at app root).
 - Phase 8 — Publish v0.1.0 to npm with `alpha` dist-tag.
-- Phases 9 + 10 — OuronetUI + AncientHoldings migration; API gaps surface as v0.x revisions before v1.0.0.
+- Phases 9 + 10 — OuronetUI + AncientHoldings migration; API gaps surface
+  as v0.x revisions before v1.0.0.
 
 See the spec doc for the full phase breakdown and acceptance criteria.

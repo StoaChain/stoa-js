@@ -49,6 +49,37 @@ export interface PasswordCacheEntry {
   expiresAt: number; // epoch ms
 }
 
+/**
+ * A pending request for the user to enter their password — the
+ * mechanism by which <PasswordModal> "self-shows" when an operation
+ * needs an unlocked codex.
+ *
+ * Lifecycle:
+ *   1. A hook (e.g. useRequestPassword) calls actions.requestPassword().
+ *      The store sets `pendingPasswordRequest` to a fresh entry.
+ *   2. <PasswordModal> subscribes; when the slice becomes non-null it
+ *      renders its form.
+ *   3. User submits → actions.submitPasswordRequest(pw):
+ *        - calls authenticate(pw, ttl)  (caches password, unlocks codex)
+ *        - resolves the request's promise with `pw`
+ *        - clears the slice
+ *   4. User cancels → actions.cancelPasswordRequest():
+ *        - rejects the request's promise with CodexLockedError
+ *        - clears the slice
+ *
+ * Multiple concurrent requestPassword() calls dedup to a single
+ * outstanding request (the slice is a single nullable, not a queue).
+ * The first call sets the slice; subsequent calls receive a Promise
+ * tied to the SAME pending request, so the user only sees one modal
+ * regardless of how many places ask for the password simultaneously.
+ */
+export interface PendingPasswordRequest {
+  id: string;
+  createdAt: number;
+  resolve: (password: string) => void;
+  reject: (error: unknown) => void;
+}
+
 export interface CodexStoreState {
   // Hydration
   ready: boolean;
@@ -57,6 +88,10 @@ export interface CodexStoreState {
   // Auth
   locked: boolean;
   passwordCache: PasswordCacheEntry | null;
+
+  // Password prompt — single outstanding request at a time. See
+  // PendingPasswordRequest JSDoc for the lifecycle.
+  pendingPasswordRequest: PendingPasswordRequest | null;
 
   // Codex content (mirrors adapter)
   kadenaSeeds: IKadenaSeed[];
@@ -90,6 +125,21 @@ export interface CodexStoreActions {
   authenticate(password: string, ttlMinutes?: number): void;
   lock(): void;
   getPassword(): string;
+
+  // ----- password prompt -----
+  /** Request the user enters their password. Returns a Promise that
+   *  resolves when the user submits (via submitPasswordRequest) or
+   *  rejects when cancelled (via cancelPasswordRequest). If a request
+   *  is already outstanding, returns a Promise tied to that same
+   *  request — multiple callers see the same modal. */
+  requestPassword(): Promise<string>;
+  /** Called by <PasswordModal> on submit. Authenticates with `pw`,
+   *  resolves the outstanding request's promise with `pw`, clears
+   *  the slice. */
+  submitPasswordRequest(pw: string, ttlMinutes?: number): void;
+  /** Called by <PasswordModal> on cancel (Esc, backdrop click, etc.).
+   *  Rejects the outstanding request's promise with CodexLockedError. */
+  cancelPasswordRequest(): void;
 
   // ----- kadena seeds -----
   addKadenaSeed(seed: IKadenaSeed): Promise<void>;
@@ -135,6 +185,7 @@ const initialState: Omit<CodexStoreState, "actions"> = {
   initError: null,
   locked: true,
   passwordCache: null,
+  pendingPasswordRequest: null,
   kadenaSeeds: [],
   pureKeypairs: [],
   ouroAccounts: [],
@@ -243,6 +294,63 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
           throw new CodexLockedError("getPassword");
         }
         return cache.value;
+      },
+
+      // ----- password prompt -----
+
+      requestPassword(): Promise<string> {
+        // If a request is already outstanding, return a Promise tied to
+        // the SAME pending request. This is the dedup-to-one-modal
+        // contract documented in PendingPasswordRequest's JSDoc — without
+        // it, two parallel hooks asking for the password would stack up
+        // two modals.
+        const existing = get().pendingPasswordRequest;
+        if (existing) {
+          return new Promise<string>((resolve, reject) => {
+            // Wrap the existing handlers: when the existing request
+            // resolves/rejects, fan out to this Promise too.
+            const prevResolve = existing.resolve;
+            const prevReject = existing.reject;
+            existing.resolve = (pw) => {
+              prevResolve(pw);
+              resolve(pw);
+            };
+            existing.reject = (err) => {
+              prevReject(err);
+              reject(err);
+            };
+          });
+        }
+
+        return new Promise<string>((resolve, reject) => {
+          const req: PendingPasswordRequest = {
+            id:
+              typeof crypto !== "undefined" && "randomUUID" in crypto
+                ? crypto.randomUUID()
+                : `pwd-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            createdAt: Date.now(),
+            resolve,
+            reject,
+          };
+          set({ pendingPasswordRequest: req });
+        });
+      },
+
+      submitPasswordRequest(pw: string, ttlMinutes?: number) {
+        const req = get().pendingPasswordRequest;
+        if (!req) return; // no-op if no request is outstanding
+        // Authenticate (caches pw + unlocks codex), then resolve the
+        // promise so the awaiting code gets the password it asked for.
+        actions.authenticate(pw, ttlMinutes);
+        set({ pendingPasswordRequest: null });
+        req.resolve(pw);
+      },
+
+      cancelPasswordRequest() {
+        const req = get().pendingPasswordRequest;
+        if (!req) return;
+        set({ pendingPasswordRequest: null });
+        req.reject(new CodexLockedError("requestPassword"));
       },
 
       // ----- kadena seeds -----

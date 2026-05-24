@@ -13,6 +13,7 @@ export type {
   CodexStoreState,
   CodexStoreActions,
   PasswordCacheEntry,
+  PendingPasswordRequest,
 } from "./store";
 
 export {
