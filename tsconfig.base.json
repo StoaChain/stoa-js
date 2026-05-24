@@ -46,7 +46,16 @@
       "@stoachain/ouronet-core/codex": ["./packages/ouronet-core/src/codex/index.ts"],
       "@stoachain/ouronet-core/pact": ["./packages/ouronet-core/src/pact/index.ts"],
       "@stoachain/ouronet-core/interactions": ["./packages/ouronet-core/src/interactions/index.ts"],
-      "@stoachain/ouronet-core/interactions/*": ["./packages/ouronet-core/src/interactions/*.ts"]
+      "@stoachain/ouronet-core/interactions/*": ["./packages/ouronet-core/src/interactions/*.ts"],
+      "@stoachain/ouronet-codex": ["./packages/ouronet-codex/src/index.ts"],
+      "@stoachain/ouronet-codex/adapters": ["./packages/ouronet-codex/src/adapters/index.ts"],
+      "@stoachain/ouronet-codex/provider": ["./packages/ouronet-codex/src/provider/index.ts"],
+      "@stoachain/ouronet-codex/hooks": ["./packages/ouronet-codex/src/hooks/index.ts"],
+      "@stoachain/ouronet-codex/components": ["./packages/ouronet-codex/src/components/index.ts"],
+      "@stoachain/ouronet-codex/resolver": ["./packages/ouronet-codex/src/resolver/index.ts"],
+      "@stoachain/ouronet-codex/errors": ["./packages/ouronet-codex/src/errors/index.ts"],
+      "@stoachain/ouronet-codex/types": ["./packages/ouronet-codex/src/types/index.ts"],
+      "@stoachain/ouronet-codex/google-drive": ["./packages/ouronet-codex/src/google-drive/index.ts"]
     }
   }
 }

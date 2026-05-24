@@ -1,7 +1,7 @@
 {
   "name": "stoa-js",
   "version": "0.0.0",
-  "description": "StoaChain TypeScript stack — workspace root for @stoachain/stoa-core (chain-generic foundation) and @stoachain/ouronet-core (Ouronet protocol business logic).",
+  "description": "StoaChain TypeScript stack — workspace root for @stoachain/kadena-stoic-legacy (vendored @kadena/*), @stoachain/stoa-core (chain-generic foundation), @stoachain/ouronet-core (Ouronet protocol business logic), and @stoachain/ouronet-codex (modular React Codex layer for consumer apps).",
   "private": true,
   "type": "module",
   "engines": {
@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=@stoachain/kadena-stoic-legacy && npm run build --workspace=@stoachain/stoa-core && npm run build --workspace=@stoachain/ouronet-core",
+    "build": "npm run build --workspace=@stoachain/kadena-stoic-legacy && npm run build --workspace=@stoachain/stoa-core && npm run build --workspace=@stoachain/ouronet-core && npm run build --workspace=@stoachain/ouronet-codex",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
     "test:watch": "npm run test:watch --workspaces",
