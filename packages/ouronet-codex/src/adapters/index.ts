@@ -1,10 +1,18 @@
 // @stoachain/ouronet-codex/adapters
 //
 // Storage backends. v0.1.0 ships:
-//   - CodexAdapter             — the pluggable interface
-//   - LocalStorageCodexAdapter — browser default (ported from OuronetUI v1.0.9)
-//   - MemoryCodexAdapter       — SSR / Next.js server / tests
+//   - CodexAdapter             — pluggable interface (see ./types.ts)
+//   - CodexSnapshot            — full persisted state shape
+//   - LocalStorageCodexAdapter — browser default (window.localStorage)
+//   - MemoryCodexAdapter       — in-memory, for SSR / Next.js server / tests
+//   - emptySnapshot            — sentinel empty CodexSnapshot factory
+//   - assertCodexAdapter       — runtime validator for CodexProvider's
+//                                `adapter` prop
 //
-// Implementations land in Phase 3 of the modular-codex spec.
-// See: stoa-js/.bee/specs/2026-05-24-ouronet-codex-modular-package/spec.md §5.4
-export {};
+// Consumers wanting a different backend (IndexedDB, Tauri secure storage,
+// remote KMS) implement CodexAdapter and pass to <CodexProvider adapter={...}>.
+
+export type { CodexAdapter, CodexSnapshot } from "./types";
+export { emptySnapshot } from "./types";
+export { MemoryCodexAdapter, assertCodexAdapter } from "./MemoryCodexAdapter";
+export { LocalStorageCodexAdapter } from "./LocalStorageCodexAdapter";
