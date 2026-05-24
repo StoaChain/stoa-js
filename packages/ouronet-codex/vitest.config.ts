@@ -19,7 +19,10 @@ const ouronetCodexSrc = resolve(__dirname, "src");
 export default defineConfig({
   resolve: {
     alias: [
-      // Self-referencing subpath aliases for tests inside ouronet-codex
+      // Self-referencing subpath aliases for tests inside ouronet-codex.
+      // Includes "/state" which is NOT in package.json's `exports` map
+      // (intentionally private — see src/state/index.ts comment). Tests
+      // get access via this alias; external consumers don't.
       { find: /^@stoachain\/ouronet-codex\/adapters$/, replacement: `${ouronetCodexSrc}/adapters/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/provider$/, replacement: `${ouronetCodexSrc}/provider/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/hooks$/, replacement: `${ouronetCodexSrc}/hooks/index.ts` },
@@ -28,6 +31,7 @@ export default defineConfig({
       { find: /^@stoachain\/ouronet-codex\/errors$/, replacement: `${ouronetCodexSrc}/errors/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/types$/, replacement: `${ouronetCodexSrc}/types/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/google-drive$/, replacement: `${ouronetCodexSrc}/google-drive/index.ts` },
+      { find: /^@stoachain\/ouronet-codex\/state$/, replacement: `${ouronetCodexSrc}/state/index.ts` },
       { find: /^@stoachain\/ouronet-codex$/, replacement: `${ouronetCodexSrc}/index.ts` },
       // Cross-package aliases — ouronet-core
       { find: /^@stoachain\/ouronet-core\/interactions\/(.+)$/, replacement: `${ouronetCoreSrc}/interactions/$1.ts` },

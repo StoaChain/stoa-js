@@ -1,13 +1,22 @@
-// @stoachain/ouronet-codex/state — INTERNAL, not in the public exports map.
+// @stoachain/ouronet-codex/state — INTERNAL only, not in public exports.
 //
-// Zustand store managing the codex runtime state (hydrated codex content,
-// active wallet, password cache, dirty bit). Consumers never import from
-// here directly — they go through hooks (which subscribe to the right
-// slice of this store).
+// The Zustand store backing CodexProvider. Consumers MUST go through
+// hooks (which subscribe to slices of this store via React-style
+// reactive subscriptions), not import from here directly.
 //
-// Internal-only so a future refactor (e.g. swap Zustand for something
-// else, partition the store) doesn't break consumers.
-//
-// Implementation lands in Phase 4 of the modular-codex spec.
-// See: stoa-js/.bee/specs/2026-05-24-ouronet-codex-modular-package/spec.md §6
-export {};
+// Re-exporting here for internal consumption by sibling subpaths
+// (hooks/, resolver/, provider/) only. The package.json `exports` map
+// has no entry for "./state" — TypeScript paths-resolution from the
+// monorepo doesn't expose this externally either.
+
+export type {
+  CodexStoreState,
+  CodexStoreActions,
+  PasswordCacheEntry,
+} from "./store";
+
+export {
+  createCodexStore,
+  _internal_requireUnlocked,
+  CodexPasswordError,
+} from "./store";
