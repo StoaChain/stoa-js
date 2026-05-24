@@ -889,6 +889,69 @@ export function buildRotateSovereignPactCode(p: {
 }
 
 /**
+ * Rotate the GUARD (ownership keyset) of an Ouronet account.
+ *
+ *   (ouronet-ns.TS01-C1.DALOS|C_RotateGuard <patron> <account> <guard-expr> <safe>)
+ *
+ * The guard-expr is one of two shapes, switched by `mode`:
+ *   - "define"   → `(read-keyset "ks")`        Consumer MUST also call
+ *                                              `.addData("ks", { keys, pred })`
+ *                                              on the transaction builder so
+ *                                              the chain can read the keyset.
+ *   - "existing" → `(keyset-ref-guard "<ref>")` References an on-chain
+ *                                              registered keyset; no addData
+ *                                              call is needed.
+ *
+ * The `safe` flag (boolean) is the chain-side "are you sure?" gate — when
+ * `true` it enforces extra invariants on the new guard (e.g. that at least
+ * one key in the new keyset is held by the account holder). Define mode
+ * is always safe; existing mode lets the user opt-in/out.
+ *
+ * Added in v4.3.0.
+ */
+export function buildRotateGuardPactCode(p: {
+  patron:    string;
+  account:   string;
+  mode:      "define" | "existing";
+  /** Required when `mode === "existing"`. */
+  keysetRef?: string;
+  safe:      boolean;
+}): string {
+  const guardExpr =
+    p.mode === "define"
+      ? `(read-keyset "ks")`
+      : `(keyset-ref-guard "${p.keysetRef ?? ""}")`;
+  return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_RotateGuard "${p.patron}" "${p.account}" ${guardExpr} ${p.safe})`;
+}
+
+/**
+ * Rotate the Kadena Ledger payment key (= "payment key") of an Ouronet
+ * account.
+ *
+ *   (ouronet-ns.TS01-C1.DALOS|C_RotateKadena <patron> <account> <new-payment-key>)
+ *
+ * Why "RotateKadena" not "RotatePaymentKey": the on-chain Pact function is
+ * `C_RotateKadena` — the kadena-ledger payment key is what the on-chain
+ * naming refers to. The builder name mirrors the Pact function for grep-
+ * ability with chain logs; UI surfaces (e.g. ouronet-codex's
+ * `<RotatePaymentKeyModal>`) use the more user-friendly "Payment Key".
+ *
+ * The consumer is responsible for `.addData("ks", { keys: patronGuard.keys,
+ * pred: patronGuard.pred })` and (when patron ≠ account)
+ * `.addData("ks-account", { keys: accountGuard.keys, pred: accountGuard.pred })`
+ * on the transaction builder. This builder ONLY emits the Pact code.
+ *
+ * Added in v4.3.0.
+ */
+export function buildRotateKadenaPactCode(p: {
+  patron:        string;
+  account:       string;
+  newPaymentKey: string;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_RotateKadena "${p.patron}" "${p.account}" "${p.newPaymentKey}")`;
+}
+
+/**
  * Deploy / activate Standard Ouronet Account. Patronless function — the
  * Pact code does NOT take a patron argument; the deploying CodexPrime
  * Key #0 pays gas and signs the 4× coin.TRANSFER caps that fund the

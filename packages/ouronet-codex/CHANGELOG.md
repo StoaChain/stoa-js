@@ -113,19 +113,85 @@ Workspace test totals after Phase 6a:
 
 Typecheck clean across all 4 packages.
 
-### Upcoming phases (per spec, with Phase 6 split)
+### Phase 6b — Headless rotation modals + triplet bump 4.2.2 → 4.3.0 (2026-05-25)
 
-- **Phase 6b** — Rotation modals: bump atomic triplet to 4.3.0 (adds
-  `buildRotateGuardPactCode` + `buildRotatePaymentKeyPactCode` to
-  ouronet-core's `cfmBuilders`, with tests), then `<RotateGuardModal>` /
-  `<RotatePaymentKeyModal>` / `<RotateSovereignModal>`.
+Sub-phase 6b — the 3 rotation modals + the atomic-triplet bump that
+adds the Pact builders they consume.
+
+Atomic triplet bumped 4.2.2 → 4.3.0:
+- `@stoachain/ouronet-core` adds `buildRotateGuardPactCode` (define/existing
+  modes) + `buildRotateKadenaPactCode` to `src/pact/cfmBuilders.ts`. 9 new
+  tests in `cfm-builders.test.ts`.
+- `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped in
+  lockstep per the triplet invariant — functionally identical to 4.2.2.
+- ouronet-codex peer-dep ranges bumped to `>=4.3.0` (the rotation modals
+  require the new builders).
+
+`<RotateGovernorModal>` deferred post-OuronetUI-migration per spec
+locked decision — chain exposes `C_RotateGovernor` but no UI surface
+ships it yet.
+
+Components (`src/components/`):
+- `<RotateGuardModal>` — two-mode form (define new keys + predicate, or
+  reference existing keyset). Builds via `buildRotateGuardPactCode`,
+  attaches keyset data slot in define mode, adds new-guard signers in
+  define mode, dispatches through `useSignTransaction.execute`.
+  Optimistically updates the codex's local guard mirror on success.
+- `<RotatePaymentKeyModal>` — single-input form (new 64-hex payment key).
+  Validates hex format. Builds via `buildRotateKadenaPactCode`, attaches
+  patron + account guard data slots (matches the chain's
+  `(read-keyset "ks")` / `(read-keyset "ks-account")` reads).
+- `<RotateSovereignModal>` — Smart Account (Σ.) only. Single-input form
+  (new sovereign address). Builds via the pre-existing
+  `buildRotateSovereignPactCode`. Warns + disables submit on
+  non-smart accounts (defense-in-depth — consumer should normally
+  gate `isOpen` on `account.isSmart`).
+
+All three:
+- Accept `account` + `patron` props (default to active ouro account
+  + same-account-as-patron).
+- Expose `render` prop for full markup override + `renderSubmitButton`
+  slot.
+- Reset form state on every re-open.
+- `isOpen` gating returns `null` when closed.
+- Capture submit errors in local state; surface via default `<p role="alert">`
+  or via render-prop's `lastError`.
+
+Tests (+13) in `tests/rotation-modals.test.tsx`:
+- isOpen=false renders nothing
+- Default markup renders correctly under each modal
+- Form validation gates the submit button
+- Mode-switching toggles the right inputs (RotateGuard)
+- render-prop receives full args bag
+- Cancel button calls onClose
+- Non-smart accounts trigger the alert + disable submit (RotateSovereign)
+
+The actual submit-side wiring (build closure → strategy.execute → chain)
+is verified implicitly: cfm-builders tests assert the emitted Pact code
+string for each builder; useSignTransaction tests verify strategy
+construction; Phase 9 OuronetUI migration is the end-to-end signal.
+
+Workspace test totals after Phase 6b:
+  kadena-stoic-legacy   55
+  ouronet-codex        132 (was 119; +13 in Phase 6b)
+  ouronet-core         797 (was 788; +9 from new builder tests)
+  stoa-core            653
+  total              1,637 passing, no regressions
+
+Typecheck clean across all 4 packages.
+
+### Upcoming phases (per spec)
+
 - Phase 7 — Provider: flesh out `<CodexProvider>` with the full spec §5.1
   surface (passwordCacheMinutes, onCodexDirty, signingClient override,
   initialUiSettings, SSR-safe placeholder; the auto-rendered PasswordModal
   is already opt-in by virtue of Phase 6a — consumer just mounts
   `<PasswordModal />` once at app root).
-- Phase 8 — Publish v0.1.0 to npm with `alpha` dist-tag.
+- Phase 8 — Publish v0.1.0 to npm with `alpha` dist-tag (plus triplet
+  v4.3.0 published from the same release).
 - Phases 9 + 10 — OuronetUI + AncientHoldings migration; API gaps surface
   as v0.x revisions before v1.0.0.
+- Post-migration: `<RotateGovernorModal>` + `buildRotateGovernorPactCode`
+  land once OuronetUI implements the UI surface.
 
 See the spec doc for the full phase breakdown and acceptance criteria.

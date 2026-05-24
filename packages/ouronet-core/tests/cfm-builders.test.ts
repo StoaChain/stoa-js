@@ -61,6 +61,8 @@ import {
   buildCreateSetPactCode,
   buildCreateSetNFTPactCode,
   buildRotateSovereignPactCode,
+  buildRotateGuardPactCode,
+  buildRotateKadenaPactCode,
 } from "../src/pact/cfmBuilders";
 
 // ─── Canonical fixture values (used across many tests) ──────────────────────
@@ -1073,5 +1075,119 @@ describe("buildRotateSovereignPactCode", () => {
     expect(code).toContain(`"Ѻ.PATRON"`);
     expect(code).toContain(`"Σ.SMART"`);
     expect(code).toContain(`"Ѻ.NEW"`);
+  });
+});
+
+describe("buildRotateGuardPactCode (v4.3.0)", () => {
+  it("emits the define-mode shape with (read-keyset \"ks\")", () => {
+    expect(
+      buildRotateGuardPactCode({
+        patron: PATRON,
+        account: "Ѻ.ACCT",
+        mode: "define",
+        safe: true,
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_RotateGuard "${PATRON}" "Ѻ.ACCT" (read-keyset "ks") true)`,
+    );
+  });
+
+  it("emits the existing-mode shape with (keyset-ref-guard \"<ref>\")", () => {
+    expect(
+      buildRotateGuardPactCode({
+        patron: PATRON,
+        account: "Ѻ.ACCT",
+        mode: "existing",
+        keysetRef: "ouronet-ns.dh_sc_dpdc-keyset",
+        safe: false,
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_RotateGuard "${PATRON}" "Ѻ.ACCT" (keyset-ref-guard "ouronet-ns.dh_sc_dpdc-keyset") false)`,
+    );
+  });
+
+  it("emits empty keyset-ref when existing mode is given without a ref (defensive fallback)", () => {
+    // The runtime contract is "callers must supply keysetRef in existing
+    // mode", but we don't throw here — we let Pact dirtyRead surface the
+    // error so the caller sees a chain-level failure with the offending
+    // string visible. Defensive empty-string keeps the syntax valid
+    // (parseable Pact) rather than emitting an undefined-laden expression.
+    const code = buildRotateGuardPactCode({
+      patron: "p",
+      account: "a",
+      mode: "existing",
+      safe: true,
+    });
+    expect(code).toContain(`(keyset-ref-guard "")`);
+  });
+
+  it("uses the DALOS module + TS01-C1 namespace + C_RotateGuard function", () => {
+    const code = buildRotateGuardPactCode({
+      patron: "p",
+      account: "a",
+      mode: "define",
+      safe: true,
+    });
+    expect(code).toContain(".TS01-C1.DALOS|C_RotateGuard ");
+    // Argument ORDER guard — flipping patron and account would silently
+    // misroute the rotation on chain.
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"a"`));
+  });
+
+  it("safe boolean is emitted as bare true/false (not a string)", () => {
+    const code = buildRotateGuardPactCode({
+      patron: "p",
+      account: "a",
+      mode: "define",
+      safe: false,
+    });
+    // Bare false at end, never quoted — Pact bool literal, not a string.
+    expect(code).toMatch(/\) false\)$/);
+    expect(code).not.toContain(`"false"`);
+  });
+});
+
+describe("buildRotateKadenaPactCode (v4.3.0)", () => {
+  it("emits the canonical 3-arg C_RotateKadena shape", () => {
+    expect(
+      buildRotateKadenaPactCode({
+        patron: PATRON,
+        account: "Ѻ.ACCT",
+        newPaymentKey: "f".repeat(64),
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_RotateKadena "${PATRON}" "Ѻ.ACCT" "${"f".repeat(64)}")`,
+    );
+  });
+
+  it("uses the DALOS module + TS01-C1 namespace + C_RotateKadena function name", () => {
+    const code = buildRotateKadenaPactCode({
+      patron: "p",
+      account: "a",
+      newPaymentKey: "k",
+    });
+    // Builder is named *RotatePaymentKey* in user-facing surfaces but the
+    // on-chain Pact function is C_RotateKadena (kadena-ledger payment key).
+    expect(code).toContain(".TS01-C1.DALOS|C_RotateKadena ");
+  });
+
+  it("argument ORDER is patron, account, newPaymentKey", () => {
+    const code = buildRotateKadenaPactCode({
+      patron: "PP",
+      account: "AA",
+      newPaymentKey: "KK",
+    });
+    expect(code.indexOf(`"PP"`)).toBeLessThan(code.indexOf(`"AA"`));
+    expect(code.indexOf(`"AA"`)).toBeLessThan(code.indexOf(`"KK"`));
+  });
+
+  it("preserves the standard / smart prefix characters byte-for-byte", () => {
+    const code = buildRotateKadenaPactCode({
+      patron: "Ѻ.P",
+      account: "Σ.A",
+      newPaymentKey: "0".repeat(64),
+    });
+    expect(code).toContain(`"Ѻ.P"`);
+    expect(code).toContain(`"Σ.A"`);
   });
 });

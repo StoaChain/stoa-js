@@ -61,9 +61,9 @@
   },
   "peerDependencies": {
     "react": "^18 || ^19",
-    "@stoachain/kadena-stoic-legacy": ">=4.2.2",
-    "@stoachain/stoa-core": ">=4.2.2",
-    "@stoachain/ouronet-core": ">=4.2.2"
+    "@stoachain/kadena-stoic-legacy": ">=4.3.0",
+    "@stoachain/stoa-core": ">=4.3.0",
+    "@stoachain/ouronet-core": ">=4.3.0"
   },
   "dependencies": {
     "zustand": "^5.0.0"

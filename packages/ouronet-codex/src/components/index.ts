@@ -48,3 +48,25 @@ export type {
   CodexInfoPanelProps,
   CodexInfoRenderArgs,
 } from "./CodexInfoPanel";
+
+// Phase 6b — headless rotation modals (consume the new v4.3.0 rotation builders)
+
+export { RotateSovereignModal } from "./RotateSovereignModal";
+export type {
+  RotateSovereignModalProps,
+  RotateSovereignRenderArgs,
+} from "./RotateSovereignModal";
+
+export { RotatePaymentKeyModal } from "./RotatePaymentKeyModal";
+export type {
+  RotatePaymentKeyModalProps,
+  RotatePaymentKeyRenderArgs,
+} from "./RotatePaymentKeyModal";
+
+export { RotateGuardModal } from "./RotateGuardModal";
+export type {
+  RotateGuardModalProps,
+  RotateGuardRenderArgs,
+  RotateGuardMode,
+  RotateGuardPred,
+} from "./RotateGuardModal";
