@@ -11,5 +11,9 @@
 //
 // See: stoa-js/.bee/specs/2026-05-24-ouronet-codex-modular-package/spec.md §5.1
 
-export { CodexProvider, useCodexStore } from "./CodexProvider";
+export {
+  CodexProvider,
+  useCodexStore,
+  useSigningClientOverride,
+} from "./CodexProvider";
 export type { CodexProviderProps } from "./CodexProvider";

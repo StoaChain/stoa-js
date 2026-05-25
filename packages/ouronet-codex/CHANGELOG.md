@@ -180,13 +180,79 @@ Workspace test totals after Phase 6b:
 
 Typecheck clean across all 4 packages.
 
+### Phase 7 — CodexProvider full §5.1 surface (2026-05-25)
+
+Fleshes the Phase 5 stub into the complete provider documented in
+spec §5.1. Adds 4 new props + a SSR-safe shell + a second internal
+context for the signingClient override:
+
+- **`passwordCacheMinutes`** — TTL in minutes for the unlocked password
+  cache. Applied on FRESH boot (when `schemaVersion === 0` after
+  `adapter.loadAll()`). A previously-persisted
+  `uiSettings.passwordCacheMinutes` overrides this on subsequent
+  boots — the prop is the first-boot default, not a force-override.
+- **`initialUiSettings`** — `Partial<UiSettings>` overlay applied
+  on fresh boot only. Lets consumers ship custom defaults
+  (e.g. `{ selectedNode: "node1" }` for a test environment) without
+  fighting persisted user preferences.
+- **`onCodexDirty`** — callback fired when the codex transitions from
+  clean (`dirty: false`) to dirty (`dirty: true`). Subscribed via
+  `store.subscribe()` so the callback fires on the EDGE only, not on
+  every mutation while already dirty, and not on the initial clean
+  state.
+- **`signingClient`** — optional pre-configured `PactClient` override.
+  When provided, `useSignTransaction` uses it instead of constructing
+  one from `createClient(getPactUrl(KADENA_CHAIN_ID))`. Use cases:
+  consumer routes Pact calls through a CF-worker proxy (production),
+  test environments want a mock client, custom failover semantics.
+  Exposed to the package's hooks via a new
+  `useSigningClientOverride()` internal hook.
+
+SSR-safe shell:
+- `typeof window === "undefined"` check inside the init effect → adapter
+  calls skipped on the server. Children still render, so consumers can
+  ship a working SSR shell that hydrates on the client. No-op stub
+  on the server with `MemoryCodexAdapter` is the recommended pattern
+  per the spec.
+
+Internals:
+- Two contexts (store + signingClient). Splitting them keeps
+  `useSignTransaction`'s lazy-construct fallback clean (returns null
+  when no override, rather than forcing every hook to subscribe to
+  client-related re-renders).
+- Callback refs (`onCodexDirtyRef`, `passwordCacheMinutesRef`,
+  `initialUiSettingsRef`) so consumers can pass fresh closures every
+  render without re-running the init effect.
+
+`useSignTransaction` updated to consume the override via
+`useSigningClientOverride` — backward-compatible: when no override is
+present (Phase 5/6 behaviour), still lazy-constructs the default
+client and rebuilds on `selectedNode + customNodeUrl` change.
+
+Tests (+11) in `tests/provider.test.tsx`:
+- passwordCacheMinutes seeds on fresh boot
+- passwordCacheMinutes does NOT override persisted value on re-boot
+- initialUiSettings applies on fresh boot
+- initialUiSettings does NOT override persisted settings on re-boot
+- onCodexDirty fires on clean→dirty transition
+- onCodexDirty does NOT fire on initial clean state
+- onCodexDirty fires only on the EDGE (once per transition)
+- useSigningClientOverride returns null without override
+- useSigningClientOverride returns the supplied client
+- useSigningClientOverride returns null outside any provider (no throw)
+- SSR-safe shell renders children without crashing
+
+Workspace test totals after Phase 7:
+  kadena-stoic-legacy   55
+  ouronet-codex        143 (was 132; +11 in Phase 7)
+  ouronet-core         797
+  stoa-core            653
+  total              1,648 passing, no regressions
+
+Typecheck clean across all 4 packages.
+
 ### Upcoming phases (per spec)
 
-- Phase 7 — Provider: flesh out `<CodexProvider>` with the full spec §5.1
-  surface (passwordCacheMinutes, onCodexDirty, signingClient override,
-  initialUiSettings, SSR-safe placeholder; the auto-rendered PasswordModal
-  is already opt-in by virtue of Phase 6a — consumer just mounts
-  `<PasswordModal />` once at app root).
 - Phase 8 — Publish v0.1.0 to npm with `alpha` dist-tag (plus triplet
   v4.3.0 published from the same release).
 - Phases 9 + 10 — OuronetUI + AncientHoldings migration; API gaps surface
