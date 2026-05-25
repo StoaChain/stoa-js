@@ -115,14 +115,17 @@ jobs:
           KSL_VERSION=$(node -p "require('./packages/kadena-stoic-legacy/package.json').version")
           STOA_VERSION=$(node -p "require('./packages/stoa-core/package.json').version")
           OURO_VERSION=$(node -p "require('./packages/ouronet-core/package.json').version")
+          CODEX_VERSION=$(node -p "require('./packages/ouronet-codex/package.json').version")
           echo "Tag version: $TAG_VERSION"
           echo "kadena-stoic-legacy version: $KSL_VERSION"
           echo "stoa-core version: $STOA_VERSION"
           echo "ouronet-core version: $OURO_VERSION"
+          echo "ouronet-codex version: $CODEX_VERSION"
 
           PUBLISH_KSL="false"
           PUBLISH_STOA="false"
           PUBLISH_OURO="false"
+          PUBLISH_CODEX="false"
 
           if [ "$TAG_VERSION" = "$KSL_VERSION" ]; then
             PUBLISH_KSL="true"
@@ -133,16 +136,20 @@ jobs:
           if [ "$TAG_VERSION" = "$OURO_VERSION" ]; then
             PUBLISH_OURO="true"
           fi
+          if [ "$TAG_VERSION" = "$CODEX_VERSION" ]; then
+            PUBLISH_CODEX="true"
+          fi
 
-          if [ "$PUBLISH_KSL" = "false" ] && [ "$PUBLISH_STOA" = "false" ] && [ "$PUBLISH_OURO" = "false" ]; then
-            echo "::error::Tag $TAG_VERSION matches NONE of the package.json versions (kadena-stoic-legacy=$KSL_VERSION, stoa-core=$STOA_VERSION, ouronet-core=$OURO_VERSION)"
-            echo "::error::Tags must match at least one package's version. Bump packages/{kadena-stoic-legacy,stoa-core,ouronet-core}/package.json to $TAG_VERSION before tagging."
+          if [ "$PUBLISH_KSL" = "false" ] && [ "$PUBLISH_STOA" = "false" ] && [ "$PUBLISH_OURO" = "false" ] && [ "$PUBLISH_CODEX" = "false" ]; then
+            echo "::error::Tag $TAG_VERSION matches NONE of the package.json versions (kadena-stoic-legacy=$KSL_VERSION, stoa-core=$STOA_VERSION, ouronet-core=$OURO_VERSION, ouronet-codex=$CODEX_VERSION)"
+            echo "::error::Tags must match at least one package's version. Bump packages/{kadena-stoic-legacy,stoa-core,ouronet-core,ouronet-codex}/package.json to $TAG_VERSION before tagging."
             exit 1
           fi
 
           echo "PUBLISH_KADENA_STOIC_LEGACY=$PUBLISH_KSL" >> "$GITHUB_OUTPUT"
           echo "PUBLISH_STOA_CORE=$PUBLISH_STOA"          >> "$GITHUB_OUTPUT"
           echo "PUBLISH_OURONET_CORE=$PUBLISH_OURO"       >> "$GITHUB_OUTPUT"
+          echo "PUBLISH_OURONET_CODEX=$PUBLISH_CODEX"     >> "$GITHUB_OUTPUT"
           echo "TAG_VERSION=$TAG_VERSION"                 >> "$GITHUB_OUTPUT"
 
           echo ""
@@ -150,6 +157,7 @@ jobs:
           echo "  @stoachain/kadena-stoic-legacy: $PUBLISH_KSL"
           echo "  @stoachain/stoa-core:           $PUBLISH_STOA"
           echo "  @stoachain/ouronet-core:        $PUBLISH_OURO"
+          echo "  @stoachain/ouronet-codex:       $PUBLISH_CODEX"
 
       # ------------------------------------------------------------------
       # Per-queued-package README + CHANGELOG version-parity gate
@@ -166,11 +174,13 @@ jobs:
           PUBLISH_KSL="${{ steps.queue.outputs.PUBLISH_KADENA_STOIC_LEGACY }}"
           PUBLISH_STOA="${{ steps.queue.outputs.PUBLISH_STOA_CORE }}"
           PUBLISH_OURO="${{ steps.queue.outputs.PUBLISH_OURONET_CORE }}"
+          PUBLISH_CODEX="${{ steps.queue.outputs.PUBLISH_OURONET_CODEX }}"
 
           QUEUED=()
           [ "$PUBLISH_KSL" = "true" ] && QUEUED+=("packages/kadena-stoic-legacy")
           [ "$PUBLISH_STOA" = "true" ] && QUEUED+=("packages/stoa-core")
           [ "$PUBLISH_OURO" = "true" ] && QUEUED+=("packages/ouronet-core")
+          [ "$PUBLISH_CODEX" = "true" ] && QUEUED+=("packages/ouronet-codex")
 
           for PKG_DIR in "${QUEUED[@]}"; do
             PKG_NAME=$(node -p "require('./${PKG_DIR}/package.json').name")
@@ -255,6 +265,30 @@ jobs:
             echo "@stoachain/ouronet-core@${TAG_VERSION} already on npm — skipping (idempotent)."
           else
             npm publish --workspace=@stoachain/ouronet-core --access public --provenance
+          fi
+
+      # @stoachain/ouronet-codex has independent semver (v0.x alpha track)
+      # — peer-deps the v4.2 atomic triplet but is NOT part of the triplet
+      # lock. Publishes with `--tag alpha` while in v0.x so consumers
+      # don't get pre-1.0 surface as `latest`. v1.0.0 will drop the
+      # `--tag alpha` and become the default install.
+      - name: Publish @stoachain/ouronet-codex to npmjs.org (alpha while v0.x)
+        if: steps.queue.outputs.PUBLISH_OURONET_CODEX == 'true'
+        run: |
+          TAG_VERSION="${{ steps.queue.outputs.TAG_VERSION }}"
+          if npm view @stoachain/ouronet-codex@${TAG_VERSION} version >/dev/null 2>&1; then
+            echo "@stoachain/ouronet-codex@${TAG_VERSION} already on npm — skipping (idempotent)."
+          else
+            # Per spec §8 Q6: alpha dist-tag while in v0.x, promoted to
+            # 'latest' at v1.0.0 (after OuronetUI + AncientHoldings have
+            # both integrated cleanly).
+            DIST_TAG="alpha"
+            case "$TAG_VERSION" in
+              0.*) DIST_TAG="alpha" ;;
+              *)   DIST_TAG="latest" ;;
+            esac
+            echo "Publishing @stoachain/ouronet-codex@${TAG_VERSION} with dist-tag '${DIST_TAG}'"
+            npm publish --workspace=@stoachain/ouronet-codex --access public --provenance --tag "${DIST_TAG}"
           fi
 
       # ------------------------------------------------------------------

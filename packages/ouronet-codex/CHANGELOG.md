@@ -2,7 +2,7 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
-## 0.1.0 — unreleased (in development)
+## 0.1.0 — 2026-05-25
 
 **INITIAL RELEASE** — modular React Codex extracted from OuronetUI as a portable package any React consumer can drop in. Replaces the failed Caduceus-era custom integration attempt with a single canonical Codex any consumer (OuronetUI, AncientHoldings hub, future apps) shares.
 
