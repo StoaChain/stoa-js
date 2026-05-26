@@ -81,6 +81,66 @@ export class CodexPrimeProtectedError extends CodexError {
   }
 }
 
+/** Thrown when a user attempts to delete the Prime Codex Seed — the
+ *  IKadenaSeed that kickstarted the codex (spec §B1, v0.2.0+). The
+ *  prime seed is structurally tied to the codex's identity; removing it
+ *  is equivalent to deleting the codex itself, which is a separate flow
+ *  (codex-reset, not seed-delete). See docs/v0.2.0-design.md §5.1. */
+export class CodexPrimeSeedProtectedError extends CodexError {
+  public override readonly name = "CodexPrimeSeedProtectedError";
+  public readonly seedId: string;
+
+  constructor(seedId: string) {
+    super(
+      `Kadena seed ${seedId} is the Prime Codex Seed and cannot be ` +
+        `deleted. Removing the prime seed is equivalent to deleting the ` +
+        `codex itself — use the codex-reset flow instead.`
+    );
+    this.seedId = seedId;
+  }
+}
+
+/** Thrown by `kickstartCodex` and `recoverCodexFromMnemonic` when the
+ *  pre-flight invariants fail (v0.2.0+). The `reason` field discriminates:
+ *
+ *   - `already-kickstarted`: kickstartCodex called on a codex that
+ *     already has a prime seed. Caller should use addKadenaSeed for
+ *     additional seeds, or reset the codex first.
+ *   - `smart-account-not-allowed`: caller passed an ouro with
+ *     `isSmart: true` as the CodexPrime. CodexPrime must be a Standard
+ *     Ouronet Account (Ѻ. prefix), never a Smart account (Σ. prefix).
+ *   - `id-conflict`: caller tried to install a prime entity whose id
+ *     doesn't match the existing prime, or tried to add a seed/ouro with
+ *     `isPrime: true` set when a prime already exists.
+ *
+ *  See docs/v0.2.0-design.md §5.4. */
+export class CodexKickstartError extends CodexError {
+  public override readonly name = "CodexKickstartError";
+  public readonly reason:
+    | "already-kickstarted"
+    | "smart-account-not-allowed"
+    | "id-conflict";
+
+  constructor(
+    reason: CodexKickstartError["reason"],
+    detail?: string
+  ) {
+    const messages: Record<CodexKickstartError["reason"], string> = {
+      "already-kickstarted":
+        "Codex has already been kickstarted (a Prime Codex Seed exists). " +
+        "Use addKadenaSeed() to add additional seeds, or reset the codex first.",
+      "smart-account-not-allowed":
+        "CodexPrime must be a Standard Ouronet Account (isSmart: false). " +
+        "Smart accounts (Σ. prefix) cannot be the CodexPrime.",
+      "id-conflict":
+        "Cannot install a second prime entity. Exactly one prime kadena seed " +
+        "and one prime ouro account are allowed per codex.",
+    };
+    super(detail ? `${messages[reason]} ${detail}` : messages[reason]);
+    this.reason = reason;
+  }
+}
+
 /** Thrown when the storage backend (localStorage, IndexedDB, file system, ...)
  *  fails — quota exceeded, disk full, permission denied, etc. Wraps the
  *  original underlying error in `.cause`. */

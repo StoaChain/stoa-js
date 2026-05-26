@@ -67,6 +67,13 @@ export interface IKadenaSeed {
   main: string;
   createdAt: string;
   accounts: WalletAccount[];
+  /** Prime Codex Seed marker (spec §B1 — see docs/v0.2.0-design.md).
+   *  True for the seed that kickstarted the codex; false (or absent) for
+   *  additional seeds added later. The package's `deleteKadenaSeed`
+   *  throws `CodexPrimeSeedProtectedError` on `isPrime: true` seeds.
+   *  There is exactly one prime seed per codex, set atomically by
+   *  `kickstartCodex`. Added v0.2.0. */
+  isPrime?: boolean;
 }
 
 /** A raw Pact -g keypair stored directly in the codex (not derived from a
@@ -122,6 +129,13 @@ export interface IOuroAccount {
    *  hook throws `CodexPrimeProtectedError` when called on a `isPrime: true`
    *  account. */
   isPrime?: boolean;
+  /** ID of the IKadenaSeed this account was derived from (v0.2.0+).
+   *  Undefined for pure-keypair-derived accounts (which have no parent
+   *  seed) and for legacy accounts imported from v0.1.0 backups. Set by
+   *  `kickstartCodex` on the CodexPrime account so the prime-account
+   *  invariant is causal ("derived from the prime seed") rather than
+   *  positional ("first added wins"). See docs/v0.2.0-design.md §4.2. */
+  parentSeedId?: string;
 }
 
 /** Address-book entry — a labeled recipient address for the address picker. */

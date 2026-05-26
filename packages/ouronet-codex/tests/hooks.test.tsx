@@ -232,10 +232,12 @@ describe("useKadenaSeeds", () => {
       await result.current.addSeed(seedFx("s2"));
     });
     expect(result.current.seeds).toHaveLength(2);
+    // s1 is the Prime Codex Seed (auto-flagged on first add per v0.2.0);
+    // delete s2 (non-prime) to exercise the non-prime branch.
     await act(async () => {
-      await result.current.deleteSeed("s1");
+      await result.current.deleteSeed("s2");
     });
-    expect(result.current.seeds.map((s) => s.id)).toEqual(["s2"]);
+    expect(result.current.seeds.map((s) => s.id)).toEqual(["s1"]);
   });
 });
 

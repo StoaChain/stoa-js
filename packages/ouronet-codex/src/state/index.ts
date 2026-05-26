@@ -14,6 +14,8 @@ export type {
   CodexStoreActions,
   PasswordCacheEntry,
   PendingPasswordRequest,
+  KickstartArgs,
+  KickstartResult,
 } from "./store";
 
 export {

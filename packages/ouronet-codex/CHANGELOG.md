@@ -2,6 +2,105 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.2.0 — 2026-05-26
+
+**Structural Prime invariants** — closes the last gap between OuronetUI's
+hand-orchestrated `saveWallet()` and what the package enforces by default.
+v0.1.0 partially implemented the CodexPrime ouro account but left the
+Prime Codex Seed unprotected and the seed↔account linkage implicit; v0.2.0
+makes both structural guarantees of every codex, enforced by the package
+regardless of how a consumer chooses to install entities.
+
+See [`docs/v0.2.0-design.md`](./docs/v0.2.0-design.md) for the full design
+contract.
+
+### Added
+
+- **`IKadenaSeed.isPrime`** field. The Prime Codex Seed is structurally
+  unremovable — `deleteKadenaSeed` throws `CodexPrimeSeedProtectedError`
+  when called on `isPrime: true`. Symmetric to the existing
+  `IOuroAccount.isPrime` (spec §B1, v0.1.0).
+- **`CodexPrimeSeedProtectedError`** error class — structured error with
+  `seedId` field. Exported from `@stoachain/ouronet-codex/errors`.
+- **`CodexKickstartError`** error class — discriminated by `reason`:
+  `"already-kickstarted"`, `"smart-account-not-allowed"`, `"id-conflict"`.
+  Thrown by `kickstartCodex` / `recoverCodexFromMnemonic` pre-flight guards
+  and by the tightened `addKadenaSeed` / `addOuroAccount` id-conflict checks.
+- **`IOuroAccount.parentSeedId`** field. Causal identity binding — set by
+  `kickstartCodex` to the prime seed's id, so CodexPrime is "the ouro
+  derived from the prime seed" (causal), not "the first ouro added"
+  (positional). Undefined for pure-keypair-derived accounts.
+- **`kickstartCodex(args)`** action — atomically install the Prime Codex
+  Seed + CodexPrime ouro account on an empty codex. Pre-flight: refuses
+  if codex already has seeds, refuses if ouro is a Smart account. Sets
+  `isPrime: true` on both + `parentSeedId` linkage. Auto-activates both.
+- **`recoverCodexFromMnemonic(args)`** action — same shape as kickstart
+  but for the recovery flow. Allows non-empty codex iff the existing
+  prime ids match (idempotent re-install). Preserves unrelated non-prime
+  entities (additional seeds, pure keypairs, address book). Does NOT
+  auto-activate (caller decides).
+- **`KickstartArgs` / `KickstartResult`** types exported from
+  `@stoachain/ouronet-codex/state` (and via `useCodexLifecycle`).
+- **`useCodexLifecycle()`** hook — exposes `kickstart` + `recover`.
+  Single integration point for consumers wiring the package's "first
+  codex creation" flow.
+- **Legacy codex migration** in `actions.init(adapter)` — when a
+  pre-v0.2.0 snapshot loads (≥1 seed but none flagged `isPrime`), the
+  first seed is auto-flagged eagerly and the flag is persisted via
+  `adapter.saveKadenaSeeds`. The ouro half of the migration is deferred
+  to `authenticate(password)` because matching an ouro to a seed
+  requires decrypting the ouro's secret — caller can wire this via a
+  derive callback if/when surfaced.
+
+### Changed
+
+- **`addKadenaSeed`** — gained two guards: (1) auto-flags `isPrime: true`
+  on the very first seed in an empty codex (backward compat with
+  consumer code that doesn't yet use `kickstartCodex`); (2) if caller
+  passes `isPrime: true` explicitly when a prime already exists, throws
+  `CodexKickstartError("id-conflict")`. Also auto-activates the seed if
+  no active is set (parity with `addOuroAccount`'s existing behavior).
+- **`deleteKadenaSeed`** — gained two behaviors: (1) refuses on
+  `isPrime: true` seeds with `CodexPrimeSeedProtectedError`; (2)
+  cascade-deletes ouro accounts whose `parentSeedId` matches the seed
+  being deleted. Cascade defensively skips prime ouros (so the
+  CodexPrime invariant is never violated even via legacy data oddities).
+- **`addOuroAccount`** — gained two behaviors: (1) id-conflict guard on
+  explicit `isPrime: true` when a prime ouro already exists; (2)
+  validates `parentSeedId` against existing seeds — drops the field
+  (with `console.warn`) if no matching seed exists, guarding against
+  typos.
+- **`activeOuroAccountId`** — now defensively re-pointed when
+  `deleteKadenaSeed`'s cascade removes the currently-active ouro.
+
+### Migration guide (v0.1.0 → v0.2.0)
+
+For consumers (OuronetUI, AncientHoldings):
+
+- **No breaking changes.** Every v0.1.0 export keeps its signature; new
+  surface is additive.
+- The **preferred path** for creating a new codex is now
+  `useCodexLifecycle().kickstart(args)` instead of separate
+  `addKadenaSeed` + `addOuroAccount` calls. This guarantees the prime
+  invariants without consumer-side discipline.
+- Existing localStorage codexes from v0.1.0 migrate automatically on
+  next load — the first kadena seed gets `isPrime: true` eagerly. No
+  user-visible action required.
+- Backup/restore files (v1.2 wire format) carry the new fields as
+  additional properties; v0.1.0 parsers ignore them (additive JSON).
+  Importing a legacy backup into v0.2.0 triggers the same migration
+  via the underlying `init()` call.
+
+### Tests
+
+- 161 specs total (143 pre-existing + 18 new in `state-store.test.ts`):
+  Prime Codex Seed protection, kickstart pre-flight guards, recover
+  semantics (empty / idempotent / id-conflict / preserve-unrelated),
+  parentSeedId validation, legacy codex auto-migration.
+- Two existing tests adjusted to reflect the new auto-prime-first-seed
+  behavior (`deleteKadenaSeed`/`deleteSeed` tests now exercise the
+  non-prime path against `s2` instead of `s1`).
+
 ## 0.1.0 — 2026-05-25
 
 **INITIAL RELEASE** — modular React Codex extracted from OuronetUI as a portable package any React consumer can drop in. Replaces the failed Caduceus-era custom integration attempt with a single canonical Codex any consumer (OuronetUI, AncientHoldings hub, future apps) shares.

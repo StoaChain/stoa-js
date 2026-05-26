@@ -14,6 +14,8 @@ import type { CodexAdapter } from "../adapters/types";
 import {
   CodexLockedError,
   CodexPrimeProtectedError,
+  CodexPrimeSeedProtectedError,
+  CodexKickstartError,
   CodexPasswordError,
 } from "../errors/types";
 
@@ -78,6 +80,37 @@ export interface PendingPasswordRequest {
   createdAt: number;
   resolve: (password: string) => void;
   reject: (error: unknown) => void;
+}
+
+/**
+ * Args for `kickstartCodex` / `recoverCodexFromMnemonic` (v0.2.0+).
+ *
+ * The package owns the prime invariants but does NOT derive keys — DALOS
+ * key-gen lives in @stoachain/stoa-core. Caller supplies pre-derived
+ * entities (seed with encrypted mnemonic + Standard Ouronet Account with
+ * encrypted private key, both derived from the SAME mnemonic) and the
+ * package atomically installs them with `isPrime: true` flags and
+ * `parentSeedId` linkage. See docs/v0.2.0-design.md §5.2.
+ */
+export interface KickstartArgs {
+  /** Pre-formed kadena seed. Caller has already derived keypairs from
+   *  the mnemonic + encrypted `secret` at the codex password. The package
+   *  sets `isPrime: true` on persist. */
+  seed: Omit<IKadenaSeed, "isPrime">;
+  /** Pre-formed ouro account. MUST be a Standard Ouronet Account
+   *  (`isSmart: false`) derived from the SAME mnemonic as `seed`. The
+   *  package sets `isPrime: true` AND `parentSeedId: seed.id` on persist;
+   *  throws `CodexKickstartError("smart-account-not-allowed")` if
+   *  `isSmart === true`. */
+  primeOuroAccount: Omit<IOuroAccount, "isPrime" | "parentSeedId">;
+}
+
+export interface KickstartResult {
+  /** The installed prime kadena seed, with `isPrime: true`. */
+  seed: IKadenaSeed;
+  /** The installed prime ouro account, with `isPrime: true` and
+   *  `parentSeedId === seed.id`. */
+  primeOuro: IOuroAccount;
 }
 
 export interface CodexStoreState {
@@ -145,6 +178,18 @@ export interface CodexStoreActions {
   addKadenaSeed(seed: IKadenaSeed): Promise<void>;
   updateKadenaSeed(seed: IKadenaSeed): Promise<void>;
   deleteKadenaSeed(id: string): Promise<void>;
+
+  // ----- codex lifecycle (kickstart / recover) -----
+  /** Atomically install the Prime Codex Seed + CodexPrime ouro account
+   *  on an empty codex. Throws `CodexKickstartError` if the codex
+   *  already has a prime seed, or if `primeOuroAccount.isSmart === true`.
+   *  See docs/v0.2.0-design.md §5.2. */
+  kickstartCodex(args: KickstartArgs): Promise<KickstartResult>;
+  /** Recovery-flow variant of kickstartCodex. Allows non-empty codex
+   *  iff the existing prime seed has the same `id` as `args.seed.id`
+   *  (idempotent re-install); throws `CodexKickstartError("id-conflict")`
+   *  if the ids differ. Does NOT auto-activate (caller decides). */
+  recoverCodexFromMnemonic(args: KickstartArgs): Promise<KickstartResult>;
 
   // ----- pure keypairs -----
   addPureKeypair(keypair: IPureKeypair): Promise<void>;
@@ -242,8 +287,35 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         set({ adapter, deviceVariant, initError: null });
         try {
           const snap = await adapter.loadAll();
+
+          // v0.2.0 legacy migration (eager half): if the loaded codex has
+          // at least one kadena seed but NO seed is flagged isPrime, this
+          // is a pre-v0.2.0 codex. Flag seeds[0] as the Prime Codex Seed.
+          // The ouro half of the migration is deferred to authenticate()
+          // because matching an ouro to a seed requires decrypting the
+          // ouro's secret with the codex password (not known at init).
+          // See docs/v0.2.0-design.md §8.
+          let migratedKadenaSeeds = snap.kadenaSeeds;
+          const needsSeedMigration =
+            snap.kadenaSeeds.length > 0 &&
+            !snap.kadenaSeeds.some((s) => s.isPrime);
+          if (needsSeedMigration) {
+            migratedKadenaSeeds = snap.kadenaSeeds.map((s, idx) =>
+              idx === 0 ? { ...s, isPrime: true } : s
+            );
+            // Persist the flag eagerly so the protection takes effect
+            // immediately (without waiting for any next mutation).
+            try {
+              await adapter.saveKadenaSeeds(migratedKadenaSeeds);
+            } catch {
+              // Best-effort: if persistence fails (e.g. quota), the flag
+              // still applies in-memory for this session. Next successful
+              // save will pick it up.
+            }
+          }
+
           set({
-            kadenaSeeds: snap.kadenaSeeds,
+            kadenaSeeds: migratedKadenaSeeds,
             pureKeypairs: snap.pureKeypairs,
             ouroAccounts: snap.ouroAccounts,
             addressBook: snap.addressBook,
@@ -257,7 +329,7 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
             // First account is the default active. Consumers can override
             // via setActiveOuroAccount() after init.
             activeOuroAccountId: snap.ouroAccounts[0]?.id ?? null,
-            activeKadenaWalletId: snap.kadenaSeeds[0]?.id ?? null,
+            activeKadenaWalletId: migratedKadenaSeeds[0]?.id ?? null,
           });
         } catch (e) {
           set({
@@ -356,8 +428,30 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
       // ----- kadena seeds -----
 
       async addKadenaSeed(seed: IKadenaSeed) {
-        const next = [...get().kadenaSeeds.filter((s) => s.id !== seed.id), seed];
+        const existing = get().kadenaSeeds;
+        const existingPrime = existing.find((s) => s.isPrime);
+
+        // v0.2.0 §6.1: auto-prime on the very first seed. If the codex
+        // is empty AND caller didn't explicitly set isPrime, flag this
+        // seed as the Prime Codex Seed. If caller passed isPrime: true
+        // when a prime already exists, throw id-conflict.
+        let enriched = seed;
+        if (seed.isPrime === true && existingPrime && existingPrime.id !== seed.id) {
+          throw new CodexKickstartError(
+            "id-conflict",
+            `A prime seed (${existingPrime.id}) already exists.`
+          );
+        }
+        if (seed.isPrime === undefined && existing.length === 0) {
+          enriched = { ...seed, isPrime: true };
+        }
+
+        const next = [...existing.filter((s) => s.id !== enriched.id), enriched];
         set({ kadenaSeeds: next });
+        // Auto-activate first seed if none is selected.
+        if (get().activeKadenaWalletId === null) {
+          set({ activeKadenaWalletId: enriched.id });
+        }
         await persistAndTouch((a) => a.saveKadenaSeeds(next));
       },
 
@@ -368,12 +462,140 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
       },
 
       async deleteKadenaSeed(id: string) {
-        const next = get().kadenaSeeds.filter((s) => s.id !== id);
-        set({ kadenaSeeds: next });
-        if (get().activeKadenaWalletId === id) {
-          set({ activeKadenaWalletId: next[0]?.id ?? null });
+        const target = get().kadenaSeeds.find((s) => s.id === id);
+        // v0.2.0 §6.2: prime seed is structurally unremovable.
+        if (target?.isPrime) {
+          throw new CodexPrimeSeedProtectedError(id);
         }
-        await persistAndTouch((a) => a.saveKadenaSeeds(next));
+        const nextSeeds = get().kadenaSeeds.filter((s) => s.id !== id);
+
+        // Cascade-delete ouro accounts whose parentSeedId === id. This
+        // matches the user model (removing a seed removes its derived
+        // accounts) and prevents orphaned ouros that can no longer sign.
+        // Note: any prime ouro would have parentSeedId === primeSeed.id,
+        // and the prime seed is protected above, so we'll never cascade
+        // a prime here under normal v0.2.0 semantics. Defensive: if it
+        // happens (e.g. legacy data with isPrime: true but no parent),
+        // skip that one ouro to honor CodexPrime protection.
+        const nextOuros = get().ouroAccounts.filter((a) => {
+          if (a.parentSeedId !== id) return true; // unrelated, keep
+          if (a.isPrime) return true; // defensive: never cascade-delete a prime
+          return false;
+        });
+
+        set({
+          kadenaSeeds: nextSeeds,
+          ouroAccounts: nextOuros,
+        });
+        if (get().activeKadenaWalletId === id) {
+          set({ activeKadenaWalletId: nextSeeds[0]?.id ?? null });
+        }
+        if (get().activeOuroAccountId && !nextOuros.some((a) => a.id === get().activeOuroAccountId)) {
+          set({ activeOuroAccountId: nextOuros[0]?.id ?? null });
+        }
+        await persistAndTouch(async (a) => {
+          await a.saveKadenaSeeds(nextSeeds);
+          await a.saveOuroAccounts(nextOuros);
+        });
+      },
+
+      // ----- codex lifecycle (kickstart / recover) -----
+
+      async kickstartCodex(args: KickstartArgs): Promise<KickstartResult> {
+        // v0.2.0 §5.2: pre-flight guards.
+        if (get().kadenaSeeds.length > 0) {
+          throw new CodexKickstartError("already-kickstarted");
+        }
+        if (args.primeOuroAccount.isSmart === true) {
+          throw new CodexKickstartError("smart-account-not-allowed");
+        }
+
+        // Install: seed first (so addOuroAccount's parentSeedId
+        // validation finds it), then ouro.
+        const seed: IKadenaSeed = { ...args.seed, isPrime: true };
+        const primeOuro: IOuroAccount = {
+          ...args.primeOuroAccount,
+          isPrime: true,
+          parentSeedId: seed.id,
+        };
+
+        const nextSeeds = [seed];
+        const nextOuros = [primeOuro];
+        set({
+          kadenaSeeds: nextSeeds,
+          ouroAccounts: nextOuros,
+          activeKadenaWalletId: seed.id,
+          activeOuroAccountId: primeOuro.id,
+        });
+        await persistAndTouch(async (a) => {
+          await a.saveKadenaSeeds(nextSeeds);
+          await a.saveOuroAccounts(nextOuros);
+        });
+
+        return { seed, primeOuro };
+      },
+
+      async recoverCodexFromMnemonic(args: KickstartArgs): Promise<KickstartResult> {
+        // v0.2.0 §6.3: recovery semantics
+        //   - Empty codex → identical to kickstart.
+        //   - Non-empty codex with same prime-seed id → idempotent
+        //     re-install (overwrites both prime entities).
+        //   - Non-empty codex with different prime-seed id → id-conflict.
+        if (args.primeOuroAccount.isSmart === true) {
+          throw new CodexKickstartError("smart-account-not-allowed");
+        }
+        const existingPrimeSeed = get().kadenaSeeds.find((s) => s.isPrime);
+        if (existingPrimeSeed && existingPrimeSeed.id !== args.seed.id) {
+          throw new CodexKickstartError(
+            "id-conflict",
+            `Existing prime seed has id "${existingPrimeSeed.id}", recovery ` +
+              `args provided seed id "${args.seed.id}". Reset the codex first ` +
+              `or align the ids.`
+          );
+        }
+        const existingPrimeOuro = get().ouroAccounts.find((a) => a.isPrime);
+        if (
+          existingPrimeOuro &&
+          existingPrimeOuro.id !== args.primeOuroAccount.id
+        ) {
+          throw new CodexKickstartError(
+            "id-conflict",
+            `Existing prime ouro has id "${existingPrimeOuro.id}", recovery ` +
+              `args provided ouro id "${args.primeOuroAccount.id}". Reset the ` +
+              `codex first or align the ids.`
+          );
+        }
+
+        const seed: IKadenaSeed = { ...args.seed, isPrime: true };
+        const primeOuro: IOuroAccount = {
+          ...args.primeOuroAccount,
+          isPrime: true,
+          parentSeedId: seed.id,
+        };
+
+        // Overwrite the prime entities; preserve any non-prime entities
+        // already in the codex (recovery should not nuke unrelated data
+        // such as additional seeds, pure keypairs, address book, etc.).
+        const nextSeeds = [
+          seed,
+          ...get().kadenaSeeds.filter((s) => s.id !== seed.id && !s.isPrime),
+        ];
+        const nextOuros = [
+          primeOuro,
+          ...get().ouroAccounts.filter((a) => a.id !== primeOuro.id && !a.isPrime),
+        ];
+
+        // Recovery does NOT auto-activate — caller decides.
+        set({
+          kadenaSeeds: nextSeeds,
+          ouroAccounts: nextOuros,
+        });
+        await persistAndTouch(async (a) => {
+          await a.saveKadenaSeeds(nextSeeds);
+          await a.saveOuroAccounts(nextOuros);
+        });
+
+        return { seed, primeOuro };
       },
 
       // ----- pure keypairs -----
@@ -397,13 +619,40 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
 
       async addOuroAccount(account: IOuroAccount) {
         const existing = get().ouroAccounts;
-        // Spec §B1: first ouro account on a fresh codex is auto-flagged
-        // as CodexPrime. Subsequent adds default isPrime to false unless
-        // the caller explicitly sets it.
+        const existingPrime = existing.find((a) => a.isPrime);
+
+        // v0.2.0 §6.1: prime invariants
+        //   - If caller passes isPrime: true when a prime ouro already
+        //     exists with a different id → id-conflict.
+        //   - If caller passes parentSeedId that doesn't match any seed,
+        //     drop it (defensive — guards against typos; logged as a
+        //     warning via console.warn so consumers can detect).
+        //   - Auto-prime on first add preserved (backward compat with
+        //     v0.1.0); subsequent adds default isPrime: false.
+        if (account.isPrime === true && existingPrime && existingPrime.id !== account.id) {
+          throw new CodexKickstartError(
+            "id-conflict",
+            `A prime ouro account (${existingPrime.id}) already exists.`
+          );
+        }
+        let cleanedParentSeedId = account.parentSeedId;
+        if (cleanedParentSeedId !== undefined) {
+          const matchingSeed = get().kadenaSeeds.find((s) => s.id === cleanedParentSeedId);
+          if (!matchingSeed) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[ouronet-codex] addOuroAccount: parentSeedId "${cleanedParentSeedId}" ` +
+                `does not match any kadena seed in the codex — dropping the field. ` +
+                `If this account was derived from a seed not yet added, add the seed first.`
+            );
+            cleanedParentSeedId = undefined;
+          }
+        }
         const isFirst = existing.length === 0;
         const enriched: IOuroAccount = {
           ...account,
           isPrime: account.isPrime ?? isFirst,
+          parentSeedId: cleanedParentSeedId,
         };
         const next = [...existing.filter((a) => a.id !== enriched.id), enriched];
         set({ ouroAccounts: next });

@@ -12,6 +12,8 @@ export {
   CodexLockedError,
   CodexKeyMissingError,
   CodexPrimeProtectedError,
+  CodexPrimeSeedProtectedError,
+  CodexKickstartError,
   CodexAdapterError,
   CodexImportError,
   CodexPasswordError,

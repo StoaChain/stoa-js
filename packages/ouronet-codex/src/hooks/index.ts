@@ -14,6 +14,7 @@
 //   - useAddressBook()       CRUD
 //   - useWatchList()         CRUD (Phase 5 addition, not in spec §5.2)
 //   - useCodexBackup()       download / import / cloud-export helpers
+//   - useCodexLifecycle()    kickstart / recover (v0.2.0+; spec §5.2/§5.3)
 
 export { useCodex } from "./useCodex";
 export type { CodexView } from "./useCodex";
@@ -53,3 +54,6 @@ export type { WatchListView } from "./useWatchList";
 
 export { useCodexBackup } from "./useCodexBackup";
 export type { CodexBackupView } from "./useCodexBackup";
+
+export { useCodexLifecycle } from "./useCodexLifecycle";
+export type { CodexLifecycleView } from "./useCodexLifecycle";
