@@ -7,4 +7,4 @@
 // CFM Pact-code builders (Ouronet-specific) moved to
 // @stoachain/ouronet-core/pact in v4.0.0.
 
-export * from "./format";
+export * from "./format.js";

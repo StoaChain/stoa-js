@@ -10,7 +10,7 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
@@ -18,7 +18,7 @@ import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/sign
 import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
-import type { IOuroAccountKeypair } from "./ouroTypes";
+import type { IOuroAccountKeypair } from "./ouroTypes.js";
 
 // Get AURYN generation preview for coiling OURO
 export async function getCoilPreview(
@@ -192,13 +192,13 @@ export {
   getWkdaCoilPreview,
   coilWkdaToLkda,
   COIL_CONFIGS
-} from "./coilFunctions";
+} from "./coilFunctions.js";
 
 // Export pension functions for WSTOA and SSTOA
 export {
   brumateWkdaToPkda,
   constrictLkdaToPkda
-} from "./pensionFunctions";
+} from "./pensionFunctions.js";
 
 // Export INFO-ONE preview functions
 export {
@@ -209,7 +209,7 @@ export {
   getConstrictPreviewInfo,
   parseTransferPreview,
   type TransferPreviewData
-} from "./infoOneFunctions";
+} from "./infoOneFunctions.js";
 
 // Coil OURO to AURYN
 // (namespace.TS01-C2.ATS|C_Coil patron:string coiler:string "Auryndex-O136CBn22ncY" "OURO-8Nh-JO8JO4F5" amount:decimal)

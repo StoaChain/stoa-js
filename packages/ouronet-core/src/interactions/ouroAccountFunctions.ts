@@ -3,12 +3,12 @@
  * Selector / overview / guard / ledger reads against the ouronet-ns DALOS / DPL-UR / DSP / TFT modules.
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import type { IKeyset } from "@stoachain/stoa-core/guard";
 import { normalizeKeysetRef } from "@stoachain/stoa-core/guard";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
-import type { AccountSelectorData, StoaAccountSelectorData, AccountOverviewData } from "./ouroTypes";
+import type { AccountSelectorData, StoaAccountSelectorData, AccountOverviewData } from "./ouroTypes.js";
 
 export async function getAccountSelectorData(accounts: string[], options?: { skipTempWatcher?: boolean }): Promise<AccountSelectorData[]> {
   const accountsList = accounts.map(a => `"${a}"`).join(" ");

@@ -19,7 +19,7 @@
  * a fabricated "0" balance.
  */
 
-import type { BalanceResolver } from "./types";
+import type { BalanceResolver } from "./types.js";
 
 const DEFAULT_RESOLVER_ERROR =
   "KadenaWallet: balanceResolver not configured. Inject one via the constructor or set wallet.balanceResolver before calling getBalance().";

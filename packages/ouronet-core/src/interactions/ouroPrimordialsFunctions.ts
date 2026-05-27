@@ -5,7 +5,7 @@
  * logic verbatim for backward compat (v5.0.0 will physically extract it).
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import { formatEU, mayComeWithDeimal } from "@stoachain/stoa-core/pact";
 import { pactRead } from "@stoachain/stoa-core/reads";
 

@@ -1,5 +1,5 @@
 import { pactRead } from "@stoachain/stoa-core/reads";
-import { KadenaShapeError } from "./errors";
+import { KadenaShapeError } from "./errors.js";
 
 export interface BalanceItem {
   account: string;

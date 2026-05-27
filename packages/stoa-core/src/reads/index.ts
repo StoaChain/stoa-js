@@ -7,5 +7,5 @@
 //     package so consumers can wire their own cache-aware implementation
 //     at boot time. See ./pactReader.ts for the rationale.
 
-export * from "./rawCalibratedRead";
-export * from "./pactReader";
+export * from "./rawCalibratedRead.js";
+export * from "./pactReader.js";

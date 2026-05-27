@@ -3,7 +3,7 @@
  * Swap pair calculation reads (URC_0006-0011 swap math, decimals, total fee).
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
 import type {
@@ -11,7 +11,7 @@ import type {
   InverseSwapResult,
   CappedInverseResult,
   UserAccountSupplies,
-} from "./dexTypes";
+} from "./dexTypes.js";
 
 /**
  * Calculate direct swap output amounts

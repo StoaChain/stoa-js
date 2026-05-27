@@ -31,7 +31,7 @@ export {
   encryptString,
   decryptString,
   type EncryptedData,
-} from "./v1";
+} from "./v1.js";
 
 export {
   encryptStringV2,
@@ -46,7 +46,7 @@ export {
   type EncryptedDataV1,
   type EncryptedDataV2,
   type DecryptResultWithDetails,
-} from "./v2";
+} from "./v2.js";
 
-export { WrongPasswordError, CorruptEnvelopeError, UnsupportedFormatError } from "./errors";
+export { WrongPasswordError, CorruptEnvelopeError, UnsupportedFormatError } from "./errors.js";
 

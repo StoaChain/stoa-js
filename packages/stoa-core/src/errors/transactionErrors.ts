@@ -3,7 +3,7 @@
  * Provides detailed error context for signing and transaction failures
  */
 
-import { getLogger } from "../observability";
+import { getLogger } from "../observability/index.js";
 
 export interface TransactionError extends Error {
   readonly code: string;

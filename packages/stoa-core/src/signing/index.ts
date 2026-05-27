@@ -11,9 +11,9 @@
 // blocks. Until then the new interfaces exist but nothing inside core uses
 // them — deliberate scaffolding.
 
-export * from "./primitives";
-export * from "./universalSign";
-export * from "./types";
-export * from "./codexStrategy";
-export * from "./partialSig";
-export * from "./errors";
+export * from "./primitives.js";
+export * from "./universalSign.js";
+export * from "./types.js";
+export * from "./codexStrategy.js";
+export * from "./partialSig.js";
+export * from "./errors.js";

@@ -20,12 +20,12 @@
  * `@stoachain/ouronet-core/crypto`.
  */
 
-export type { PlaintextCodex, CodexExportV1_2 } from "./types";
+export type { PlaintextCodex, CodexExportV1_2 } from "./types.js";
 export {
   buildCodexExport,
   serializeCodex,
   deserializeCodex,
-} from "./codec";
-export type { SeedType, RawSeedType } from "./seedTypeMigration";
-export { migrateSeedType } from "./seedTypeMigration";
-export { CodexUnknownFieldError, UnknownSeedTypeError } from "./errors";
+} from "./codec.js";
+export type { SeedType, RawSeedType } from "./seedTypeMigration.js";
+export { migrateSeedType } from "./seedTypeMigration.js";
+export { CodexUnknownFieldError, UnknownSeedTypeError } from "./errors.js";

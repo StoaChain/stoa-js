@@ -6,7 +6,7 @@
 import {
   KADENA_NAMESPACE, KADENA_CHAIN_ID, KADENA_NETWORK,
   STOA_AUTONOMIC_OURONETGASSTATION,
-} from "../constants";
+} from "../constants/index.js";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { pactRead } from "@stoachain/stoa-core/reads";

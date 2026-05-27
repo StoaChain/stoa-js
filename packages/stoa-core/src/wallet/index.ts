@@ -5,13 +5,13 @@
 // implements against its own storage backend (browser: localStorage,
 // server: encrypted file, etc.).
 
-export * from "./errors";
-export * from "./types";
-export * from "./storageAdapter";
+export * from "./errors.js";
+export * from "./types.js";
+export * from "./storageAdapter.js";
 
 // Default exports for the two classes — keep the original OuronetUI
 // import style working: `import KadenaWallet from ".../wallet"`.
 // Also available as named imports via the star re-exports below for
 // anyone who prefers that shape.
-export { default as KadenaWallet } from "./KadenaWallet";
-export { default as KadenaWalletBuilder } from "./KadenaWalletBuilder";
+export { default as KadenaWallet } from "./KadenaWallet.js";
+export { default as KadenaWalletBuilder } from "./KadenaWalletBuilder.js";

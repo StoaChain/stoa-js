@@ -4,4 +4,4 @@
 // matching helpers that wrap raw errors/responses into SigningError instances
 // carrying code + context + suggestions.
 
-export * from "./transactionErrors";
+export * from "./transactionErrors.js";

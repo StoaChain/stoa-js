@@ -12,7 +12,7 @@
  */
 
 import type { IUnsignedCommand, ICommand } from "@stoachain/kadena-stoic-legacy/types";
-import type { IKeyset } from "../guard";
+import type { IKeyset } from "../guard/index.js";
 
 /**
  * Signing-ready keypair. Same shape every CFM modal's `handleExecute`

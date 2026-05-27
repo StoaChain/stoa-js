@@ -8,7 +8,7 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { safeCreationTime } from "@stoachain/stoa-core/pact";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";

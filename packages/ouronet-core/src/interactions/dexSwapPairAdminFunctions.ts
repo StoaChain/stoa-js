@@ -3,7 +3,7 @@
  * Swap pair admin reads — module/principals/limits/management/branding (URC_0014-0015, BRD/DALOS reads).
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
 

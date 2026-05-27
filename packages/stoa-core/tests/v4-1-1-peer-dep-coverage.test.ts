@@ -15,8 +15,8 @@ describe("REQ-05: stoa-core peer-dep coverage", () => {
   const pkg = JSON.parse(readFileSync(resolve(here, "..", "package.json"), "utf8"));
   const peers = pkg.peerDependencies ?? {};
 
-  it("@stoachain/kadena-stoic-legacy peer-dep is exact-pin '4.3.0'", () => {
-    expect(peers["@stoachain/kadena-stoic-legacy"]).toBe("4.3.0");
+  it("@stoachain/kadena-stoic-legacy peer-dep is exact-pin '4.3.1'", () => {
+    expect(peers["@stoachain/kadena-stoic-legacy"]).toBe("4.3.1");
   });
 
   it("@scure/bip39 peer-dep is exact-pin '1.2.1' (matches kadena-stoic-legacy nested copy; v4.1.0 hotfix #1 alignment)", () => {

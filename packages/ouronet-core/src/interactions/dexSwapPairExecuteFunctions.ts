@@ -8,7 +8,7 @@ import {
   KADENA_NAMESPACE,
   STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
@@ -16,7 +16,7 @@ import { calculateAutoGasLimit } from "@stoachain/stoa-core/gas";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { safeCreationTime } from "@stoachain/stoa-core/pact";
 import { getLogger } from "@stoachain/stoa-core/observability";
-import type { SwapExecutionParams, SlippageBounds } from "./dexTypes";
+import type { SwapExecutionParams, SlippageBounds } from "./dexTypes.js";
 
 /**
  * Fetch slippage bounds object for a swap via dirtyRead.

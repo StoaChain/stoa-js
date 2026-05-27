@@ -13,7 +13,7 @@
  * a WebCrypto implementation).
  */
 
-import { WrongPasswordError, CorruptEnvelopeError } from "./errors";
+import { WrongPasswordError, CorruptEnvelopeError } from "./errors.js";
 
 export interface EncryptedData {
   ciphertext: string; // base64 encoded

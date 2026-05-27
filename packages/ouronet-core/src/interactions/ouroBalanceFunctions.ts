@@ -4,7 +4,7 @@
  * All four functions use catch-return-null per the v3.0.0 fabricated-fallbacks-removal contract.
  */
 
-import { KADENA_NAMESPACE, TOKEN_ID_IGNIS } from "../constants";
+import { KADENA_NAMESPACE, TOKEN_ID_IGNIS } from "../constants/index.js";
 import { mayComeWithDeimal } from "@stoachain/stoa-core/pact";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";

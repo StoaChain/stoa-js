@@ -16,8 +16,8 @@
  * it just wraps them in the portable envelope.
  */
 
-import type { CodexExportV1_2, PlaintextCodex } from "./types";
-import { CodexUnknownFieldError } from "./errors";
+import type { CodexExportV1_2, PlaintextCodex } from "./types.js";
+import { CodexUnknownFieldError } from "./errors.js";
 
 /**
  * Build a `CodexExportV1_2` payload from a PlaintextCodex. Stamps

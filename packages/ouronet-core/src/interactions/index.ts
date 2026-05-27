@@ -18,4 +18,4 @@
 // IOuroAccountKeypair and the Ouronet-specific function-shaped types) for
 // the convenience of any caller that wants just those.
 
-export * from "./ouroFunctions";
+export * from "./ouroFunctions.js";

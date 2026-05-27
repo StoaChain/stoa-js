@@ -10,15 +10,15 @@
  * ouroUrStoaFunctions, ouroTypes.
  */
 
-export * from "./ouroTypes";
-export * from "./ouroAccountFunctions";
-export * from "./ouroPrimordialsFunctions";
-export * from "./ouroSubCompressFunctions";
-export * from "./ouroWrapFunctions";
-export * from "./ouroTransferFunctions";
-export * from "./ouroMovieBoosterFunctions";
-export * from "./ouroCoilFunctions";
-export * from "./ouroBalanceFunctions";
-export * from "./ouroRotateFunctions";
-export * from "./ouroPriceFunctions";
-export * from "./ouroUrStoaFunctions";
+export * from "./ouroTypes.js";
+export * from "./ouroAccountFunctions.js";
+export * from "./ouroPrimordialsFunctions.js";
+export * from "./ouroSubCompressFunctions.js";
+export * from "./ouroWrapFunctions.js";
+export * from "./ouroTransferFunctions.js";
+export * from "./ouroMovieBoosterFunctions.js";
+export * from "./ouroCoilFunctions.js";
+export * from "./ouroBalanceFunctions.js";
+export * from "./ouroRotateFunctions.js";
+export * from "./ouroPriceFunctions.js";
+export * from "./ouroUrStoaFunctions.js";

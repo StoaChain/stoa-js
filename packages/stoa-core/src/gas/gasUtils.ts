@@ -6,7 +6,7 @@
  * 1 STOA = 10^12 ANU
  */
 
-import { getActiveGasLimit } from "../network/nodeFailover";
+import { getActiveGasLimit } from "../network/nodeFailover.js";
 
 // --- Constants ---
 

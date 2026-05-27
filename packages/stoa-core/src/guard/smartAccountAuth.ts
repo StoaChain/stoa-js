@@ -52,7 +52,7 @@
  * Added in v1.6.0.
  */
 
-import { analyzeGuard, type GuardAnalysis, type IKeyset } from "./guardUtils";
+import { analyzeGuard, type GuardAnalysis, type IKeyset } from "./guardUtils.js";
 
 /**
  * Kinds of Pact guards we discriminate at runtime. Mirrors the shape

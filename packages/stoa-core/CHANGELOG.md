@@ -4,6 +4,30 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.3.1 — 2026-05-27
+
+**PATCH — ESM extensionless-relative-import fix** (atomic-triplet bump). Same bug pattern as [`@stoachain/ouronet-codex@0.2.1`](https://www.npmjs.com/package/@stoachain/ouronet-codex), discovered while smoke-testing the workspace in the wake of the AH-hub-reported codex packaging bug.
+
+### The bug
+
+`dist/**/*.js` re-exported from relative paths WITHOUT the `.js` extension — e.g. `dist/crypto/index.js:1` had `export { encryptString } from "./v1";`. Under Node 22+ strict ESM, this throws `ERR_MODULE_NOT_FOUND` at import-resolution. TypeScript with `moduleResolution: "bundler"` happily compiled extensionless imports; the emitted JS broke in real Node environments.
+
+The bug didn't surface in production because all current consumers (OuronetUI via Vite, AH hub via Next.js) use bundler-based static imports — bundlers auto-resolve missing extensions. Only `await import('@stoachain/stoa-core/...')` from a strict ESM context (server-side dynamic imports) exposed it. No user was bitten; this is a preventive fix.
+
+### The fix
+
+29 source files updated, 57 imports rewritten. Per TypeScript's recommended ESM pattern (`.js`-suffix-in-source). `tsconfig` unchanged.
+
+### Verification
+
+- typecheck clean
+- 653/653 specs pass (no regressions)
+- Smoke test: `await import('@stoachain/stoa-core/crypto')` (and `/signing`, `/guard`, `/wallet`) succeed under Node 22+ strict ESM
+
+### No API changes
+
+Every v4.3.0 export keeps its signature. Atomic-triplet invariant preserved (test `v4-1-1-cross-package-version-pin.test.ts` continues to pass at 4.3.1).
+
 ## 4.3.0 — 2026-05-25
 
 **MINOR — atomic-triplet bump aligned with `@stoachain/ouronet-core@4.3.0` additive surface (2 new account-rotation Pact builders).** No code changes in this package; version bumped solely to maintain the atomic-triplet invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts` (all 3 packages share the same version) AND to keep peer-dep alignment (peer-dep on `@stoachain/kadena-stoic-legacy` bumped 4.2.2 → 4.3.0 in lockstep). Published from the same `v4.3.0` git tag.

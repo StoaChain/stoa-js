@@ -137,5 +137,5 @@ export {
 // signature components.
 export type { CoordAffine } from "@stoachain/dalos-crypto/gen1";
 
-export { createOuronetAccount } from "./account";
-export type { CreateAccountOptions, CreateAccountMode } from "./account";
+export { createOuronetAccount } from "./account.js";
+export type { CreateAccountOptions, CreateAccountMode } from "./account.js";

@@ -8,7 +8,7 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
@@ -17,7 +17,7 @@ import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
 import { createSigningError, createSimulationError, logDetailedError } from "@stoachain/stoa-core/errors";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
-import type { IOuroAccountKeypair } from "./ouroTypes";
+import type { IOuroAccountKeypair } from "./ouroTypes.js";
 
 // Ouro to Ignis
 // (namespace.T201-C2.ORBR|C_Sublimate client target ouro-amount)

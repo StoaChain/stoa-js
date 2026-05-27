@@ -14,9 +14,9 @@
 
 import { Pact, createClient } from "@stoachain/kadena-stoic-legacy/client";
 import type { ChainId } from "@stoachain/kadena-stoic-legacy/types";
-import { KADENA_CHAIN_ID, KADENA_NETWORK } from "../constants";
-import { getActivePactUrl, withFailover, runWithTimeout } from "../network";
-import { createTimeoutError } from "../errors";
+import { KADENA_CHAIN_ID, KADENA_NETWORK } from "../constants/index.js";
+import { getActivePactUrl, withFailover, runWithTimeout } from "../network/index.js";
+import { createTimeoutError } from "../errors/index.js";
 
 /** Read-friendly simulation gas ceiling — reads don't actually spend it. */
 const READ_SIM_GAS_LIMIT = 10_000_000;

@@ -39,8 +39,8 @@ import type {
   ICommandResult,
   ITransactionDescriptor,
 } from "@stoachain/kadena-stoic-legacy/client";
-import { withFailover } from "./nodeFailover";
-import { createTimeoutError } from "../errors";
+import { withFailover } from "./nodeFailover.js";
+import { createTimeoutError } from "../errors/index.js";
 
 /** Default per-tier timeouts (module-private, not exported). */
 const DEFAULT_READ_TIMEOUT_MS = 15_000;

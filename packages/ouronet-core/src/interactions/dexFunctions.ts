@@ -10,15 +10,15 @@
  * dexParseFunctions, dexTypes. Every original symbol is reachable via this shim.
  */
 
-export * from "./dexTypes";
-export * from "./dexParseFunctions";
-export * from "./dexSwapPairCalcFunctions";
-export * from "./dexSwapPairExecuteFunctions";
-export * from "./dexSwapPairSmartSwapFunctions";
-export * from "./dexSwapPairDashboardFunctions";
-export * from "./dexSwapPairAdminFunctions";
-export * from "./dexTrueFungibleFunctions";
-export * from "./dexOrtoFungibleFunctions";
-export * from "./dexCollectablesFunctions";
-export * from "./dexAcquisitionPoolFunctions";
-export * from "./addLiquidityFunctions";
+export * from "./dexTypes.js";
+export * from "./dexParseFunctions.js";
+export * from "./dexSwapPairCalcFunctions.js";
+export * from "./dexSwapPairExecuteFunctions.js";
+export * from "./dexSwapPairSmartSwapFunctions.js";
+export * from "./dexSwapPairDashboardFunctions.js";
+export * from "./dexSwapPairAdminFunctions.js";
+export * from "./dexTrueFungibleFunctions.js";
+export * from "./dexOrtoFungibleFunctions.js";
+export * from "./dexCollectablesFunctions.js";
+export * from "./dexAcquisitionPoolFunctions.js";
+export * from "./addLiquidityFunctions.js";

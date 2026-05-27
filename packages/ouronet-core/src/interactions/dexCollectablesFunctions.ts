@@ -3,17 +3,17 @@
  * Collectables (Semi + Non Fungibles) entity reads — header, entries, nonce data, sets, filters, button state.
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
-import { parseNonceData } from "./dexParseFunctions";
+import { parseNonceData } from "./dexParseFunctions.js";
 import type {
   CollectablesHeaderData,
   CollectableEntryData,
   NonceData,
   SetDefinition,
   CollectablesButtonState,
-} from "./dexTypes";
+} from "./dexTypes.js";
 
 export async function getCollectablesHeader(
   account: string,

@@ -1,4 +1,4 @@
 // @stoachain/stoa-core/network
 
-export * from "./nodeFailover";
-export * from "./failoverClient";
+export * from "./nodeFailover.js";
+export * from "./failoverClient.js";

@@ -8,13 +8,13 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
 import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
-import type { IOuroAccountKeypair } from "./ouroTypes";
+import type { IOuroAccountKeypair } from "./ouroTypes.js";
 
 // Single Token Transfer
 // (namespace.TS01-C1.DPTF|C_Transfer patron id sender receiver transfer-amount method)

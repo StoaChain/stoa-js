@@ -15,13 +15,13 @@ import {
   KADENA_NAMESPACE,
   KADENA_NETWORK,
   STOA_AUTONOMIC_OURONETGASSTATION,
-} from "../constants";
+} from "../constants/index.js";
 import { universalSignTransaction, fromKeypair, type IKadenaKeypair } from "@stoachain/stoa-core/signing";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";
 import { createSimulationError, logDetailedError } from "@stoachain/stoa-core/errors";
 import { getLogger } from "@stoachain/stoa-core/observability";
 import { ed25519 } from "@noble/curves/ed25519";
-import { describeKeyset, type IDescribedKeyset } from "./guardFunctions";
+import { describeKeyset, type IDescribedKeyset } from "./guardFunctions.js";
 
 
 // ── Signature verification ──────────────────────────────────────────────────

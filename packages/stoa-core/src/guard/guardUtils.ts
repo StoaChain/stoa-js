@@ -12,7 +12,7 @@
 import {
   publicKeyFromPrivateKey,
   publicKeyFromExtendedKey,
-} from "../signing/primitives";
+} from "../signing/primitives.js";
 
 /**
  * A Kadena keyset guard. The three standard predicates from Pact core plus

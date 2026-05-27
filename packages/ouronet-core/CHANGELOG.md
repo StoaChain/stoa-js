@@ -4,6 +4,14 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.3.1 — 2026-05-27
+
+**PATCH — ESM extensionless-relative-import fix** (atomic-triplet bump). Same bug pattern as [`@stoachain/stoa-core@4.3.1`](https://www.npmjs.com/package/@stoachain/stoa-core) and [`@stoachain/ouronet-codex@0.2.1`](https://www.npmjs.com/package/@stoachain/ouronet-codex). See those entries for the full bug context.
+
+40 source files updated, 90 imports rewritten in `src/**/*.ts`. Emitted `dist/**/*.js` now correctly has the `.js` extension on every relative import. Peer-deps on `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` updated 4.3.0 → 4.3.1.
+
+Verification: 797/797 specs pass; smoke test of `await import('@stoachain/ouronet-core/codex')` (and `/pact`, `/constants`, `/interactions/*`) under Node 22+ strict ESM succeeds. No API changes.
+
 ## 4.3.0 — 2026-05-25
 
 **MINOR — additive: 2 new account-rotation Pact builders** (`buildRotateGuardPactCode`, `buildRotateKadenaPactCode`) supporting the [`@stoachain/ouronet-codex`](https://www.npmjs.com/package/@stoachain/ouronet-codex) v0.1.0 Phase 6b rotation modals (`<RotateGuardModal>` + `<RotatePaymentKeyModal>`). The third rotation modal in the package (`<RotateSovereignModal>`) uses the pre-existing `buildRotateSovereignPactCode` (added v1.6.0). MINOR rather than PATCH because these unlock a new categorised public consumer surface — ouronet-codex's headless on-chain account-management UI — that wasn't reachable through the prior builder set; "additive on the public typed API surface in a way that enables a new consumer use case" is the established MINOR trigger for this monorepo (see also v4.2.0 which graduated the codex codec). Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped 4.2.2 → 4.3.0 in lockstep per the cross-package version-pin invariant; those two packages are functionally identical to their 4.2.2 release.

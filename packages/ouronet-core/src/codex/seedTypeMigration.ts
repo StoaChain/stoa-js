@@ -17,7 +17,7 @@
  * consumer (UI + future HUB) needs.
  */
 
-import { UnknownSeedTypeError } from "./errors";
+import { UnknownSeedTypeError } from "./errors.js";
 import type { SeedType } from "@stoachain/stoa-core/wallet";
 
 export type { SeedType } from "@stoachain/stoa-core/wallet";

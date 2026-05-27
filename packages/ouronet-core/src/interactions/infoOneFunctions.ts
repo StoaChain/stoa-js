@@ -1,6 +1,6 @@
 import {
   KADENA_NAMESPACE,
-} from "../constants";
+} from "../constants/index.js";
 import { formatDecimalForPact } from "@stoachain/stoa-core/pact";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";

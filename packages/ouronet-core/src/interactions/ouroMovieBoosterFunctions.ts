@@ -8,7 +8,7 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { safeCreationTime } from "@stoachain/stoa-core/pact";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
@@ -16,7 +16,7 @@ import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/sign
 import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
-import type { IOuroAccountKeypair } from "./ouroTypes";
+import type { IOuroAccountKeypair } from "./ouroTypes.js";
 
 // (ouronet-ns.MB.URC_TotalMBCost sparks)
 export async function getTotalMBCost(sparks: number): Promise<string | null> {

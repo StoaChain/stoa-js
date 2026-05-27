@@ -16,7 +16,7 @@ import type {
   NonceData,
   URIType,
   URIData,
-} from "./dexTypes";
+} from "./dexTypes.js";
 
 // Utility functions to parse swap calculation results
 export function parseSwapAmount(amountString: string): number {

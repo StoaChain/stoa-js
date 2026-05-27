@@ -19,7 +19,7 @@
  * `getPactUrl(chainId)` / `getSpvUrl(chainId)` accessors below.
  */
 
-import { getActivePactUrl, getActiveSpvUrl } from "../network/nodeFailover";
+import { getActivePactUrl, getActiveSpvUrl } from "../network/nodeFailover.js";
 
 export const KADENA_NETWORK = "stoa";
 

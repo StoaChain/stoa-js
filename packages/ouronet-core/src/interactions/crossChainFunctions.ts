@@ -1,6 +1,6 @@
 import { Pact, ITransactionDescriptor } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient, withFailover } from "@stoachain/stoa-core/network";
-import { KADENA_NETWORK, getPactUrl, STOA_AUTONOMIC_OURONETGASSTATION, KADENA_NAMESPACE } from "../constants";
+import { KADENA_NETWORK, getPactUrl, STOA_AUTONOMIC_OURONETGASSTATION, KADENA_NAMESPACE } from "../constants/index.js";
 import { GAS_PRICE_MIN_ANU, anuToStoa } from "@stoachain/stoa-core/gas";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { safeCreationTime, formatDecimalForPact } from "@stoachain/stoa-core/pact";

@@ -8,4 +8,4 @@
 // safeCreationTime, etc.) live in @stoachain/stoa-core/pact — chain-
 // generic, reusable across any Pact-based project.
 
-export * from "./cfmBuilders";
+export * from "./cfmBuilders.js";

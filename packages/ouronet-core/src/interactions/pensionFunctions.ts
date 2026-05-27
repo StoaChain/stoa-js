@@ -3,13 +3,13 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { formatDecimalForPact, safeCreationTime } from "@stoachain/stoa-core/pact";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { universalSignTransaction, fromKeypair, type IKadenaKeypair } from "@stoachain/stoa-core/signing";
-import type { IOuroAccountKeypair } from "./ouroTypes";
+import type { IOuroAccountKeypair } from "./ouroTypes.js";
 
 // Brumate WSTOA to H|GSTOA (Hibernated Pension Kadena)
 // (namespace.TS01-C2.ATS|C_Brumate patron:string brumate-account:string "SilverStoaPillar-O136CBn22ncY" "GoldenStoaPillar-O136CBn22ncY" "WSTOA-8Nh-JO8JO4F5" amount:decimal lock-days:integer)

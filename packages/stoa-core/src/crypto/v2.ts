@@ -16,8 +16,8 @@
  * reads localStorage and delegates here.
  */
 
-import { WrongPasswordError, CorruptEnvelopeError } from "./errors";
-import { getLogger } from "../observability/logger";
+import { WrongPasswordError, CorruptEnvelopeError } from "./errors.js";
+import { getLogger } from "../observability/logger.js";
 
 export interface EncryptedDataV2 {
   v: 2;
@@ -56,7 +56,7 @@ export interface EncryptedDataV2 {
  *
  * (PRESERVE the existing OWASP / v3.3.7 / F-SEC-004 JSDoc context above this line.)
  */
-export type { EncryptedData as EncryptedDataV1 } from "./v1";
+export type { EncryptedData as EncryptedDataV1 } from "./v1.js";
 
 /**
  * Result shape returned by `decryptStringV2WithDetails` /

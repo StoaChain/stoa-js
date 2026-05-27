@@ -29,7 +29,7 @@
  * inline the Pact code in the modal.
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import { formatDecimalForPact } from "@stoachain/stoa-core/pact";
 
 // ─── TS01-C1 family (DPTF — Dynamic Pooled Token Functions) ──────────────────

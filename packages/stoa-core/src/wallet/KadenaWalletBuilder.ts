@@ -34,8 +34,8 @@ import {
   kadenaGenMnemonic,
   kadenaGenKeypair,
 } from "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver";
-import type { SeedType } from "./types";
-import { MnemonicMismatchError } from "./errors";
+import type { SeedType } from "./types.js";
+import { MnemonicMismatchError } from "./errors.js";
 
 class KadenaWalletBuilder {
   /** Standard SLIP-10 derivation from a pre-existing encrypted seed blob. */

@@ -18,19 +18,19 @@
  */
 
 import type { ICommand, IUnsignedCommand } from "@stoachain/kadena-stoic-legacy/types";
-import { analyzeGuard, selectCapsSigningKey } from "../guard";
-import type { IKeyset } from "../guard";
-import { calculateAutoGasLimit } from "../gas";
-import { runWithTimeout } from "../network";
-import { createTimeoutError } from "../errors";
-import { fromKeypair, universalSignTransaction } from "./universalSign";
-import { SmartAccountAuthError } from "./errors";
+import { analyzeGuard, selectCapsSigningKey } from "../guard/index.js";
+import type { IKeyset } from "../guard/index.js";
+import { calculateAutoGasLimit } from "../gas/index.js";
+import { runWithTimeout } from "../network/index.js";
+import { createTimeoutError } from "../errors/index.js";
+import { fromKeypair, universalSignTransaction } from "./universalSign.js";
+import { SmartAccountAuthError } from "./errors.js";
 import type {
   IKadenaKeypair,
   KeyResolver,
   PactClient,
   SigningStrategy,
-} from "./types";
+} from "./types.js";
 
 export class CodexSigningStrategy implements SigningStrategy {
   constructor(

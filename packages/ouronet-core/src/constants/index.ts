@@ -1,4 +1,4 @@
 // @stoachain/ouronet-core/constants
 
-export * from "./ouronet";
-export * from "./tokenIds";
+export * from "./ouronet.js";
+export * from "./tokenIds.js";

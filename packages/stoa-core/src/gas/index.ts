@@ -1,3 +1,3 @@
 // @stoachain/ouronet-core/gas
 
-export * from "./gasUtils";
+export * from "./gasUtils.js";

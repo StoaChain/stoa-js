@@ -3,14 +3,14 @@
  * Swap pair dashboard reads and pool previews (URC_0003-0005, URC_0010 dashboard surface).
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
 import type {
   SwapPoolData,
   PoolPreviewData,
   SwpairInternalDashboard,
-} from "./dexTypes";
+} from "./dexTypes.js";
 
 /**
  * Fetch all swap pair IDs from the SWP contract

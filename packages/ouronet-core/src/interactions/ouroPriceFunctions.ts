@@ -4,7 +4,7 @@
  * All four functions follow the v3.0.0 nullable contract — return null on RPC failure or non-finite value.
  */
 
-import { KADENA_NAMESPACE } from "../constants";
+import { KADENA_NAMESPACE } from "../constants/index.js";
 import { mayComeWithDeimal } from "@stoachain/stoa-core/pact";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";

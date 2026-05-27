@@ -8,7 +8,7 @@
  * Retry primary every 30s when on fallback.
  */
 
-import { getLogger } from "../observability";
+import { getLogger } from "../observability/index.js";
 
 const KADENA_NETWORK = "stoa";
 

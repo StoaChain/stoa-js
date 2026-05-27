@@ -8,4 +8,4 @@
 //     Default routes to console.warn / console.error for parity with the
 //     pre-seam behavior. See ./logger.ts for the rationale.
 
-export * from "./logger";
+export * from "./logger.js";

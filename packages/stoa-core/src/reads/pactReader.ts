@@ -23,7 +23,7 @@
  * for signing; this one-function variant is enough for reads.
  */
 
-import { rawCalibratedDirtyRead } from "./rawCalibratedRead";
+import { rawCalibratedDirtyRead } from "./rawCalibratedRead.js";
 
 /**
  * Thrown by `setPactReader(...)` when the supplied value is not a function.

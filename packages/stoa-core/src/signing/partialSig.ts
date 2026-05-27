@@ -53,7 +53,7 @@ import type { IUnsignedCommand, ICommand } from "@stoachain/kadena-stoic-legacy/
 import {
   universalSignTransaction,
   type UniversalKeypair,
-} from "./universalSign";
+} from "./universalSign.js";
 
 /**
  * Fixed envelope literal so consumers (and tooling) can sanity-check a

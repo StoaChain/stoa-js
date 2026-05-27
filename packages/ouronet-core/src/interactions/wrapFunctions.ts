@@ -12,7 +12,7 @@ import {
   KADENA_NETWORK,
   STOA_AUTONOMIC_OURONETGASSTATION,
   STOA_AUTONOMIC_LIQUIDPOT,
-} from "../constants";
+} from "../constants/index.js";
 import { formatDecimalForPact, safeCreationTime } from "@stoachain/stoa-core/pact";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";

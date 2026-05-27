@@ -2,7 +2,7 @@ import {
   KADENA_CHAIN_ID,
   KADENA_NAMESPACE, STOA_AUTONOMIC_OURONETGASSTATION,
   KADENA_NETWORK,
-} from "../constants";
+} from "../constants/index.js";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import { getFailoverClient } from "@stoachain/stoa-core/network";
 import { pactRead } from "@stoachain/stoa-core/reads";
@@ -10,7 +10,7 @@ import { formatDecimalForPact, safeCreationTime } from "@stoachain/stoa-core/pac
 import { universalSignTransaction, fromKeypair } from "@stoachain/stoa-core/signing";
 import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
 export type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
-import type { IOuroAccountKeypair } from "./ouroTypes";
+import type { IOuroAccountKeypair } from "./ouroTypes.js";
 import { getLogger } from "@stoachain/stoa-core/observability";
 
 // Generic coiling configuration
