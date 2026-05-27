@@ -7,8 +7,8 @@
  * lastUpdatedAt touch internally.
  */
 
-import { useCodexStore } from "../provider";
-import type { IKadenaSeed } from "../types/entities";
+import { useCodexStore } from "../provider/index.js";
+import type { IKadenaSeed } from "../types/entities.js";
 
 export interface KadenaSeedsView {
   seeds: IKadenaSeed[];

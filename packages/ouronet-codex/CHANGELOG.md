@@ -2,6 +2,50 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.2.1 — 2026-05-27
+
+**Bugfix release** — fixes a packaging bug introduced in v0.1.0 that prevented Node ESM consumers from dynamic-importing any subpath of the package. Reported by the AncientHoldings hub team's Caduceus.1 integration; documented at `AncientHoldings/.bee/discussions/2026-05-27-ouronet-codex-packaging-bug.md`.
+
+### The bug
+
+`dist/**/*.js` re-exported from relative paths WITHOUT the `.js` extension — e.g. `dist/types/index.js:9` had `export { DEFAULT_UI_SETTINGS } from "./entities";`. Under Node 22+ strict ESM resolution, this throws `ERR_MODULE_NOT_FOUND` at the moment of import resolution. TypeScript can resolve extensionless relative paths (it knows about both `.ts` and `.js`), so the source compiled fine, but the emitted JavaScript failed in real Node environments.
+
+Static imports via bundlers (Vite, Next.js, webpack) worked because the bundlers resolve missing extensions. Only `await import('@stoachain/ouronet-codex/...')` from a strict ESM context exposed the bug — which is exactly what the AH hub's `lib/codex-vault.ts::getDefaultUiSettings()` was doing.
+
+### The fix
+
+Updated every relative import in `src/**/*.ts(x)` to include the `.js` extension. Per TypeScript's recommended ESM pattern, the source `.ts` file references the emitted `.js` filename:
+
+```typescript
+// Before (v0.1.0, v0.2.0 — broken under Node ESM):
+import { DEFAULT_UI_SETTINGS } from "../types/entities";
+
+// After (v0.2.1):
+import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
+```
+
+35 source files updated, 121 imports rewritten. The same fix was applied to directory-style imports (`from "../provider"` → `from "../provider/index.js"`).
+
+### Verification
+
+- TypeScript typecheck: clean (no regressions)
+- Test suite: 161/161 passing (unchanged from v0.2.0)
+- Smoke test: `await import('@stoachain/ouronet-codex/types')` now succeeds in a strict ESM context (Node 22+, `type: "module"`)
+- Other advertised subpaths (`/adapters`, `/hooks`, `/provider`, `/components`, `/errors`, `/resolver`) also resolve correctly (they fail in our minimal smoke test only due to peer-deps absent in the sandbox — not the extension bug)
+
+### No API changes
+
+Every v0.2.0 export keeps its signature. Consumers can `npm update` and drop any local workarounds; no source change needed in the consumer.
+
+### Broader workspace note (NOT fixed in this release)
+
+The same extensionless-relative-import pattern exists in `@stoachain/stoa-core` and `@stoachain/kadena-stoic-legacy` dist output. They didn't surface because no consumer was dynamic-importing them — they're always statically imported via Next.js / Vite bundling, where the bundler resolves extensions. A coordinated v4.3.1 atomic-triplet bump should apply the same fix there. Tracked separately; not a blocker for any current consumer.
+
+### Recommendations
+
+- AH hub's Caduceus.1 work — `npm update @stoachain/ouronet-codex` after this publishes. The hub's deliberate-no-workaround position is now resolved upstream.
+- Future regression prevention: add a CI smoke-test step that runs `node --input-type=module -e "import('@stoachain/ouronet-codex/<each-subpath>')"` for every advertised subpath. Listed as v0.3.0 candidate work in the v0.3.0 design doc.
+
 ## 0.2.0 — 2026-05-26
 
 **Structural Prime invariants** — closes the last gap between OuronetUI's

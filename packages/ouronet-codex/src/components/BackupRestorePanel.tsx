@@ -15,7 +15,7 @@
 
 import * as React from "react";
 import { useCallback, useRef, useState } from "react";
-import { useCodexBackup } from "../hooks/useCodexBackup";
+import { useCodexBackup } from "../hooks/useCodexBackup.js";
 
 export interface BackupRestoreRenderArgs {
   downloadAsJson: () => Promise<void>;

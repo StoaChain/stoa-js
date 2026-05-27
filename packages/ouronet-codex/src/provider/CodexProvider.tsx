@@ -43,13 +43,13 @@ import {
 import type { ReactNode } from "react";
 import type { StoreApi, UseBoundStore } from "zustand";
 import type { PactClient } from "@stoachain/stoa-core/signing";
-import type { CodexAdapter } from "../adapters/types";
-import type { CodexStoreState } from "../state/store";
-import { createCodexStore } from "../state/store";
+import type { CodexAdapter } from "../adapters/types.js";
+import type { CodexStoreState } from "../state/store.js";
+import { createCodexStore } from "../state/store.js";
 import type {
   DeviceVariant,
   UiSettings,
-} from "../types/entities";
+} from "../types/entities.js";
 
 export interface CodexProviderProps {
   /** Storage backend for the codex. Required. Pass `new LocalStorageCodexAdapter()`

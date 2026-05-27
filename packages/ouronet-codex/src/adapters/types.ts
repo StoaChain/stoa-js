@@ -6,7 +6,7 @@ import type {
   UiSettings,
   DeviceVariant,
   WatchListEntry,
-} from "../types/entities";
+} from "../types/entities.js";
 
 /**
  * Codex snapshot — the full persisted state of a codex at one point in
@@ -128,7 +128,7 @@ export interface CodexAdapter {
 
 /** Sentinel empty snapshot. Adapters return this from `loadAll()` when
  *  nothing has been persisted yet. */
-import { DEFAULT_UI_SETTINGS } from "../types/entities";
+import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
 
 export function emptySnapshot(deviceVariant: DeviceVariant): CodexSnapshot {
   return {

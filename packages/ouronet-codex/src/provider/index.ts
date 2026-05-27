@@ -15,5 +15,5 @@ export {
   CodexProvider,
   useCodexStore,
   useSigningClientOverride,
-} from "./CodexProvider";
-export type { CodexProviderProps } from "./CodexProvider";
+} from "./CodexProvider.js";
+export type { CodexProviderProps } from "./CodexProvider.js";

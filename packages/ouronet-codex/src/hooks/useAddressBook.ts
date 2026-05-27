@@ -9,8 +9,8 @@
  * consumers don't need to pass it.
  */
 
-import { useCodexStore } from "../provider";
-import type { AddressBookEntry } from "../types/entities";
+import { useCodexStore } from "../provider/index.js";
+import type { AddressBookEntry } from "../types/entities.js";
 
 export interface AddressBookView {
   entries: AddressBookEntry[];

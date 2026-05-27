@@ -11,7 +11,7 @@
  */
 
 import * as React from "react";
-import { useCodex } from "../hooks/useCodex";
+import { useCodex } from "../hooks/useCodex.js";
 
 export interface CodexInfoRenderArgs {
   isReady: boolean;

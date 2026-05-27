@@ -20,7 +20,7 @@
  */
 
 import { useCallback } from "react";
-import { useCodexStore } from "../provider";
+import { useCodexStore } from "../provider/index.js";
 
 export type RequestPasswordFn = () => Promise<string>;
 

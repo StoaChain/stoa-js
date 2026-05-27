@@ -10,6 +10,6 @@
 // etc.). Re-exporting the KeyResolver type from stoa-core saves
 // consumers from a redundant import path.
 
-export { InternalCodexResolver } from "./InternalCodexResolver";
-export type { InternalCodexResolverOptions } from "./InternalCodexResolver";
+export { InternalCodexResolver } from "./InternalCodexResolver.js";
+export type { InternalCodexResolverOptions } from "./InternalCodexResolver.js";
 export type { KeyResolver, IKadenaKeypair } from "@stoachain/stoa-core/signing";

@@ -21,9 +21,9 @@ import { createClient } from "@stoachain/kadena-stoic-legacy/client";
 import { CodexSigningStrategy } from "@stoachain/stoa-core/signing";
 import { getPactUrl, KADENA_CHAIN_ID } from "@stoachain/stoa-core/constants";
 
-import { useCodexStore, useSigningClientOverride } from "../provider";
-import { InternalCodexResolver } from "../resolver/InternalCodexResolver";
-import type { InternalCodexResolverOptions } from "../resolver/InternalCodexResolver";
+import { useCodexStore, useSigningClientOverride } from "../provider/index.js";
+import { InternalCodexResolver } from "../resolver/InternalCodexResolver.js";
+import type { InternalCodexResolverOptions } from "../resolver/InternalCodexResolver.js";
 
 export interface UseSignTransactionOptions {
   /** Optional foreign-key resolver — passed to the InternalCodexResolver

@@ -14,8 +14,8 @@
 
 import { useMemo } from "react";
 import type { IKadenaKeypair } from "@stoachain/stoa-core/signing";
-import { useCodexStore } from "../provider";
-import { InternalCodexResolver } from "../resolver/InternalCodexResolver";
+import { useCodexStore } from "../provider/index.js";
+import { InternalCodexResolver } from "../resolver/InternalCodexResolver.js";
 
 export type GetKeypairFn = (publicKey: string) => Promise<IKadenaKeypair>;
 

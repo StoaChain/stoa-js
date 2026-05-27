@@ -24,11 +24,11 @@ export type {
   AddressBookEntry,
   UiSettings,
   WatchListEntry,
-} from "./entities";
+} from "./entities.js";
 
-export { DEFAULT_UI_SETTINGS } from "./entities";
+export { DEFAULT_UI_SETTINGS } from "./entities.js";
 
 // Adapter contract types re-exported for convenience so consumers can
 // `import type { CodexSnapshot, CodexAdapter } from "@stoachain/ouronet-codex/types"`
 // without reaching into the /adapters subpath.
-export type { CodexSnapshot, CodexAdapter } from "../adapters/types";
+export type { CodexSnapshot, CodexAdapter } from "../adapters/types.js";

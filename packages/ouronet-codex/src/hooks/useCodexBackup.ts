@@ -26,12 +26,12 @@
  */
 
 import { useCallback } from "react";
-import { useCodexStore } from "../provider";
-import type { CodexSnapshot } from "../adapters/types";
+import { useCodexStore } from "../provider/index.js";
+import type { CodexSnapshot } from "../adapters/types.js";
 import {
   CodexImportError,
   CodexLockedError as _CodexLockedError,
-} from "../errors/types";
+} from "../errors/types.js";
 
 // Wire-shape of the augmented v1.2-plus-pureKeypairs file the package
 // reads/writes. Matches OuronetUI v1.0.9's downloadAsJson output.

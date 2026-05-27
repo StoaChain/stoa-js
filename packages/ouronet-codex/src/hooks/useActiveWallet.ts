@@ -9,8 +9,8 @@
  * plus the two setter actions.
  */
 
-import { useCodexStore } from "../provider";
-import type { IKadenaSeed, IOuroAccount } from "../types/entities";
+import { useCodexStore } from "../provider/index.js";
+import type { IKadenaSeed, IOuroAccount } from "../types/entities.js";
 
 export interface ActiveWalletView {
   activeKadenaWalletId: string | null;

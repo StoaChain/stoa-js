@@ -12,7 +12,7 @@
 // Consumers wanting a different backend (IndexedDB, Tauri secure storage,
 // remote KMS) implement CodexAdapter and pass to <CodexProvider adapter={...}>.
 
-export type { CodexAdapter, CodexSnapshot } from "./types";
-export { emptySnapshot } from "./types";
-export { MemoryCodexAdapter, assertCodexAdapter } from "./MemoryCodexAdapter";
-export { LocalStorageCodexAdapter } from "./LocalStorageCodexAdapter";
+export type { CodexAdapter, CodexSnapshot } from "./types.js";
+export { emptySnapshot } from "./types.js";
+export { MemoryCodexAdapter, assertCodexAdapter } from "./MemoryCodexAdapter.js";
+export { LocalStorageCodexAdapter } from "./LocalStorageCodexAdapter.js";

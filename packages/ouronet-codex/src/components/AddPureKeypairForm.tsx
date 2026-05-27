@@ -18,9 +18,9 @@ import * as React from "react";
 import { useCallback, useState } from "react";
 import { tryDerivePublicKey } from "@stoachain/stoa-core/guard";
 import { smartEncrypt } from "@stoachain/stoa-core/crypto";
-import { useCodexStore } from "../provider";
-import { usePureKeypairs } from "../hooks/usePureKeypairs";
-import { useRequestPassword } from "../hooks/useRequestPassword";
+import { useCodexStore } from "../provider/index.js";
+import { usePureKeypairs } from "../hooks/usePureKeypairs.js";
+import { useRequestPassword } from "../hooks/useRequestPassword.js";
 
 export interface AddPureKeypairRenderArgs {
   privateKey: string;

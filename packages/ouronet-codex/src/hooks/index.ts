@@ -16,44 +16,44 @@
 //   - useCodexBackup()       download / import / cloud-export helpers
 //   - useCodexLifecycle()    kickstart / recover (v0.2.0+; spec §5.2/§5.3)
 
-export { useCodex } from "./useCodex";
-export type { CodexView } from "./useCodex";
+export { useCodex } from "./useCodex.js";
+export type { CodexView } from "./useCodex.js";
 
-export { useActiveWallet } from "./useActiveWallet";
-export type { ActiveWalletView } from "./useActiveWallet";
+export { useActiveWallet } from "./useActiveWallet.js";
+export type { ActiveWalletView } from "./useActiveWallet.js";
 
-export { useCodexAuth } from "./useCodexAuth";
-export type { CodexAuthView } from "./useCodexAuth";
+export { useCodexAuth } from "./useCodexAuth.js";
+export type { CodexAuthView } from "./useCodexAuth.js";
 
-export { useRequestPassword } from "./useRequestPassword";
-export type { RequestPasswordFn } from "./useRequestPassword";
+export { useRequestPassword } from "./useRequestPassword.js";
+export type { RequestPasswordFn } from "./useRequestPassword.js";
 
-export { useGetKeypair } from "./useGetKeypair";
-export type { GetKeypairFn } from "./useGetKeypair";
+export { useGetKeypair } from "./useGetKeypair.js";
+export type { GetKeypairFn } from "./useGetKeypair.js";
 
-export { useSignTransaction } from "./useSignTransaction";
+export { useSignTransaction } from "./useSignTransaction.js";
 export type {
   SignTransactionView,
   UseSignTransactionOptions,
-} from "./useSignTransaction";
+} from "./useSignTransaction.js";
 
-export { useKadenaSeeds } from "./useKadenaSeeds";
-export type { KadenaSeedsView } from "./useKadenaSeeds";
+export { useKadenaSeeds } from "./useKadenaSeeds.js";
+export type { KadenaSeedsView } from "./useKadenaSeeds.js";
 
-export { usePureKeypairs } from "./usePureKeypairs";
-export type { PureKeypairsView } from "./usePureKeypairs";
+export { usePureKeypairs } from "./usePureKeypairs.js";
+export type { PureKeypairsView } from "./usePureKeypairs.js";
 
-export { useOuroAccounts } from "./useOuroAccounts";
-export type { OuroAccountsView } from "./useOuroAccounts";
+export { useOuroAccounts } from "./useOuroAccounts.js";
+export type { OuroAccountsView } from "./useOuroAccounts.js";
 
-export { useAddressBook } from "./useAddressBook";
-export type { AddressBookView } from "./useAddressBook";
+export { useAddressBook } from "./useAddressBook.js";
+export type { AddressBookView } from "./useAddressBook.js";
 
-export { useWatchList } from "./useWatchList";
-export type { WatchListView } from "./useWatchList";
+export { useWatchList } from "./useWatchList.js";
+export type { WatchListView } from "./useWatchList.js";
 
-export { useCodexBackup } from "./useCodexBackup";
-export type { CodexBackupView } from "./useCodexBackup";
+export { useCodexBackup } from "./useCodexBackup.js";
+export type { CodexBackupView } from "./useCodexBackup.js";
 
-export { useCodexLifecycle } from "./useCodexLifecycle";
-export type { CodexLifecycleView } from "./useCodexLifecycle";
+export { useCodexLifecycle } from "./useCodexLifecycle.js";
+export type { CodexLifecycleView } from "./useCodexLifecycle.js";

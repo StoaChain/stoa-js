@@ -12,8 +12,8 @@
  * cross-device sync, or re-add on each device.
  */
 
-import { useCodexStore } from "../provider";
-import type { IPureKeypair } from "../types/entities";
+import { useCodexStore } from "../provider/index.js";
+import type { IPureKeypair } from "../types/entities.js";
 
 export interface PureKeypairsView {
   keypairs: IPureKeypair[];

@@ -34,10 +34,10 @@ import {
 } from "@stoachain/ouronet-core/constants";
 import { buildRotateGuardPactCode } from "@stoachain/ouronet-core/pact";
 
-import { useSignTransaction } from "../hooks/useSignTransaction";
-import { useActiveWallet } from "../hooks/useActiveWallet";
-import { useOuroAccounts } from "../hooks/useOuroAccounts";
-import type { IOuroAccount, IKeyset } from "../types/entities";
+import { useSignTransaction } from "../hooks/useSignTransaction.js";
+import { useActiveWallet } from "../hooks/useActiveWallet.js";
+import { useOuroAccounts } from "../hooks/useOuroAccounts.js";
+import type { IOuroAccount, IKeyset } from "../types/entities.js";
 
 export type RotateGuardMode = "define" | "existing";
 export type RotateGuardPred = "keys-all" | "keys-any" | "keys-2";

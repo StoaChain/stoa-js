@@ -11,9 +11,9 @@
  */
 
 import * as React from "react";
-import { useActiveWallet } from "../hooks/useActiveWallet";
-import { useCodex } from "../hooks/useCodex";
-import type { IKadenaSeed, IOuroAccount } from "../types/entities";
+import { useActiveWallet } from "../hooks/useActiveWallet.js";
+import { useCodex } from "../hooks/useCodex.js";
+import type { IKadenaSeed, IOuroAccount } from "../types/entities.js";
 
 export interface ActiveWalletPickerRenderArgs {
   kadenaSeeds: IKadenaSeed[];

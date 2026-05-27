@@ -1,6 +1,6 @@
 import { encryptString, decryptString } from "@stoachain/stoa-core/crypto";
 import { migrateSeedType } from "@stoachain/ouronet-core/codex";
-import { CodexAdapterError } from "../errors/types";
+import { CodexAdapterError } from "../errors/types.js";
 import {
   DEFAULT_UI_SETTINGS,
   type IKadenaSeed,
@@ -10,9 +10,9 @@ import {
   type UiSettings,
   type DeviceVariant,
   type WatchListEntry,
-} from "../types/entities";
-import type { CodexAdapter, CodexSnapshot } from "./types";
-import { emptySnapshot } from "./types";
+} from "../types/entities.js";
+import type { CodexAdapter, CodexSnapshot } from "./types.js";
+import { emptySnapshot } from "./types.js";
 
 /**
  * LocalStorageCodexAdapter — browser-side codex adapter using

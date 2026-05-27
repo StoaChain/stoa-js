@@ -16,10 +16,10 @@ export type {
   PendingPasswordRequest,
   KickstartArgs,
   KickstartResult,
-} from "./store";
+} from "./store.js";
 
 export {
   createCodexStore,
   _internal_requireUnlocked,
   CodexPasswordError,
-} from "./store";
+} from "./store.js";

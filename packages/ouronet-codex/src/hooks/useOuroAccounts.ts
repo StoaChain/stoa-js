@@ -12,8 +12,8 @@
  * etc.).
  */
 
-import { useCodexStore } from "../provider";
-import type { IOuroAccount } from "../types/entities";
+import { useCodexStore } from "../provider/index.js";
+import type { IOuroAccount } from "../types/entities.js";
 
 export interface OuroAccountsView {
   accounts: IOuroAccount[];

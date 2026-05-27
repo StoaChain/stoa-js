@@ -29,9 +29,9 @@ import {
 } from "@stoachain/ouronet-core/constants";
 import { buildRotateKadenaPactCode } from "@stoachain/ouronet-core/pact";
 
-import { useSignTransaction } from "../hooks/useSignTransaction";
-import { useActiveWallet } from "../hooks/useActiveWallet";
-import type { IOuroAccount } from "../types/entities";
+import { useSignTransaction } from "../hooks/useSignTransaction.js";
+import { useActiveWallet } from "../hooks/useActiveWallet.js";
+import type { IOuroAccount } from "../types/entities.js";
 
 const HEX_64_RX = /^[0-9a-fA-F]{64}$/;
 

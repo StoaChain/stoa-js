@@ -15,7 +15,7 @@
  */
 
 import { useCallback } from "react";
-import { useCodexStore } from "../provider";
+import { useCodexStore } from "../provider/index.js";
 
 export interface CodexAuthView {
   isLocked: boolean;

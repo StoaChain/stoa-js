@@ -40,8 +40,8 @@ import { smartDecrypt } from "@stoachain/stoa-core/crypto";
 import { KadenaWalletBuilder } from "@stoachain/stoa-core/wallet";
 import { kadenaDecrypt } from "@stoachain/kadena-stoic-legacy/hd-wallet";
 
-import type { CodexStoreState } from "../state/store";
-import { CodexKeyMissingError, CodexLockedError } from "../errors/types";
+import type { CodexStoreState } from "../state/store.js";
+import { CodexKeyMissingError, CodexLockedError } from "../errors/types.js";
 
 type CodexStore = UseBoundStore<StoreApi<CodexStoreState>>;
 

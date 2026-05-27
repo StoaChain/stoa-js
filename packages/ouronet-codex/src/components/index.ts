@@ -19,54 +19,54 @@
 // <RotateGovernorModal> is deferred post-OuronetUI-migration (chain side
 // exposes the Pact function but no consumer surface ships it yet).
 
-export { PasswordModal } from "./PasswordModal";
+export { PasswordModal } from "./PasswordModal.js";
 export type {
   PasswordModalProps,
   PasswordModalRenderArgs,
-} from "./PasswordModal";
+} from "./PasswordModal.js";
 
-export { BackupRestorePanel } from "./BackupRestorePanel";
+export { BackupRestorePanel } from "./BackupRestorePanel.js";
 export type {
   BackupRestorePanelProps,
   BackupRestoreRenderArgs,
-} from "./BackupRestorePanel";
+} from "./BackupRestorePanel.js";
 
-export { AddPureKeypairForm } from "./AddPureKeypairForm";
+export { AddPureKeypairForm } from "./AddPureKeypairForm.js";
 export type {
   AddPureKeypairFormProps,
   AddPureKeypairRenderArgs,
-} from "./AddPureKeypairForm";
+} from "./AddPureKeypairForm.js";
 
-export { ActiveWalletPicker } from "./ActiveWalletPicker";
+export { ActiveWalletPicker } from "./ActiveWalletPicker.js";
 export type {
   ActiveWalletPickerProps,
   ActiveWalletPickerRenderArgs,
-} from "./ActiveWalletPicker";
+} from "./ActiveWalletPicker.js";
 
-export { CodexInfoPanel } from "./CodexInfoPanel";
+export { CodexInfoPanel } from "./CodexInfoPanel.js";
 export type {
   CodexInfoPanelProps,
   CodexInfoRenderArgs,
-} from "./CodexInfoPanel";
+} from "./CodexInfoPanel.js";
 
 // Phase 6b — headless rotation modals (consume the new v4.3.0 rotation builders)
 
-export { RotateSovereignModal } from "./RotateSovereignModal";
+export { RotateSovereignModal } from "./RotateSovereignModal.js";
 export type {
   RotateSovereignModalProps,
   RotateSovereignRenderArgs,
-} from "./RotateSovereignModal";
+} from "./RotateSovereignModal.js";
 
-export { RotatePaymentKeyModal } from "./RotatePaymentKeyModal";
+export { RotatePaymentKeyModal } from "./RotatePaymentKeyModal.js";
 export type {
   RotatePaymentKeyModalProps,
   RotatePaymentKeyRenderArgs,
-} from "./RotatePaymentKeyModal";
+} from "./RotatePaymentKeyModal.js";
 
-export { RotateGuardModal } from "./RotateGuardModal";
+export { RotateGuardModal } from "./RotateGuardModal.js";
 export type {
   RotateGuardModalProps,
   RotateGuardRenderArgs,
   RotateGuardMode,
   RotateGuardPred,
-} from "./RotateGuardModal";
+} from "./RotateGuardModal.js";

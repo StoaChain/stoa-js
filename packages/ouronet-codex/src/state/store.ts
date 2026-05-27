@@ -8,16 +8,16 @@ import type {
   WatchListEntry,
   UiSettings,
   DeviceVariant,
-} from "../types/entities";
-import { DEFAULT_UI_SETTINGS } from "../types/entities";
-import type { CodexAdapter } from "../adapters/types";
+} from "../types/entities.js";
+import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
+import type { CodexAdapter } from "../adapters/types.js";
 import {
   CodexLockedError,
   CodexPrimeProtectedError,
   CodexPrimeSeedProtectedError,
   CodexKickstartError,
   CodexPasswordError,
-} from "../errors/types";
+} from "../errors/types.js";
 
 /**
  * Internal Zustand store backing the CodexProvider. Consumers DO NOT

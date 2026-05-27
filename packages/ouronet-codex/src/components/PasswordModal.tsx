@@ -21,7 +21,7 @@
 
 import * as React from "react";
 import { useCallback, useState } from "react";
-import { useCodexStore } from "../provider";
+import { useCodexStore } from "../provider/index.js";
 
 export interface PasswordModalRenderArgs {
   /** Current input value. Wire to your input's `value` prop. */

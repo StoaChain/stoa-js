@@ -15,8 +15,8 @@
  * Google Drive sub-export only.
  */
 
-import { useCodexStore } from "../provider";
-import type { WatchListEntry } from "../types/entities";
+import { useCodexStore } from "../provider/index.js";
+import type { WatchListEntry } from "../types/entities.js";
 
 export interface WatchListView {
   entries: WatchListEntry[];

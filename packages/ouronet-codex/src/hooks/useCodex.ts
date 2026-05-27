@@ -12,7 +12,7 @@
  * panels; not appropriate for high-frequency renders.
  */
 
-import { useCodexStore } from "../provider";
+import { useCodexStore } from "../provider/index.js";
 
 export interface CodexView {
   isReady: boolean;

@@ -1,4 +1,4 @@
-import { CodexAdapterError } from "../errors/types";
+import { CodexAdapterError } from "../errors/types.js";
 import type {
   IKadenaSeed,
   IOuroAccount,
@@ -7,9 +7,9 @@ import type {
   UiSettings,
   DeviceVariant,
   WatchListEntry,
-} from "../types/entities";
-import type { CodexAdapter, CodexSnapshot } from "./types";
-import { emptySnapshot } from "./types";
+} from "../types/entities.js";
+import type { CodexAdapter, CodexSnapshot } from "./types.js";
+import { emptySnapshot } from "./types.js";
 
 /**
  * MemoryCodexAdapter — non-persistent in-memory adapter.

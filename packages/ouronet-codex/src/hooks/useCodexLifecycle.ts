@@ -27,8 +27,8 @@
  * See docs/v0.2.0-design.md §5.2 and §5.3 for the full contract.
  */
 
-import { useCodexStore } from "../provider";
-import type { KickstartArgs, KickstartResult } from "../state/store";
+import { useCodexStore } from "../provider/index.js";
+import type { KickstartArgs, KickstartResult } from "../state/store.js";
 
 export interface CodexLifecycleView {
   /** Atomically install the Prime Codex Seed + CodexPrime ouro account
