@@ -20,4 +20,5 @@ export {
   CodexMigrationError,
   CodexConsumerSettingsError,
   CodexIdentityError,
+  CodexGuardError,
 } from "./types.js";

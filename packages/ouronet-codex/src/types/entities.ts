@@ -79,7 +79,12 @@ export interface IKadenaSeed {
 /** A raw Pact -g keypair stored directly in the codex (not derived from a
  *  seed). The `encryptedPrivateKey` is encrypted at the codex password,
  *  same envelope as seed secrets. Signed via the `seedType: "foreign"`
- *  path in universal-sign. */
+ *  path in universal-sign.
+ *
+ *  v0.3.0+ adds four optional marker flags (`isCodexGuard`, `wasCodexGuard`,
+ *  `isDuoPurePrime`, `duoPurePrimeRole`) — these identify special-role pure
+ *  keys that have lifecycle protections enforced by Phase 6+ rename/delete
+ *  guards. */
 export interface IPureKeypair {
   id: string;
   label?: string;
@@ -88,6 +93,48 @@ export interface IPureKeypair {
   /** `encryptString(privateKey, codexPassword)` */
   encryptedPrivateKey: string;
   createdAt: string;
+
+  /** Active CodexGuard marker.
+   *  Exactly ONE pure key in the codex carries isCodexGuard: true at any time.
+   *  That key's properties:
+   *    - is the FIRST pure key created when the codex was kickstarted
+   *    - has its label LOCKED to "CodexGuard" (codex rejects rename attempts)
+   *    - is NEVER deletable (codex rejects delete attempts)
+   *    - UI renders with the dark-cherry designation color (consumer-side hint
+   *      to display this distinctively)
+   *    - is the key whose public half is registered as the codex-guard field
+   *      on the ouronet-ns.CODEX chain entry
+   *  Set by kickstartCodex on creation; transferred by rotateCodexGuard. */
+  isCodexGuard?: boolean;
+
+  /** Historical CodexGuard marker.
+   *  When the user rotates the CodexGuard (replaces with a new pure key):
+   *    - the NEW pure key gets isCodexGuard: true (and isCodexGuard is
+   *      cleared from the prior one)
+   *    - the OLD pure key gets wasCodexGuard: true
+   *    - the OLD pure key's delete-protection STAYS (it remains stored
+   *      forever as a "former CodexGuard")
+   *    - the OLD pure key's label remains "CodexGuard" but with a numeric
+   *      suffix indicating retirement order: "CodexGuard (retired #1)"
+   *      (rename guards relax to allow this controlled suffix; consumer UI
+   *      makes the historical nature clear)
+   *  This preserves the historical chain of CodexGuards forever — anyone
+   *  inspecting the codex can see every key that ever held this role. */
+  wasCodexGuard?: boolean;
+
+  /** Duo Pure Prime marker (autopilot CodexPrime backing).
+   *  When the user chooses "auto-pure-keys" mode at kickstart instead of
+   *  providing a Kadena seed, the package generates two pure keys to back
+   *  the CodexPrime Ouronet Account (one as Payment Key, one as the
+   *  Ouronet account's keyset key). Both keys get isDuoPurePrime: true
+   *  and are protected from deletion (same mechanism as CodexGuard).
+   *  Their labels are locked to "Duo Pure Prime (Payment)" and
+   *  "Duo Pure Prime (Guard)" respectively. */
+  isDuoPurePrime?: boolean;
+
+  /** Role within the Duo Pure Prime pair (only meaningful when
+   *  isDuoPurePrime: true). */
+  duoPurePrimeRole?: "payment" | "guard";
 }
 
 /** An ouro (Ѻ./Σ.) account on chain. Persisted in the codex with its

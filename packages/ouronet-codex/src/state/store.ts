@@ -21,6 +21,7 @@ import {
   CodexPasswordError,
   CodexMigrationError,
   CodexConsumerSettingsError,
+  CodexGuardError,
 } from "../errors/types.js";
 import {
   applyMigrations,
@@ -215,6 +216,20 @@ export interface CodexStoreActions {
   // ----- pure keypairs -----
   addPureKeypair(keypair: IPureKeypair): Promise<void>;
   deletePureKeypair(id: string): Promise<void>;
+
+  // ----- codex guard (v0.3.0+) -----
+  /** Get the active CodexGuard's public key. Returns `null` for legacy/fresh
+   *  codices that have no active CodexGuard (the contract is null, NOT a throw —
+   *  callers asserting presence use the `missing-codex-guard` reason themselves).
+   *  Read-only: does not mutate state or call the adapter. Throws
+   *  `CodexGuardError("integrity-violated")` ONLY when more than one ACTIVE
+   *  CodexGuard is detected (a corrupted codex), preferring loud failure to a
+   *  silent first-match-wins. */
+  getCodexGuardPublic(): string | null;
+  /** Get the encrypted private half of the active CodexGuard. Caller decrypts
+   *  with the codex CK and signs Pact txs with it. Same null/throw contract as
+   *  `getCodexGuardPublic`. */
+  getCodexGuardEncryptedPrivate(): string | null;
 
   // ----- ouro accounts -----
   addOuroAccount(account: IOuroAccount): Promise<void>;
@@ -727,6 +742,38 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         const next = get().pureKeypairs.filter((k) => k.id !== id);
         set({ pureKeypairs: next });
         await persistAndTouch((a) => a.savePureKeypairs(next));
+      },
+
+      // ----- codex guard (v0.3.0+) -----
+
+      getCodexGuardPublic(): string | null {
+        const active = get().pureKeypairs.filter(
+          // A hybrid entry carrying both flags is a mid-rotation artifact —
+          // treat it as retired-not-active so the exactly-one invariant holds.
+          (k) => k.isCodexGuard === true && k.wasCodexGuard !== true
+        );
+        if (active.length > 1) {
+          // Defensive integrity check — surfaces a corrupted codex loudly
+          // instead of silently picking the first of several active guards.
+          throw new CodexGuardError(
+            "integrity-violated",
+            `Codex has ${active.length} active CodexGuards; exactly 1 expected.`
+          );
+        }
+        return active[0]?.publicKey ?? null;
+      },
+
+      getCodexGuardEncryptedPrivate(): string | null {
+        const active = get().pureKeypairs.filter(
+          (k) => k.isCodexGuard === true && k.wasCodexGuard !== true
+        );
+        if (active.length > 1) {
+          throw new CodexGuardError(
+            "integrity-violated",
+            `Codex has ${active.length} active CodexGuards; exactly 1 expected.`
+          );
+        }
+        return active[0]?.encryptedPrivateKey ?? null;
       },
 
       // ----- ouro accounts -----

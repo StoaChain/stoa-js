@@ -332,3 +332,58 @@ export class CodexIdentityError extends CodexError {
     this.reason = reason;
   }
 }
+
+/**
+ * Errors related to the CodexGuard lifecycle and DuoPurePrime protections.
+ *
+ * Consumer-phase map:
+ * - `already-exists`: thrown by Phase 7 `kickstartCodex` and Phase 8 `generateCodexGuardForLegacy` when codex already has an active CodexGuard
+ * - `missing-codex-guard`: thrown by Phase 7+ flows requiring an active CodexGuard when none is present (Phase 5's getters return null instead — this reason is for assertion contexts)
+ * - `rename-rejected`: thrown by Phase 6 rename guards when target pure key has `isCodexGuard`, `wasCodexGuard`, or `isDuoPurePrime` set
+ * - `delete-rejected`: thrown by Phase 6 `deletePureKeypair` guards when target has `isCodexGuard`, `wasCodexGuard`, or `isDuoPurePrime` set
+ * - `rotation-invalid`: thrown by Phase 8 `rotateCodexGuard` when the rotation target is invalid (e.g., already `isCodexGuard: true`, or doesn't exist)
+ * - `integrity-violated`: thrown by Phase 5's read getters when more than one ACTIVE CodexGuard is detected — a corrupted codex that breaks the exactly-one invariant (loud failure beats silent first-match-wins)
+ */
+export class CodexGuardError extends CodexError {
+  public override readonly name = "CodexGuardError";
+  public readonly reason:
+    | "already-exists"
+    | "missing-codex-guard"
+    | "rename-rejected"
+    | "delete-rejected"
+    | "rotation-invalid"
+    | "integrity-violated";
+
+  constructor(
+    reason: CodexGuardError["reason"],
+    detail?: string,
+    cause?: unknown
+  ) {
+    const messages: Record<CodexGuardError["reason"], string> = {
+      "already-exists":
+        "Codex already has an active CodexGuard. Use rotateCodexGuard() to " +
+        "replace it, or reset the codex first.",
+      "missing-codex-guard":
+        "Operation requires the codex to have an active CodexGuard, but none " +
+        "is present. v0.2 codices must run the interactive Phase 8 " +
+        "generateCodexGuardForLegacy() flow to create one.",
+      "rename-rejected":
+        "Pure keypair with CodexGuard or DuoPurePrime markers cannot be " +
+        "renamed. The label is locked by codex policy.",
+      "delete-rejected":
+        "Pure keypair with CodexGuard, wasCodexGuard, or DuoPurePrime markers " +
+        "cannot be deleted. These keys are structurally tied to the codex's " +
+        "identity.",
+      "rotation-invalid":
+        "CodexGuard rotation target is invalid. The target pure keypair must " +
+        "exist in the codex and must not already be the active CodexGuard.",
+      "integrity-violated":
+        "Codex integrity violated — multiple active CodexGuards detected; " +
+        "rotate or hand-edit codex to restore the exactly-one invariant.",
+    };
+    super(detail ? `${messages[reason]} ${detail}` : messages[reason], {
+      cause,
+    });
+    this.reason = reason;
+  }
+}
