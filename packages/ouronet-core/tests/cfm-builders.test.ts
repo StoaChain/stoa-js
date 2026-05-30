@@ -61,6 +61,10 @@ import {
   buildCreateSetPactCode,
   buildCreateSetNFTPactCode,
   buildRotateSovereignPactCode,
+  buildRotateGovernorPactCode,
+  buildNonKeyGuardExpr,
+  buildReleaseStoicTagPactCode,
+  buildRegisterStoicTagPactCode,
   buildRotateGuardPactCode,
   buildRotateKadenaPactCode,
 } from "../src/pact/cfmBuilders";
@@ -1024,6 +1028,9 @@ describe("every builder produces a valid Pact call shape", () => {
     () => buildUnwrapStoaPactCode({ patron: "a", unwrapper: "b", amount: "1" }),
     () => buildUnwrapUrStoaPactCode({ patron: "a", unwrapper: "b", amount: "1" }),
     () => buildRotateSovereignPactCode({ patron: "a", account: "b", newSovereign: "c" }),
+    () => buildRotateGovernorPactCode({ patron: "a", account: "b", governorExpr: "(create-user-guard (m.f))" }),
+    () => buildReleaseStoicTagPactCode({ patron: "a", tagName: "b" }),
+    () => buildRegisterStoicTagPactCode({ patron: "a", tagName: "b", accountAddress: "c" }),
     () => buildDeployStandardAccountPactCode({ account: "a", kadenaAddress: "k", publicKey: "p" }),
     () => buildAddLiquidityPactCode({ patron: "a", account: "b", swpair: "s", inputAmounts: ["1"] }),
     () => buildRemoveLiquidityPactCode({ patron: "a", account: "b", swpair: "s", lpAmount: "1" }),
@@ -1075,6 +1082,124 @@ describe("buildRotateSovereignPactCode", () => {
     expect(code).toContain(`"Ѻ.PATRON"`);
     expect(code).toContain(`"Σ.SMART"`);
     expect(code).toContain(`"Ѻ.NEW"`);
+  });
+});
+
+describe("buildRotateGovernorPactCode (v4.3.3)", () => {
+  it("emits the canonical 3-arg C_RotateGovernor shape with an inline guard expression", () => {
+    expect(
+      buildRotateGovernorPactCode({
+        patron:       PATRON,
+        account:      "Σ.SMART-ACCT",
+        governorExpr: "(create-user-guard (ouronet-ns.U|G.UEV_Any [ (create-capability-guard ouronet-ns.TFT.P|DALOS|REMOTE-GOV) ]))",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_RotateGovernor "${PATRON}" "Σ.SMART-ACCT" (create-user-guard (ouronet-ns.U|G.UEV_Any [ (create-capability-guard ouronet-ns.TFT.P|DALOS|REMOTE-GOV) ])))`,
+    );
+  });
+
+  it("interpolates the governor expression bare — NOT quoted as a string", () => {
+    const code = buildRotateGovernorPactCode({
+      patron: "p", account: "Σ.a", governorExpr: `(create-module-guard "g")`,
+    });
+    expect(code).toContain(".TS01-C1.DALOS|C_RotateGovernor ");
+    // The guard expression must appear as live Pact code, not a string literal.
+    expect(code).toContain(`(create-module-guard "g")`);
+    expect(code).not.toContain(`"(create-module-guard`);
+    // Argument ORDER guard — patron before account before governor.
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"Σ.a"`));
+    expect(code.indexOf(`"Σ.a"`)).toBeLessThan(code.indexOf("create-module-guard"));
+  });
+
+  it("preserves the standard / smart prefix characters byte-for-byte", () => {
+    const code = buildRotateGovernorPactCode({
+      patron: "Ѻ.PATRON", account: "Σ.SMART", governorExpr: `(create-pact-guard "x")`,
+    });
+    expect(code).toContain(`"Ѻ.PATRON"`);
+    expect(code).toContain(`"Σ.SMART"`);
+  });
+});
+
+describe("buildNonKeyGuardExpr (v4.3.3)", () => {
+  it("wraps a user-guard body in the create-user-guard constructor", () => {
+    expect(
+      buildNonKeyGuardExpr({
+        constructor: "create-user-guard",
+        body: "(ouronet-ns.U|G.UEV_Any [ (create-capability-guard ouronet-ns.TFT.P|REMOTE-GOV) ])",
+      }),
+    ).toBe(
+      "(create-user-guard (ouronet-ns.U|G.UEV_Any [ (create-capability-guard ouronet-ns.TFT.P|REMOTE-GOV) ]))",
+    );
+  });
+
+  it("wraps each of the five non-key constructors verbatim with a single space before the body", () => {
+    const constructors = [
+      "create-user-guard",
+      "create-capability-guard",
+      "create-capability-pact-guard",
+      "create-module-guard",
+      "create-pact-guard",
+    ] as const;
+    for (const c of constructors) {
+      expect(buildNonKeyGuardExpr({ constructor: c, body: "X" })).toBe(`(${c} X)`);
+    }
+  });
+
+  it("composes with buildRotateGovernorPactCode to form the full governor expression", () => {
+    const governorExpr = buildNonKeyGuardExpr({
+      constructor: "create-module-guard",
+      body: `"ouronet-ns.TFT.REMOTE-GOV"`,
+    });
+    expect(
+      buildRotateGovernorPactCode({ patron: PATRON, account: "Σ.SMART", governorExpr }),
+    ).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_RotateGovernor "${PATRON}" "Σ.SMART" (create-module-guard "ouronet-ns.TFT.REMOTE-GOV"))`,
+    );
+  });
+});
+
+describe("buildReleaseStoicTagPactCode (v4.3.3)", () => {
+  it("emits the canonical 2-arg C_ReleaseStoicTag shape", () => {
+    expect(
+      buildReleaseStoicTagPactCode({ patron: PATRON, tagName: "AncientHodler" }),
+    ).toBe(
+      `(ouronet-ns.TS01-C4.CODEX|C_ReleaseStoicTag "${PATRON}" "AncientHodler")`,
+    );
+  });
+
+  it("uses the TS01-C4.CODEX module + C_ReleaseStoicTag function, patron before tag", () => {
+    const code = buildReleaseStoicTagPactCode({ patron: "p", tagName: "t" });
+    expect(code).toContain(".TS01-C4.CODEX|C_ReleaseStoicTag ");
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"t"`));
+  });
+
+  it("passes the tag name through verbatim (DALOS glyphs, no § sigil)", () => {
+    const code = buildReleaseStoicTagPactCode({ patron: "Ѻ.PATRON", tagName: "Σ₳ΦДжΞ" });
+    expect(code).toContain(`"Σ₳ΦДжΞ"`);
+    expect(code).not.toContain("§");
+  });
+});
+
+describe("buildRegisterStoicTagPactCode (v4.3.3)", () => {
+  it("emits the canonical 3-arg C_RegisterStoicTag shape", () => {
+    expect(
+      buildRegisterStoicTagPactCode({ patron: PATRON, tagName: "AncientHodler", accountAddress: "Ѻ.ACCT" }),
+    ).toBe(
+      `(ouronet-ns.TS01-C4.CODEX|C_RegisterStoicTag "${PATRON}" "AncientHodler" "Ѻ.ACCT")`,
+    );
+  });
+
+  it("uses TS01-C4.CODEX|C_RegisterStoicTag, args in order patron → tag → account", () => {
+    const code = buildRegisterStoicTagPactCode({ patron: "p", tagName: "t", accountAddress: "Ѻ.a" });
+    expect(code).toContain(".TS01-C4.CODEX|C_RegisterStoicTag ");
+    expect(code.indexOf(`"p"`)).toBeLessThan(code.indexOf(`"t"`));
+    expect(code.indexOf(`"t"`)).toBeLessThan(code.indexOf(`"Ѻ.a"`));
+  });
+
+  it("passes the tag name through verbatim (DALOS glyphs, no § sigil)", () => {
+    const code = buildRegisterStoicTagPactCode({ patron: "p", tagName: "Σ₳ΦДжΞ", accountAddress: "Ѻ.a" });
+    expect(code).toContain(`"Σ₳ΦДжΞ"`);
+    expect(code).not.toContain("§");
   });
 });
 

@@ -50,6 +50,33 @@ export interface AccountSelectorData {
    * and unactivated accounts. Added in v1.4.0.
    */
   readonly "governor": any | false; // IKeyset / capability / module guard / false
+  /**
+   * Stoic Tag — the human-readable alias attached to this Ouronet account.
+   *   `stoic-tag-has`            true when the account has an active tag.
+   *   `stoic-tag`                the tag name, or the literal sentinel
+   *                              "No StoicTag yet" when none. Consumers MUST
+   *                              gate on `stoic-tag-has`, never the string.
+   *   `stoic-tag-registered-at`  block time at registration; `false` if none.
+   */
+  readonly "stoic-tag-has": boolean;
+  readonly "stoic-tag": string;
+  readonly "stoic-tag-registered-at": unknown; // Pact time, or false
+}
+
+/**
+ * Inverse StoicTag read — one row per queried tag name, from
+ * `URC_0027c_StoicTagSelectorSingle` (and the batch `URC_0027b_…Mapper`).
+ * Powers Address Book StoicTag entries, which watch a tag independently of
+ * any codex account.
+ */
+export interface StoicTagSelectorData {
+  readonly "stoic-tag": string;            // the queried tag name
+  readonly "iz-row-exists": boolean;       // row present (active OR released)
+  readonly "iz-active": boolean;           // currently bound to an account
+  readonly "iz-released": boolean;         // row exists but no longer active
+  readonly "iz-never-registered": boolean; // no row at all
+  readonly "ouronet-account": string;      // bound Ѻ. account, or "BAR"
+  readonly "registered-at": unknown;       // Pact time, or false
 }
 
 export interface StoaAccountSelectorData {

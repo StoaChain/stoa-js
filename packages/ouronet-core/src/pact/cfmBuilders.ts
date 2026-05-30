@@ -889,6 +889,118 @@ export function buildRotateSovereignPactCode(p: {
 }
 
 /**
+ * Rotate the GOVERNOR of a Smart Ouronet Account (Σ. prefix).
+ *
+ *   (ouronet-ns.TS01-C1.DALOS|C_RotateGovernor <patron> <account> <governor-expr>)
+ *
+ * Unlike the account GUARD — which the chain now restricts to key-based
+ * guards (keyset / keyset-ref) — the governor slot is restricted to
+ * NON-key-based guards (user / capability / module / pact). The
+ * `governorExpr` is therefore a complete inline guard-construction
+ * expression authored by the consumer, e.g.
+ *
+ *   (create-user-guard (ouronet-ns.U|G.UEV_Any [ (create-capability-guard ...) ... ]))
+ *
+ * Because the guard is inline (not read from a data slot), there is NO
+ * `.addData("ks", …)` payload — contrast `buildRotateGuardPactCode`'s
+ * "define" mode. The builder ONLY interpolates the expression; producing
+ * a syntactically valid, non-key-based `governorExpr` is the caller's
+ * responsibility (the chain rejects key-based governors).
+ *
+ * Added in v4.3.3.
+ */
+export function buildRotateGovernorPactCode(p: {
+  patron:       string;
+  account:      string;
+  /** Complete inline guard-construction expression. Non-key-based only. */
+  governorExpr: string;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_RotateGovernor "${p.patron}" "${p.account}" ${p.governorExpr})`;
+}
+
+/**
+ * The five Pact built-in constructors that produce a NON-key-based guard.
+ * These are the only guard kinds the chain accepts in a governor slot
+ * (the account GUARD slot is the inverse — key-based only).
+ */
+export type NonKeyGuardConstructor =
+  | "create-user-guard"
+  | "create-capability-guard"
+  | "create-capability-pact-guard"
+  | "create-module-guard"
+  | "create-pact-guard";
+
+/**
+ * Wrap a guard `body` expression in one of the five non-key-based guard
+ * constructors, producing the inline `governorExpr` that
+ * {@link buildRotateGovernorPactCode} interpolates:
+ *
+ *   buildNonKeyGuardExpr({ constructor: "create-user-guard",
+ *                          body: "(ns.UG.UEV_Any (create-capability-guard ...))" })
+ *   → "(create-user-guard (ns.UG.UEV_Any (create-capability-guard ...)))"
+ *
+ * `body` is the complete argument expression the constructor receives
+ * (parens / brackets / quotes already included — for `create-module-guard`
+ * and `create-pact-guard` that is a quoted name string `"name"`). The
+ * builder does NOT validate or quote `body`; producing a syntactically
+ * valid argument is the caller's responsibility.
+ *
+ * Added in v4.3.3.
+ */
+export function buildNonKeyGuardExpr(p: {
+  constructor: NonKeyGuardConstructor;
+  body:        string;
+}): string {
+  return `(${p.constructor} ${p.body})`;
+}
+
+// ─── TS01-C4.CODEX family (StoicTag registry) ────────────────────────────────
+
+/**
+ * Release the StoicTag currently bound to an Ouronet account.
+ *
+ *   (ouronet-ns.TS01-C4.CODEX|C_ReleaseStoicTag <patron> <tag-name>)
+ *
+ * `tag-name` is the BARE on-chain name (no § sigil — the sigil is a UI-only
+ * marker). The chain resolves the account the tag is bound to and enforces
+ * that account's ownership, so the consumer MUST sign with the bound account's
+ * guard (in addition to the patron). The only cost is IGNIS, 1 per glyph of the
+ * tag name; the amount is surfaced by `INFO_ReleaseStoicTag`.
+ *
+ * Added in v4.3.3.
+ */
+export function buildReleaseStoicTagPactCode(p: {
+  patron:  string;
+  tagName: string;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C4.CODEX|C_ReleaseStoicTag "${p.patron}" "${p.tagName}")`;
+}
+
+/**
+ * Register (claim) a StoicTag for an Ouronet account.
+ *
+ *   (ouronet-ns.TS01-C4.CODEX|C_RegisterStoicTag <patron> <tag-name> <account-address>)
+ *
+ * `tag-name` is the BARE on-chain name (DALOS glyphs only, no § sigil).
+ * `account-address` is the Ouronet account the tag is being applied to.
+ *
+ * This costs NATIVE STOA (1 per glyph, less the account's Elite-tier discount),
+ * paid by the patron's payment key and split 10/20/30/40 across the protocol
+ * receivers returned by `INFO_RegisterStoicTag`. The consumer MUST therefore
+ * sign the payment key with `GAS_PAYER` + one `coin.TRANSFER` per split
+ * receiver — otherwise the chain rejects the transaction.
+ *
+ * Added in v4.3.3.
+ */
+export function buildRegisterStoicTagPactCode(p: {
+  patron:         string;
+  tagName:        string;
+  accountAddress: string;
+}): string {
+  return `(${KADENA_NAMESPACE}.TS01-C4.CODEX|C_RegisterStoicTag "${p.patron}" "${p.tagName}" "${p.accountAddress}")`;
+}
+
+/**
  * Rotate the GUARD (ownership keyset) of an Ouronet account.
  *
  *   (ouronet-ns.TS01-C1.DALOS|C_RotateGuard <patron> <account> <guard-expr> <safe>)

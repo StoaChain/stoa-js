@@ -4,6 +4,14 @@ All notable changes to `@stoachain/kadena-stoic-legacy`.
 
 This package was born at v4.1.0 as a sovereign supply-chain replacement for the upstream `@kadena/*` npm packages following Kadena LLC's dissolution. Released atomically alongside `@stoachain/stoa-core@4.1.0` + `@stoachain/ouronet-core@4.1.0` out of the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo — a single `vX.Y.Z` git tag publishes all three packages.
 
+## 4.3.3 — 2026-05-30
+
+**PATCH — atomic-triplet alignment**. No code changes in THIS package; version bumped solely to maintain the atomic-triplet invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts` (all 3 packages share the exact same version). The v4.3.3 release surface lives entirely in [`@stoachain/ouronet-core@4.3.3`](https://www.npmjs.com/package/@stoachain/ouronet-core) — additive StoicTag + governor-rotation builders/readers. Functionally identical to v4.3.2.
+
+## 4.3.2 — 2026-05-30
+
+**PATCH — atomic-triplet alignment**. No code changes in THIS package; version bumped solely to maintain the atomic-triplet invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts` (all 3 packages share the exact same version). The v4.3.2 release surface lives entirely in [`@stoachain/ouronet-core@4.3.2`](https://www.npmjs.com/package/@stoachain/ouronet-core) — a frozen-keyset mutation fix in `resolveGuard` / `getKadenaAccountGuard`. Functionally identical to v4.3.1.
+
 ## 4.3.1 — 2026-05-27
 
 **PATCH — atomic-triplet alignment**. No code changes in THIS package; version bumped solely to maintain the atomic-triplet invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts` (all 3 packages share the exact same version). The v4.3.1 release surface lives in [`@stoachain/stoa-core@4.3.1`](https://www.npmjs.com/package/@stoachain/stoa-core) + [`@stoachain/ouronet-core@4.3.1`](https://www.npmjs.com/package/@stoachain/ouronet-core) (ESM extensionless-relative-import fix in their emitted `dist/**/*.js`). This package's CommonJS build (`.cjs` output via separate tsconfig) was never affected by that bug because CommonJS always uses explicit file extensions in `require()`. Functionally identical to v4.3.0.

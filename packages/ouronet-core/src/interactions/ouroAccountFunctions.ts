@@ -8,7 +8,7 @@ import type { IKeyset } from "@stoachain/stoa-core/guard";
 import { normalizeKeysetRef } from "@stoachain/stoa-core/guard";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { getLogger } from "@stoachain/stoa-core/observability";
-import type { AccountSelectorData, StoaAccountSelectorData, AccountOverviewData } from "./ouroTypes.js";
+import type { AccountSelectorData, StoaAccountSelectorData, AccountOverviewData, StoicTagSelectorData } from "./ouroTypes.js";
 
 export async function getAccountSelectorData(accounts: string[], options?: { skipTempWatcher?: boolean }): Promise<AccountSelectorData[]> {
   const accountsList = accounts.map(a => `"${a}"`).join(" ");
@@ -21,6 +21,85 @@ export async function getAccountSelectorData(accounts: string[], options?: { ski
   }
 
   return ((response.result as any)?.data as AccountSelectorData[]) ?? [];
+}
+
+/**
+ * Inverse StoicTag read — batch resolve a list of tag names to their on-chain
+ * status (existence / active / released) and bound Ouronet account, via
+ * `URC_0027b_StoicTagSelectorMapper`. Used by Address Book StoicTag entries,
+ * which watch a tag independently of any codex account. Returns one row per
+ * input tag, in order. Empty input → empty array.
+ */
+export async function getStoicTagSelectorData(tagNames: string[]): Promise<StoicTagSelectorData[]> {
+  if (tagNames.length === 0) return [];
+  const tagList = tagNames.map(t => `"${t}"`).join(" ");
+  const pactCode = `(${KADENA_NAMESPACE}.DPL-UR.URC_0027b_StoicTagSelectorMapper [${tagList}])`;
+  const response = await pactRead(pactCode, { tier: "T5" });
+
+  if (!response?.result || (response.result as any).status === "failure") {
+    getLogger().error("StoicTagSelectorMapper failed:", response);
+    return [];
+  }
+
+  return ((response.result as any)?.data as StoicTagSelectorData[]) ?? [];
+}
+
+/**
+ * Inverse StoicTag read — single tag name, via
+ * `URC_0027c_StoicTagSelectorSingle`. Returns `null` only on a read failure;
+ * a never-registered tag still resolves to a row with
+ * `iz-never-registered: true`.
+ */
+export async function getStoicTagInfo(tagName: string): Promise<StoicTagSelectorData | null> {
+  if (!tagName) return null;
+  const pactCode = `(${KADENA_NAMESPACE}.DPL-UR.URC_0027c_StoicTagSelectorSingle "${tagName}")`;
+  const response = await pactRead(pactCode, { tier: "T5" });
+
+  if (!response?.result || (response.result as any).status === "failure") {
+    getLogger().error("StoicTagSelectorSingle failed:", response);
+    return null;
+  }
+
+  return ((response.result as any)?.data as StoicTagSelectorData) ?? null;
+}
+
+export interface RegisterStoicTagFullInfo {
+  /** The raw INFO_RegisterStoicTag ClientInfo (ignis + kadena/STOA split, text). */
+  info: any;
+  /** Split receiver k:/c: addresses — `kadena-targets` resolved via UR_AccountKadena. */
+  receivers: string[];
+}
+
+/**
+ * Full INFO for registering a StoicTag — fetches INFO_RegisterStoicTag AND
+ * resolves the STOA-split target Ouronet accounts (`kadena.kadena-targets`) to
+ * their actual k:/c: payment addresses in one read (mirrors
+ * getDeployStandardAccountInfo). The amounts live in `info.kadena.kadena-split`.
+ * Used to build the `coin.TRANSFER` capabilities the patron's payment key signs.
+ */
+export async function getRegisterStoicTagInfo(
+  patron: string,
+  tagName: string,
+  account: string,
+): Promise<RegisterStoicTagFullInfo | null> {
+  if (!patron || !tagName || !account) return null;
+  try {
+    const pactCode =
+      `(let*` +
+      `  ((info (${KADENA_NAMESPACE}.CODEX.CODEX|INFO_RegisterStoicTag "${patron}" "${tagName}" "${account}"))` +
+      `   (receivers (map (${KADENA_NAMESPACE}.DALOS.UR_AccountKadena) (at "kadena-targets" (at "kadena" info)))))` +
+      `  { "info": info, "receivers": receivers })`;
+    const response = await pactRead(pactCode, { tier: "T5" });
+    if (response?.result && (response.result as any).status !== "failure") {
+      const data = (response.result as any).data;
+      return { info: data?.info ?? null, receivers: data?.receivers ?? [] };
+    }
+    getLogger().error("getRegisterStoicTagInfo failed:", response);
+    return null;
+  } catch (error) {
+    getLogger().error("getRegisterStoicTagInfo error:", error);
+    return null;
+  }
 }
 
 export async function getStoaAccountSelectorData(accounts: string[]): Promise<StoaAccountSelectorData[]> {
@@ -107,8 +186,11 @@ export async function resolveGuard(guardData: any): Promise<any> {
   guardData = normalizeKeysetRef(guardData);
   if (guardData.keysetref) {
     const ks = await readKeyset(guardData.keysetref.ns, guardData.keysetref.ksn);
-    if (ks) ks.keysetRef = `${guardData.keysetref.ns}.${guardData.keysetref.ksn}`;
-    return ks;
+    // Return a copy rather than mutating `ks` in place: the keyset object
+    // comes from `readKeyset`, which (under OuronetUI's cache-aware reader)
+    // hands back a shared, frozen reference. Writing `.keysetRef` onto it
+    // throws "Cannot assign to read only property 'keysetRef'".
+    return ks ? { ...ks, keysetRef: `${guardData.keysetref.ns}.${guardData.keysetref.ksn}` } : ks;
   }
   return guardData;
 }
@@ -123,8 +205,8 @@ export const getKadenaAccountGuard = async (
   const { data } = response.result as any;
   if (data?.hasOwnProperty("keysetref")) {
     const ks2 = await readKeyset(data.keysetref.ns, data.keysetref.ksn);
-    if (ks2) ks2.keysetRef = `${data.keysetref.ns}.${data.keysetref.ksn}`;
-    return ks2;
+    // Copy, don't mutate — see resolveGuard above for the frozen-reference rationale.
+    return ks2 ? { ...ks2, keysetRef: `${data.keysetref.ns}.${data.keysetref.ksn}` } : ks2;
   }
 
   return data || null;

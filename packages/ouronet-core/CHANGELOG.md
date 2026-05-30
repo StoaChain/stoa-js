@@ -4,6 +4,52 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.3.3 — 2026-05-30
+
+**Additive — StoicTag + governor-rotation builder/reader surface** supporting the OuronetUI v1.2.5 StoicTag wiring cycle (Register / Release StoicTag modals, Rotate Governor modal, tag-aware receiver fields). Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped 4.3.2 → 4.3.3 in lockstep per the cross-package version-pin invariant; those two packages are functionally identical to their 4.3.2 release.
+
+### New Pact builders (`src/pact/cfmBuilders.ts`)
+
+- `buildRotateGovernorPactCode({ patron, account, governor })` — emits the `ouronet-ns` governor-rotation call.
+- `buildNonKeyGuardExpr(constructor, ...)` (+ exported `NonKeyGuardConstructor` type) — serializes a User-guard or Capability-guard expression for the non-key governor branch.
+- `buildReleaseStoicTagPactCode({ patron, tagName })` — `(ouronet-ns.TS01-C4.CODEX|C_ReleaseStoicTag "patron" "tag")`.
+- `buildRegisterStoicTagPactCode({ patron, tagName, accountAddress })` — `(ouronet-ns.TS01-C4.CODEX|C_RegisterStoicTag "patron" "tag" "account")`.
+
+### New interaction readers (`src/interactions/ouroAccountFunctions.ts`)
+
+- `getStoicTagInfo` (URC_0027c) — forward StoicTag info read.
+- `getStoicTagSelectorData` (URC_0027b) — batch selector-data read for tag pickers.
+- `getRegisterStoicTagInfo(patron, tagName, account)` — combined `let*` read returning `{ info, receivers }` (INFO + `kadena-targets` resolved via `UR_AccountKadena`) for the native-STOA split registration flow.
+
+### Types (`src/interactions/ouroTypes.ts`)
+
+- `AccountSelectorData` gained `stoic-tag-has` / `stoic-tag` / `stoic-tag-registered-at`.
+- New `StoicTagSelectorData` interface.
+
+All additions are additive on the public typed surface — no existing builder, reader, or type signature changed. Covered by `tests/cfm-builders.test.ts` + `tests/stoic-tag-reads.test.ts`.
+
+## 4.3.2 — 2026-05-30
+
+**PATCH — frozen-keyset mutation fix in `resolveGuard` / `getKadenaAccountGuard`** (`src/interactions/ouroAccountFunctions.ts`). Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped 4.3.1 → 4.3.2 in lockstep per the cross-package version-pin invariant; those two packages are functionally identical to their 4.3.1 release.
+
+### The bug
+
+Both helpers resolved a keyset-ref by reading the keyset and then **mutating the read result in place**:
+
+```ts
+const ks = await readKeyset(guardData.keysetref.ns, guardData.keysetref.ksn);
+if (ks) ks.keysetRef = `${guardData.keysetref.ns}.${guardData.keysetref.ksn}`;
+return ks;
+```
+
+`readKeyset` returns the object handed back by the configured `pactRead` seam. Under OuronetUI's cache-aware reader that object is a **shared, frozen reference**, so the in-place write threw `TypeError: Cannot assign to read only property 'keysetRef'`. In OuronetUI this rejection propagated through the `Promise.all` inside wallet-context's `syncOuroAccounts`, aborting the whole sync before the displayed account list / counts were updated — so newly-spawned Ouronet accounts (any creation mode) never appeared in the Codex, and Standard/Smart counts froze at the last successful-sync snapshot. The mode/curve "specificity" originally reported was incidental timing, not a per-mode code path.
+
+The bug didn't surface server-side (AH hub) because the default uncached reader returns fresh, unfrozen objects each call.
+
+### The fix
+
+Return a shallow copy instead of mutating: `return ks ? { ...ks, keysetRef } : ks;`. The borrowed/frozen read result is never written to. Regression test in `tests/v4-3-2-resolve-guard-no-mutate-frozen-keyset.test.ts` installs a `pactReader` that returns a frozen keyset and asserts neither helper throws, the resolved `keysetRef` is present on the returned object, and the frozen source is left untouched. No public API or type changes.
+
 ## 4.3.1 — 2026-05-27
 
 **PATCH — ESM extensionless-relative-import fix** (atomic-triplet bump). Same bug pattern as [`@stoachain/stoa-core@4.3.1`](https://www.npmjs.com/package/@stoachain/stoa-core) and [`@stoachain/ouronet-codex@0.2.1`](https://www.npmjs.com/package/@stoachain/ouronet-codex). See those entries for the full bug context.
