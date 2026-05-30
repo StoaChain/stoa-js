@@ -236,3 +236,49 @@ export class CodexMigrationError extends CodexError {
     this.reason = reason;
   }
 }
+
+/** Thrown by the consumer-settings registry actions (`updateConsumerSettings`)
+ *  on the store (v0.3.0+). The `reason` field discriminates:
+ *
+ *   - `invalid-consumer-name`: the supplied `consumerName` failed the tight
+ *     ASCII identifier validation (must start with a letter; ASCII
+ *     alphanumeric + `_`/`-`; 1-64 chars). Rejects empty/whitespace,
+ *     control/zero-width chars, path-injection (`/`, `\`, `..`), and
+ *     length-DoS names. `detail` carries the rejected name.
+ *   - `schema-downgrade`: a write was attempted whose `schemaVersion` is
+ *     STRICTLY LESS than the stored entry's. Rejected ONLY when attempted <
+ *     existing; EQUAL is allowed (same consumer version re-saving updated
+ *     settings is the common case). `detail` carries "existing={N},
+ *     attempted={M}".
+ *   - `missing-entry`: reserved for a future caller that wants to assert an
+ *     entry exists. `getConsumerSettings` itself does NOT throw this — it
+ *     returns `null` for an unknown consumer per the REQ-02 contract. */
+export class CodexConsumerSettingsError extends CodexError {
+  public override readonly name = "CodexConsumerSettingsError";
+  public readonly reason:
+    | "invalid-consumer-name"
+    | "schema-downgrade"
+    | "missing-entry";
+
+  constructor(
+    reason: CodexConsumerSettingsError["reason"],
+    detail?: string,
+    cause?: unknown
+  ) {
+    const messages: Record<CodexConsumerSettingsError["reason"], string> = {
+      "invalid-consumer-name":
+        "Consumer name is invalid. It must start with a letter and contain " +
+        "only ASCII letters, digits, '_' or '-' (1-64 characters).",
+      "schema-downgrade":
+        "Refusing to overwrite consumer settings with an older schema " +
+        "version. The attempted write's schemaVersion is lower than the " +
+        "stored entry's (equal versions are allowed).",
+      "missing-entry":
+        "No consumer settings entry exists for the requested consumer name.",
+    };
+    super(detail ? `${messages[reason]} ${detail}` : messages[reason], {
+      cause,
+    });
+    this.reason = reason;
+  }
+}

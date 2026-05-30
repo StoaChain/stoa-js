@@ -24,6 +24,7 @@ export type {
   AddressBookEntry,
   UiSettings,
   WatchListEntry,
+  IConsumerSettings,
 } from "./entities.js";
 
 export { DEFAULT_UI_SETTINGS } from "./entities.js";

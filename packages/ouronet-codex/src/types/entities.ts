@@ -202,3 +202,33 @@ export interface WatchListEntry {
   type: "ouronet" | "stoa";
   createdAt: string;
 }
+
+/** A single consumer's namespaced settings registry entry (v0.3.0+).
+ *
+ *  The codex stores a `Record<string, IConsumerSettings>` keyed by
+ *  `consumerName`, letting multiple consumer apps (OuronetUI,
+ *  AncientHoldings, Mnemosyne, ...) each stash their own settings under
+ *  the same codex without colliding. The `settings` payload is the escape
+ *  hatch (mirrors `UiSettings[extra]`): consumer-defined keys that the
+ *  package treats as opaque, keeping the canonical type unbloated. The
+ *  registry container itself is the structured part; each entry's own
+ *  schema evolves under the consumer's `schemaVersion`. */
+export interface IConsumerSettings {
+  /** Canonical consumer identifier (e.g. "OuronetUI", "AncientHoldings",
+   *  "Mnemosyne"). Used as the registry key. The store action validates
+   *  this against a tight ASCII identifier regex on write. */
+  consumerName: string;
+  /** The consumer app's own semver at the time of the write. */
+  consumerVersion: string;
+  /** The consumer's own settings-schema version. The store action rejects
+   *  a write whose schemaVersion is strictly less than the stored entry's
+   *  (downgrade protection); equal is allowed (same-version re-save). */
+  schemaVersion: number;
+  /** Consumer-defined opaque payload. The package never inspects these
+   *  keys — they round-trip verbatim. */
+  settings: Record<string, unknown>;
+  /** ISO timestamp of the last write. Server-stamped by the store action
+   *  (caller-supplied value is overridden) so it is a trustworthy
+   *  last-write marker. */
+  lastUpdatedAt: string;
+}

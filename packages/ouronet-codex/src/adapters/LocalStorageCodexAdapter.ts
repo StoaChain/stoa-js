@@ -10,6 +10,7 @@ import {
   type UiSettings,
   type DeviceVariant,
   type WatchListEntry,
+  type IConsumerSettings,
 } from "../types/entities.js";
 import type { CodexAdapter, CodexSnapshot } from "./types.js";
 import { emptySnapshot } from "./types.js";
@@ -33,6 +34,8 @@ import { emptySnapshot } from "./types.js";
  *   - "stoa-watch-list"        watchlist (JSON array)
  *   - "uiSettings"             plain UI settings (JSON object)
  *   - "uiSettings_enc"         encrypted UI settings sidecar
+ *   - "consumerSettings"       per-consumer settings registry (JSON object,
+ *                              v0.3.0+; absent on v0.2 codices → {})
  *   - "codex_schema_version"   in-band schema version (string -> int)
  *   - "codex_last_updated"     ISO timestamp
  *   - "codex_device"           "dev" | "main"
@@ -72,6 +75,7 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       const addressBook = this.loadAddressBookWithLegacyFallback();
       const watchList = this.parseArray<WatchListEntry>("stoa-watch-list");
       const uiSettings = this.loadUiSettingsPlain();
+      const consumerSettings = this.loadConsumerSettings();
       const schemaVersion = this.loadSchemaVersion();
       const lastUpdatedAt = window.localStorage.getItem("codex_last_updated");
       const lastUpdatedDevice = this.loadDeviceVariant();
@@ -83,6 +87,7 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
         addressBook,
         watchList,
         uiSettings,
+        consumerSettings,
         schemaVersion,
         lastUpdatedAt,
         lastUpdatedDevice,
@@ -101,6 +106,10 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       window.localStorage.setItem("addressBook", JSON.stringify(snapshot.addressBook));
       window.localStorage.setItem("stoa-watch-list", JSON.stringify(snapshot.watchList));
       window.localStorage.setItem("uiSettings", JSON.stringify(snapshot.uiSettings));
+      window.localStorage.setItem(
+        "consumerSettings",
+        JSON.stringify(snapshot.consumerSettings ?? {})
+      );
       window.localStorage.setItem("codex_schema_version", String(snapshot.schemaVersion));
       if (snapshot.lastUpdatedAt) {
         window.localStorage.setItem("codex_last_updated", snapshot.lastUpdatedAt);
@@ -164,6 +173,20 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       window.localStorage.setItem("uiSettings", JSON.stringify(settings));
     } catch (e) {
       throw new CodexAdapterError(this.name, "saveUiSettings", e);
+    }
+  }
+
+  public async saveConsumerSettings(
+    consumerSettings: Record<string, IConsumerSettings>
+  ): Promise<void> {
+    this.assertBrowser("saveConsumerSettings");
+    try {
+      window.localStorage.setItem(
+        "consumerSettings",
+        JSON.stringify(consumerSettings ?? {})
+      );
+    } catch (e) {
+      throw new CodexAdapterError(this.name, "saveConsumerSettings", e);
     }
   }
 
@@ -245,6 +268,7 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
         "stoa-watch-list",
         "uiSettings",
         "uiSettings_enc",
+        "consumerSettings",
         "codex_schema_version",
         "codex_last_updated",
         "codex_device",
@@ -361,6 +385,23 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       return { ...DEFAULT_UI_SETTINGS, ...parsed };
     } catch {
       return { ...DEFAULT_UI_SETTINGS };
+    }
+  }
+
+  /** Load the per-consumer settings registry, returning {} on
+   *  missing/invalid. v0.2 codices have no `consumerSettings` key — they
+   *  load as an empty registry. */
+  private loadConsumerSettings(): Record<string, IConsumerSettings> {
+    const raw = window.localStorage.getItem("consumerSettings");
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, IConsumerSettings>;
+      }
+      return {};
+    } catch {
+      return {};
     }
   }
 

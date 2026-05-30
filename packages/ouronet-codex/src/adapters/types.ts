@@ -6,6 +6,7 @@ import type {
   UiSettings,
   DeviceVariant,
   WatchListEntry,
+  IConsumerSettings,
 } from "../types/entities.js";
 
 /**
@@ -23,6 +24,12 @@ export interface CodexSnapshot {
   addressBook: AddressBookEntry[];
   watchList: WatchListEntry[];
   uiSettings: UiSettings;
+  /** Per-consumer settings registry (v0.3.0+). Keyed by `consumerName`, each
+   *  value is that consumer's own namespaced settings. Additive-optional so
+   *  v0.2 snapshots (which have no such field) load cleanly — readers
+   *  coalesce a missing value to an empty registry. `emptySnapshot()`
+   *  initializes it to `{}`. */
+  consumerSettings?: Record<string, IConsumerSettings>;
   schemaVersion: number;
   lastUpdatedAt: string | null;
   lastUpdatedDevice: DeviceVariant;
@@ -89,6 +96,15 @@ export interface CodexAdapter {
   saveAddressBook(entries: AddressBookEntry[]): Promise<void>;
   saveWatchList(entries: WatchListEntry[]): Promise<void>;
   saveUiSettings(settings: UiSettings): Promise<void>;
+  /** Persist the per-consumer settings registry slice (v0.3.0+). Like the
+   *  other per-slice writes, updates ONLY the consumerSettings shard in the
+   *  backing store; the next `loadAll()` returns it merged into the snapshot.
+   *  A dedicated method is required (rather than relying on `saveAll`) so the
+   *  LocalStorage adapter — which shards known keys — does not silently drop
+   *  the field. */
+  saveConsumerSettings(
+    consumerSettings: Record<string, IConsumerSettings>
+  ): Promise<void>;
 
   // ----- metadata -----
 
@@ -138,6 +154,11 @@ export function emptySnapshot(deviceVariant: DeviceVariant): CodexSnapshot {
     addressBook: [],
     watchList: [],
     uiSettings: { ...DEFAULT_UI_SETTINGS },
+    // Empty registry (NOT undefined): an empty consumer-settings container is
+    // {}, so callers can spread into it without a null-guard. Individual
+    // entries bring their own schemaVersion/settings — there is no
+    // DEFAULT_CONSUMER_SETTINGS to spread (this is a container, not a value).
+    consumerSettings: {},
     schemaVersion: 0,
     lastUpdatedAt: null,
     lastUpdatedDevice: deviceVariant,

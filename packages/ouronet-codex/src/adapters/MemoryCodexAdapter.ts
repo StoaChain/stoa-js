@@ -7,6 +7,7 @@ import type {
   UiSettings,
   DeviceVariant,
   WatchListEntry,
+  IConsumerSettings,
 } from "../types/entities.js";
 import type { CodexAdapter, CodexSnapshot } from "./types.js";
 import { emptySnapshot } from "./types.js";
@@ -71,6 +72,12 @@ export class MemoryCodexAdapter implements CodexAdapter {
 
   public async saveUiSettings(settings: UiSettings): Promise<void> {
     this.snapshot.uiSettings = structuredClone(settings);
+  }
+
+  public async saveConsumerSettings(
+    consumerSettings: Record<string, IConsumerSettings>
+  ): Promise<void> {
+    this.snapshot.consumerSettings = structuredClone(consumerSettings);
   }
 
   // ----- metadata -----

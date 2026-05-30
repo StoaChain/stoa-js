@@ -8,6 +8,7 @@ import type {
   WatchListEntry,
   UiSettings,
   DeviceVariant,
+  IConsumerSettings,
 } from "../types/entities.js";
 import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
 import type { CodexAdapter, CodexSnapshot } from "../adapters/types.js";
@@ -18,6 +19,7 @@ import {
   CodexKickstartError,
   CodexPasswordError,
   CodexMigrationError,
+  CodexConsumerSettingsError,
 } from "../errors/types.js";
 import {
   applyMigrations,
@@ -52,6 +54,12 @@ import {
  *   re-mounting the provider with a different adapter requires a reset
  *   (intentional — adapter swap is a destructive operation).
  */
+
+/** Tight identifier validation for a consumer-settings `consumerName`. Must
+ *  start with an ASCII letter, then ASCII letters/digits/`_`/`-`, 1-64 chars
+ *  total. Rejects empty/whitespace (ASCII + unicode), control + zero-width
+ *  chars, path-injection (`/`, `\`, `..`, `.`), and length-DoS names. */
+const CONSUMER_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
 export interface PasswordCacheEntry {
   value: string;
@@ -140,6 +148,7 @@ export interface CodexStoreState {
   addressBook: AddressBookEntry[];
   watchList: WatchListEntry[];
   uiSettings: UiSettings;
+  consumerSettings: Record<string, IConsumerSettings>;
 
   // Runtime
   activeKadenaWalletId: string | null;
@@ -222,6 +231,18 @@ export interface CodexStoreActions {
   // ----- UI settings -----
   updateUiSettings(patch: Partial<UiSettings>): Promise<void>;
 
+  // ----- consumer settings registry -----
+  /** Read a consumer's namespaced settings entry. Returns the entry, or
+   *  `null` for an unknown consumer (the contract is null, NOT a throw —
+   *  callers asserting presence use the `missing-entry` reason themselves). */
+  getConsumerSettings(name: string): IConsumerSettings | null;
+  /** Write (insert or overwrite) a consumer's settings entry. Validates the
+   *  `consumerName` against a tight identifier regex, rejects a strict schema
+   *  downgrade, server-stamps `lastUpdatedAt`, preserves all other consumers'
+   *  entries verbatim, and persists via the per-slice
+   *  `adapter.saveConsumerSettings`. Throws `CodexConsumerSettingsError`. */
+  updateConsumerSettings(entry: IConsumerSettings): Promise<void>;
+
   // ----- active selection -----
   setActiveKadenaWallet(id: string | null): void;
   setActiveOuroAccount(id: string | null): void;
@@ -249,6 +270,7 @@ const initialState: Omit<CodexStoreState, "actions"> = {
   addressBook: [],
   watchList: [],
   uiSettings: { ...DEFAULT_UI_SETTINGS },
+  consumerSettings: {},
   activeKadenaWalletId: null,
   activeOuroAccountId: null,
   dirty: false,
@@ -348,6 +370,9 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
             addressBook: snap.addressBook,
             watchList: snap.watchList,
             uiSettings: snap.uiSettings,
+            // v0.2 codices have no consumerSettings; Phase 10's migration
+            // initializes it. Coalesce to {} either way.
+            consumerSettings: snap.consumerSettings ?? {},
             schemaVersion: snap.schemaVersion,
             lastUpdatedAt: snap.lastUpdatedAt,
             lastUpdatedDevice: snap.lastUpdatedDevice,
@@ -377,6 +402,10 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
             addressBook: migrated.addressBook,
             watchList: migrated.watchList,
             uiSettings: migrated.uiSettings,
+            // Read from the post-migration snapshot, NOT raw loaded: a Phase 10
+            // migration that synthesizes consumerSettings would otherwise be
+            // silently discarded. v0.2 codices coalesce to {}.
+            consumerSettings: migrated.consumerSettings ?? {},
             schemaVersion: migrated.schemaVersion,
             lastUpdatedAt: migrated.lastUpdatedAt,
             lastUpdatedDevice: migrated.lastUpdatedDevice,
@@ -794,6 +823,43 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         await persistAndTouch((a) => a.saveUiSettings(next));
       },
 
+      // ----- consumer settings registry -----
+
+      getConsumerSettings(name: string): IConsumerSettings | null {
+        return get().consumerSettings[name] ?? null;
+      },
+
+      async updateConsumerSettings(entry: IConsumerSettings) {
+        // Validation (cheap-first): name shape, then schema-downgrade.
+        if (!CONSUMER_NAME_RE.test(entry.consumerName)) {
+          throw new CodexConsumerSettingsError(
+            "invalid-consumer-name",
+            `consumerName=${JSON.stringify(entry.consumerName)}`
+          );
+        }
+        const existing = get().consumerSettings[entry.consumerName];
+        if (existing && entry.schemaVersion < existing.schemaVersion) {
+          throw new CodexConsumerSettingsError(
+            "schema-downgrade",
+            `existing=${existing.schemaVersion}, attempted=${entry.schemaVersion}`
+          );
+        }
+
+        // Server-stamp lastUpdatedAt so it is a trustworthy last-write marker;
+        // the caller-supplied value is intentionally overridden.
+        const stamped: IConsumerSettings = {
+          ...entry,
+          lastUpdatedAt: new Date().toISOString(),
+        };
+        // Object spread preserves every other consumer's entry verbatim.
+        const next = {
+          ...get().consumerSettings,
+          [stamped.consumerName]: stamped,
+        };
+        set({ consumerSettings: next });
+        await persistAndTouch((a) => a.saveConsumerSettings(next));
+      },
+
       // ----- active selection (no persistence — runtime only) -----
 
       setActiveKadenaWallet(id: string | null) {
@@ -840,6 +906,7 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
           addressBook: state.addressBook,
           watchList: state.watchList,
           uiSettings: state.uiSettings,
+          consumerSettings: state.consumerSettings,
           schemaVersion: state.schemaVersion,
           lastUpdatedAt: state.lastUpdatedAt,
           lastUpdatedDevice: state.lastUpdatedDevice,
@@ -863,6 +930,9 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
           addressBook: migrated.addressBook,
           watchList: migrated.watchList,
           uiSettings: migrated.uiSettings,
+          // Reflect a migration that synthesizes/transforms the registry; v0.2
+          // codices coalesce to {}.
+          consumerSettings: migrated.consumerSettings ?? {},
           schemaVersion: migrated.schemaVersion,
           lastUpdatedAt: migrated.lastUpdatedAt,
           lastUpdatedDevice: migrated.lastUpdatedDevice,
