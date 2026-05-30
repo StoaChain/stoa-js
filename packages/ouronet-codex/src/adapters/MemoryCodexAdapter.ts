@@ -8,6 +8,7 @@ import type {
   DeviceVariant,
   WatchListEntry,
   IConsumerSettings,
+  ICodexIdentity,
 } from "../types/entities.js";
 import type { CodexAdapter, CodexSnapshot } from "./types.js";
 import { emptySnapshot } from "./types.js";
@@ -78,6 +79,16 @@ export class MemoryCodexAdapter implements CodexAdapter {
     consumerSettings: Record<string, IConsumerSettings>
   ): Promise<void> {
     this.snapshot.consumerSettings = structuredClone(consumerSettings);
+  }
+
+  public async saveCodexIdentity(
+    identity: ICodexIdentity | undefined
+  ): Promise<void> {
+    // The conditional preserves the undefined-clear semantic: clone-on-write
+    // for value-type immutability when present, but a bare clear when absent
+    // (structuredClone(undefined) is undefined, but the branch reads clearer).
+    this.snapshot.codexIdentity =
+      identity === undefined ? undefined : structuredClone(identity);
   }
 
   // ----- metadata -----

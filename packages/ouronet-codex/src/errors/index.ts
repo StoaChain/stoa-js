@@ -19,4 +19,5 @@ export {
   CodexPasswordError,
   CodexMigrationError,
   CodexConsumerSettingsError,
+  CodexIdentityError,
 } from "./types.js";

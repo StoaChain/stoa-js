@@ -9,6 +9,7 @@ import type {
   UiSettings,
   DeviceVariant,
   IConsumerSettings,
+  ICodexIdentity,
 } from "../types/entities.js";
 import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
 import type { CodexAdapter, CodexSnapshot } from "../adapters/types.js";
@@ -149,6 +150,10 @@ export interface CodexStoreState {
   watchList: WatchListEntry[];
   uiSettings: UiSettings;
   consumerSettings: Record<string, IConsumerSettings>;
+  /** The codex's double-Apollo identity (v0.3.0+). `undefined` for v0.2
+   *  codices and fresh codices that haven't run kickstart yet; the public
+   *  `getCodexIdentity()` getter coalesces this to `null`. IMMUTABLE once set. */
+  codexIdentity?: ICodexIdentity;
 
   // Runtime
   activeKadenaWalletId: string | null;
@@ -243,6 +248,16 @@ export interface CodexStoreActions {
    *  `adapter.saveConsumerSettings`. Throws `CodexConsumerSettingsError`. */
   updateConsumerSettings(entry: IConsumerSettings): Promise<void>;
 
+  // ----- codex identity (v0.3.0+) -----
+  /** Read the codex's double-Apollo identity. Returns the identity, or `null`
+   *  for legacy/fresh codices that have none yet (the contract is null, NOT a
+   *  throw — callers asserting presence use the `missing-codex-identity` reason
+   *  themselves). Read-only: does not mutate state, call the adapter, or throw.
+   *  Phase 3 exposes NO setter — the immutability invariant is preserved by
+   *  there being no public API path to mutate an existing identity (Phase 7's
+   *  kickstart writes it once via an internal `set`). */
+  getCodexIdentity(): ICodexIdentity | null;
+
   // ----- active selection -----
   setActiveKadenaWallet(id: string | null): void;
   setActiveOuroAccount(id: string | null): void;
@@ -271,6 +286,10 @@ const initialState: Omit<CodexStoreState, "actions"> = {
   watchList: [],
   uiSettings: { ...DEFAULT_UI_SETTINGS },
   consumerSettings: {},
+  // Explicit undefined keeps initialState shape-complete (matches the
+  // lastUpdatedAt: null precedent); value-type slot, undefined is its resting
+  // state.
+  codexIdentity: undefined,
   activeKadenaWalletId: null,
   activeOuroAccountId: null,
   dirty: false,
@@ -373,6 +392,10 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
             // v0.2 codices have no consumerSettings; Phase 10's migration
             // initializes it. Coalesce to {} either way.
             consumerSettings: snap.consumerSettings ?? {},
+            // v0.2 codices have no codexIdentity field; the v0.2->v0.3 migration
+            // leaves it undefined (Phase 8's interactive flow populates it
+            // later). No `?? {}` — this is a value-type slot, undefined is valid.
+            codexIdentity: snap.codexIdentity,
             schemaVersion: snap.schemaVersion,
             lastUpdatedAt: snap.lastUpdatedAt,
             lastUpdatedDevice: snap.lastUpdatedDevice,
@@ -406,6 +429,12 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
             // migration that synthesizes consumerSettings would otherwise be
             // silently discarded. v0.2 codices coalesce to {}.
             consumerSettings: migrated.consumerSettings ?? {},
+            // Read from migrated (not loaded); future migrations (Phase 8's
+            // interactive flow) may synthesize this field — reading loaded would
+            // silently discard the migration's output. No `?? null` here: the
+            // state slot stays undefined-typed; the getter does the null
+            // coalesce at the public boundary.
+            codexIdentity: migrated.codexIdentity,
             schemaVersion: migrated.schemaVersion,
             lastUpdatedAt: migrated.lastUpdatedAt,
             lastUpdatedDevice: migrated.lastUpdatedDevice,
@@ -860,6 +889,15 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         await persistAndTouch((a) => a.saveConsumerSettings(next));
       },
 
+      // ----- codex identity (v0.3.0+) -----
+
+      getCodexIdentity(): ICodexIdentity | null {
+        // `?? null` coalesce at the read boundary: state slot is undefined for
+        // legacy/fresh codices, the public contract is null. Non-cloning —
+        // short-circuits to the underlying immutable slot.
+        return get().codexIdentity ?? null;
+      },
+
       // ----- active selection (no persistence — runtime only) -----
 
       setActiveKadenaWallet(id: string | null) {
@@ -907,6 +945,11 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
           watchList: state.watchList,
           uiSettings: state.uiSettings,
           consumerSettings: state.consumerSettings,
+          // Source from live store state so a migration that touches
+          // codexIdentity (e.g. Phase 8's flow) sees the real identity, not
+          // undefined. Without this the runner would receive stale input and
+          // the subsequent saveAll could overwrite the on-disk identity.
+          codexIdentity: state.codexIdentity,
           schemaVersion: state.schemaVersion,
           lastUpdatedAt: state.lastUpdatedAt,
           lastUpdatedDevice: state.lastUpdatedDevice,
@@ -933,6 +976,9 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
           // Reflect a migration that synthesizes/transforms the registry; v0.2
           // codices coalesce to {}.
           consumerSettings: migrated.consumerSettings ?? {},
+          // Reflect a migration that synthesizes/transforms codexIdentity;
+          // value-type slot stays undefined-typed (getter coalesces to null).
+          codexIdentity: migrated.codexIdentity,
           schemaVersion: migrated.schemaVersion,
           lastUpdatedAt: migrated.lastUpdatedAt,
           lastUpdatedDevice: migrated.lastUpdatedDevice,

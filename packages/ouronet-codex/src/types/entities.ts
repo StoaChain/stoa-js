@@ -232,3 +232,87 @@ export interface IConsumerSettings {
    *  last-write marker. */
   lastUpdatedAt: string;
 }
+
+/** The codex's double-Apollo identity (v0.3.0+).
+ *
+ *  Every codex created or upgraded under v0.3.0 has exactly one Codex
+ *  Identity. It is **IMMUTABLE post-creation**. Mutation attempts throw
+ *  `CodexIdentityError('immutable-field')`. The on-chain `ouronet-ns.CODEX`
+ *  registration depends on this immutability — once the identity is on chain,
+ *  the codex's locally-cached copy must match it byte-for-byte forever.
+ *
+ *  All encrypted-at-CK derivation caches below are derivable from
+ *  `encryptedSeedWords` alone; the other representations are cached to avoid
+ *  re-running HKDF/PBKDF derivation on every sign, and to let the user export
+ *  the seed in whichever format they want without re-deriving in the SPA. */
+export interface ICodexIdentity {
+  /** Display-only formatted address.
+   *  Format: ₱.STANDARD-payload:Π.SMART-payload
+   *  Where each payload is 160 glyphs from the Dalos character set encoding
+   *  the corresponding Apollo public key. The ':' between halves matches the
+   *  styling of the prefix dots so the whole identifier reads cohesively. */
+  formatted: string;
+
+  /** Apollo Standard public key (160-glyph Dalos encoding of 1024 bits). */
+  standardPublicKey: string;
+
+  /** Apollo Smart public key (160-glyph Dalos encoding of 1024 bits). */
+  smartPublicKey: string;
+
+  // ─── Encrypted-at-CK private material ─────────────────────────────────
+  // ALL of these are derivable from `encryptedSeedWords` alone; the other
+  // representations are cached for two reasons:
+  //   1. Avoid re-running HKDF/PBKDF derivation on every sign
+  //   2. Let the user export the seed in whichever format they want without
+  //      re-running derivation in the SPA
+
+  /** Full seed word sequence (1-512 words, 1-256 glyphs/word from the Dalos
+   *  character set). UTF-8 string, space-separated. */
+  encryptedSeedWords: string;
+
+  /** 1024-bit Standard half as a binary string. */
+  encryptedStandardBitstring: string;
+
+  /** 1024-bit Smart half as a binary string. */
+  encryptedSmartBitstring: string;
+
+  /** Standard half as a base-10 scalar (up to ~309 decimal digits). */
+  encryptedStandardBase10: string;
+
+  /** Smart half as a base-10 scalar. */
+  encryptedSmartBase10: string;
+
+  /** Standard half as a base-49 scalar (Apollo's natural base). */
+  encryptedStandardBase49: string;
+
+  /** Smart half as a base-49 scalar. */
+  encryptedSmartBase49: string;
+
+  /** Optional cached Apollo private keys (re-derivable from bitstrings).
+   *  Populated to avoid Apollo-curve derivation on every sign operation. */
+  encryptedStandardPrivateKey?: string;
+  encryptedSmartPrivateKey?: string;
+
+  // ─── Plaintext metadata ───────────────────────────────────────────────
+
+  /** Total seed-word count, 1 to 512.
+   *  Combined with splitIndex this reconstructs the half boundaries. */
+  totalWordCount: number;
+
+  /** The index where the Smart half starts.
+   *  Rule (deterministic, no user override at v0.3.0):
+   *    splitIndex = Math.floor(totalWordCount / 2)
+   *  So:
+   *    totalWordCount=6  → splitIndex=3 → Standard=3 words, Smart=3 words
+   *    totalWordCount=7  → splitIndex=3 → Standard=3 words, Smart=4 words (Smart bigger)
+   *    totalWordCount=11 → splitIndex=5 → Standard=5 words, Smart=6 words (Smart bigger)
+   *  Smart half ALWAYS gets the larger share when word count is odd. */
+  splitIndex: number;
+
+  createdAt: string;
+
+  /** Mnemosyne account username that triggered this Codex's creation.
+   *  Empty string for codices created outside Mnemosyne (e.g. via OuronetUI
+   *  directly). Stored for audit; not used for authorization. */
+  createdBy?: string;
+}

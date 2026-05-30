@@ -25,6 +25,7 @@ export type {
   UiSettings,
   WatchListEntry,
   IConsumerSettings,
+  ICodexIdentity,
 } from "./entities.js";
 
 export { DEFAULT_UI_SETTINGS } from "./entities.js";

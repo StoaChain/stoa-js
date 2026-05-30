@@ -7,6 +7,7 @@ import type {
   DeviceVariant,
   WatchListEntry,
   IConsumerSettings,
+  ICodexIdentity,
 } from "../types/entities.js";
 
 /**
@@ -30,6 +31,14 @@ export interface CodexSnapshot {
    *  coalesce a missing value to an empty registry. `emptySnapshot()`
    *  initializes it to `{}`. */
   consumerSettings?: Record<string, IConsumerSettings>;
+  /** The codex's double-Apollo identity (v0.3.0+). Additive-optional so v0.2
+   *  snapshots (which have no such field) load cleanly. Unlike
+   *  `consumerSettings` (a registry container initialized to `{}`), this is a
+   *  singleton VALUE type: its resting state is `undefined`, and
+   *  `emptySnapshot()` leaves it off entirely. Populated by Phase 7's
+   *  `kickstartCodex` (or Phase 8's interactive legacy flow); IMMUTABLE once
+   *  set. */
+  codexIdentity?: ICodexIdentity;
   schemaVersion: number;
   lastUpdatedAt: string | null;
   lastUpdatedDevice: DeviceVariant;
@@ -105,6 +114,23 @@ export interface CodexAdapter {
   saveConsumerSettings(
     consumerSettings: Record<string, IConsumerSettings>
   ): Promise<void>;
+
+  /**
+   * Persist (or clear) the ICodexIdentity on the codex (v0.3.0+).
+   *
+   * **Trust boundary:** the adapter does NOT validate identity-field shape
+   * (encrypted blob non-emptiness, Apollo pubkey format, totalWordCount
+   * range). Callers — Phase 7 `kickstartCodex` and Phase 8's interactive
+   * legacy flow — are responsible for shape validation. Bypassing the
+   * canonical writers and calling `saveCodexIdentity` directly with a
+   * malformed object is unsupported and may cause Phase 9
+   * `buildRegisterCodexIdentityTx` to produce a malformed on-chain
+   * registration.
+   *
+   * Pass `undefined` to clear (used only by Phase 6 delete-cascade flows, if
+   * ever — Phase 3 never clears).
+   */
+  saveCodexIdentity(identity: ICodexIdentity | undefined): Promise<void>;
 
   // ----- metadata -----
 

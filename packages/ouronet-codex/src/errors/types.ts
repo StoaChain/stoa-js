@@ -282,3 +282,53 @@ export class CodexConsumerSettingsError extends CodexError {
     this.reason = reason;
   }
 }
+
+/**
+ * Errors related to the ICodexIdentity lifecycle (v0.3.0+).
+ *
+ * Consumer-phase map:
+ * - `already-exists`: thrown by Phase 7 `kickstartCodex` when codex already has an identity
+ * - `seed-invalid`, `seed-word-count`, `split-invalid`: thrown by Phase 4 `deriveDoubleApollo`
+ * - `immutable-field`: thrown by Phase 7+ atomic setter guards (no public setter in Phase 3)
+ * - `missing-codex-identity`: thrown by Phase 9 `buildRegisterCodexIdentityTx` when codex lacks identity
+ */
+export class CodexIdentityError extends CodexError {
+  public override readonly name = "CodexIdentityError";
+  public readonly reason:
+    | "already-exists"
+    | "seed-invalid"
+    | "seed-word-count"
+    | "split-invalid"
+    | "immutable-field"
+    | "missing-codex-identity";
+
+  constructor(
+    reason: CodexIdentityError["reason"],
+    detail?: string,
+    cause?: unknown
+  ) {
+    const messages: Record<CodexIdentityError["reason"], string> = {
+      "already-exists":
+        "Codex already has an ICodexIdentity. Identity is immutable " +
+        "post-creation; use a fresh codex if a new identity is required.",
+      "seed-invalid":
+        "Seed material does not conform to the Dalos-charset constraints " +
+        "(1-512 words, 1-256 glyphs per word).",
+      "seed-word-count":
+        "Seed word count is out of range. Allowed: 1..512.",
+      "split-invalid":
+        "splitIndex must satisfy 0 <= splitIndex <= totalWordCount.",
+      "immutable-field":
+        "ICodexIdentity fields are immutable post-creation. The on-chain " +
+        "registration depends on this; create a fresh codex for a new identity.",
+      "missing-codex-identity":
+        "Operation requires the codex to have an ICodexIdentity, but none is " +
+        "present. v0.2 codices must run the interactive Phase 8 migration to " +
+        "create one.",
+    };
+    super(detail ? `${messages[reason]} ${detail}` : messages[reason], {
+      cause,
+    });
+    this.reason = reason;
+  }
+}

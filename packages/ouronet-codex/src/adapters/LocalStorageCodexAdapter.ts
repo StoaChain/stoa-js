@@ -11,6 +11,7 @@ import {
   type DeviceVariant,
   type WatchListEntry,
   type IConsumerSettings,
+  type ICodexIdentity,
 } from "../types/entities.js";
 import type { CodexAdapter, CodexSnapshot } from "./types.js";
 import { emptySnapshot } from "./types.js";
@@ -36,6 +37,9 @@ import { emptySnapshot } from "./types.js";
  *   - "uiSettings_enc"         encrypted UI settings sidecar
  *   - "consumerSettings"       per-consumer settings registry (JSON object,
  *                              v0.3.0+; absent on v0.2 codices → {})
+ *   - "codexIdentity"          double-Apollo codex identity (JSON object,
+ *                              v0.3.0+; absent/"null" on v0.2 codices →
+ *                              undefined)
  *   - "codex_schema_version"   in-band schema version (string -> int)
  *   - "codex_last_updated"     ISO timestamp
  *   - "codex_device"           "dev" | "main"
@@ -76,6 +80,7 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       const watchList = this.parseArray<WatchListEntry>("stoa-watch-list");
       const uiSettings = this.loadUiSettingsPlain();
       const consumerSettings = this.loadConsumerSettings();
+      const codexIdentity = this.loadCodexIdentity();
       const schemaVersion = this.loadSchemaVersion();
       const lastUpdatedAt = window.localStorage.getItem("codex_last_updated");
       const lastUpdatedDevice = this.loadDeviceVariant();
@@ -88,6 +93,7 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
         watchList,
         uiSettings,
         consumerSettings,
+        codexIdentity,
         schemaVersion,
         lastUpdatedAt,
         lastUpdatedDevice,
@@ -109,6 +115,11 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       window.localStorage.setItem(
         "consumerSettings",
         JSON.stringify(snapshot.consumerSettings ?? {})
+      );
+      // JSON cannot encode undefined; null is the canonical absence marker.
+      window.localStorage.setItem(
+        "codexIdentity",
+        JSON.stringify(snapshot.codexIdentity ?? null)
       );
       window.localStorage.setItem("codex_schema_version", String(snapshot.schemaVersion));
       if (snapshot.lastUpdatedAt) {
@@ -187,6 +198,23 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       );
     } catch (e) {
       throw new CodexAdapterError(this.name, "saveConsumerSettings", e);
+    }
+  }
+
+  public async saveCodexIdentity(
+    identity: ICodexIdentity | undefined
+  ): Promise<void> {
+    this.assertBrowser("saveCodexIdentity");
+    try {
+      // JSON cannot encode undefined; storing null (the JSON-canonical absence
+      // marker) lets loadAll normalize both "never written" and "cleared" back
+      // to undefined uniformly.
+      window.localStorage.setItem(
+        "codexIdentity",
+        JSON.stringify(identity ?? null)
+      );
+    } catch (e) {
+      throw new CodexAdapterError(this.name, "saveCodexIdentity", e);
     }
   }
 
@@ -269,6 +297,7 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
         "uiSettings",
         "uiSettings_enc",
         "consumerSettings",
+        "codexIdentity",
         "codex_schema_version",
         "codex_last_updated",
         "codex_device",
@@ -402,6 +431,28 @@ export class LocalStorageCodexAdapter implements CodexAdapter {
       return {};
     } catch {
       return {};
+    }
+  }
+
+  /** Load the codex's double-Apollo identity (v0.3.0+), returning undefined
+   *  on missing/cleared/corrupted values. v0.2 codices have no `codexIdentity`
+   *  key. Stored as `"null"` when cleared. The shape guard rejects scalars and
+   *  arrays so a corrupted value can't masquerade as an identity and falsely
+   *  satisfy a downstream truthy presence check. */
+  private loadCodexIdentity(): ICodexIdentity | undefined {
+    const raw = window.localStorage.getItem("codexIdentity");
+    if (raw == null) return undefined;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed === null) return undefined;
+      // codexIdentity must be a non-null object (not a number, string,
+      // boolean, or array).
+      if (typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+      return parsed as ICodexIdentity;
+    } catch {
+      // Corrupted localStorage value (third-party tampering, partial-write
+      // crash) — treat as absent rather than crashing the codex load.
+      return undefined;
     }
   }
 
