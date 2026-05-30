@@ -22,6 +22,7 @@ export {
   createCodexStore,
   _internal_requireUnlocked,
   CodexPasswordError,
+  RETIREMENT_SUFFIX_REGEX,
 } from "./store.js";
 
 export type { SchemaMigration } from "./migrations.js";

@@ -63,6 +63,20 @@ import {
  *  chars, path-injection (`/`, `\`, `..`, `.`), and length-DoS names. */
 const CONSUMER_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
+/** Retirement-suffix pattern for a former CodexGuard's label. Matches a
+ *  trailing ` (retired #N)` (space + parens + `#` + digits, anchored to the
+ *  end of the string). `renamePureKeypair` allows renames whose new label
+ *  matches this pattern even on protected keys — the controlled exception to
+ *  the rename lock. Phase 8's `rotateCodexGuard` imports this constant to
+ *  construct retirement labels (e.g. `${oldKey.label} (retired #${count})`),
+ *  keeping the producer and the guard in sync from one source of truth.
+ *
+ *  Matches:   "CodexGuard (retired #1)", "Old Guard (retired #42)".
+ *  Rejects:   "(retired #1)" (no leading space), "retired #1" (no parens),
+ *             "X (retired #1) extra" (trailing text), "X (retired #abc)"
+ *             (non-digit). */
+export const RETIREMENT_SUFFIX_REGEX = / \(retired #\d+\)$/;
+
 export interface PasswordCacheEntry {
   value: string;
   expiresAt: number; // epoch ms
@@ -215,6 +229,13 @@ export interface CodexStoreActions {
 
   // ----- pure keypairs -----
   addPureKeypair(keypair: IPureKeypair): Promise<void>;
+  /** Rename a pure keypair. Rejects renames on keys carrying `isCodexGuard`,
+   *  `wasCodexGuard`, or `isDuoPurePrime` flags EXCEPT when `newLabel`
+   *  matches the retirement-suffix pattern ` (retired #N)` (consumed by
+   *  Phase 8 `rotateCodexGuard`). Missing id is a silent no-op. Throws
+   *  `CodexGuardError("rename-rejected")` for non-suffix renames on
+   *  protected keys. */
+  renamePureKeypair(id: string, newLabel: string): Promise<void>;
   deletePureKeypair(id: string): Promise<void>;
 
   // ----- codex guard (v0.3.0+) -----
@@ -738,7 +759,64 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         await persistAndTouch((a) => a.savePureKeypairs(next));
       },
 
+      async renamePureKeypair(id: string, newLabel: string) {
+        const target = get().pureKeypairs.find((k) => k.id === id);
+        if (!target) {
+          // Missing id is a silent no-op (mirrors deletePureKeypair).
+          return;
+        }
+        // Same flag-priority cascade as deletePureKeypair so detail strings
+        // report consistently across the two protection surfaces.
+        const protectingFlag =
+          target.isCodexGuard === true
+            ? "isCodexGuard"
+            : target.wasCodexGuard === true
+              ? "wasCodexGuard"
+              : target.isDuoPurePrime === true
+                ? "isDuoPurePrime"
+                : null;
+        // Protected keys are rename-locked EXCEPT the controlled retirement
+        // suffix, which Phase 8's rotation applies automatically. Label text
+        // is otherwise opaque to the store (length/whitespace validation is a
+        // UI concern, out of scope here).
+        if (protectingFlag !== null && !RETIREMENT_SUFFIX_REGEX.test(newLabel)) {
+          throw new CodexGuardError(
+            "rename-rejected",
+            `id=${target.id}, label=${target.label}, flag=${protectingFlag}, newLabel=${newLabel}`
+          );
+        }
+        const next = get().pureKeypairs.map((k) =>
+          k.id === id ? { ...k, label: newLabel } : k
+        );
+        set({ pureKeypairs: next });
+        await persistAndTouch((a) => a.savePureKeypairs(next));
+      },
+
       async deletePureKeypair(id: string) {
+        const target = get().pureKeypairs.find((k) => k.id === id);
+        if (target) {
+          // Structural-integrity protection (v0.3.0+). A pure key carrying
+          // any CodexGuard or DuoPurePrime marker is tied to the codex's
+          // identity and cannot be deleted. The flag-priority order
+          // (isCodexGuard > wasCodexGuard > isDuoPurePrime) is observable in
+          // the detail string so downstream UI can explain the rejection.
+          const protectingFlag =
+            target.isCodexGuard === true
+              ? "isCodexGuard"
+              : target.wasCodexGuard === true
+                ? "wasCodexGuard"
+                : target.isDuoPurePrime === true
+                  ? "isDuoPurePrime"
+                  : null;
+          if (protectingFlag !== null) {
+            throw new CodexGuardError(
+              "delete-rejected",
+              `id=${target.id}, label=${target.label}, flag=${protectingFlag}`
+            );
+          }
+        }
+        // Missing id falls through to a no-op filter (preserves the prior
+        // silent-no-op-on-missing-id semantics).
         const next = get().pureKeypairs.filter((k) => k.id !== id);
         set({ pureKeypairs: next });
         await persistAndTouch((a) => a.savePureKeypairs(next));
