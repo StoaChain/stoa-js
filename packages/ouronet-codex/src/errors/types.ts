@@ -188,3 +188,51 @@ export class CodexPasswordError extends CodexError {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// v0.3.0 errors — appended in phase order after the v0.2 errors above.
+// ---------------------------------------------------------------------------
+
+/** Thrown by the schema-migration runner (`applyMigrations`) and the store's
+ *  `init()` / `migrateToCurrent()` wiring (v0.3.0+). The `reason` field
+ *  discriminates:
+ *
+ *   - `unknown-schema-version`: the loaded codex's schemaVersion is NEWER than
+ *     this package's CURRENT_SCHEMA_VERSION, so this consumer is too old to
+ *     safely read/write it. `detail` carries "loaded={N}, max={CURRENT}".
+ *   - `migration-failed`: a migration's `migrate(...)` threw. The original
+ *     error is forwarded in `.cause`; `detail` carries the migration's
+ *     description.
+ *   - `post-condition-failed`: a migration ran but its output snapshot's
+ *     schemaVersion did not equal the migration's declared `toVersion`, OR
+ *     the supplied migration registry is malformed (reversed/duplicate
+ *     fromVersion). `detail` describes the violated invariant. */
+export class CodexMigrationError extends CodexError {
+  public override readonly name = "CodexMigrationError";
+  public readonly reason:
+    | "unknown-schema-version"
+    | "migration-failed"
+    | "post-condition-failed";
+
+  constructor(
+    reason: CodexMigrationError["reason"],
+    detail?: string,
+    cause?: unknown
+  ) {
+    const messages: Record<CodexMigrationError["reason"], string> = {
+      "unknown-schema-version":
+        "Loaded codex schema version is newer than this package can read. " +
+        "Upgrade the consumer to a version that understands the newer schema.",
+      "migration-failed":
+        "A schema migration failed while upgrading the codex to the current " +
+        "version.",
+      "post-condition-failed":
+        "A schema migration produced an invalid result, or the migration " +
+        "registry is malformed.",
+    };
+    super(detail ? `${messages[reason]} ${detail}` : messages[reason], {
+      cause,
+    });
+    this.reason = reason;
+  }
+}

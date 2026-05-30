@@ -10,14 +10,21 @@ import type {
   DeviceVariant,
 } from "../types/entities.js";
 import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
-import type { CodexAdapter } from "../adapters/types.js";
+import type { CodexAdapter, CodexSnapshot } from "../adapters/types.js";
 import {
   CodexLockedError,
   CodexPrimeProtectedError,
   CodexPrimeSeedProtectedError,
   CodexKickstartError,
   CodexPasswordError,
+  CodexMigrationError,
 } from "../errors/types.js";
+import {
+  applyMigrations,
+  canConsumerWrite,
+  CURRENT_SCHEMA_VERSION,
+  SCHEMA_MIGRATIONS,
+} from "./migrations.js";
 
 /**
  * Internal Zustand store backing the CodexProvider. Consumers DO NOT
@@ -223,6 +230,11 @@ export interface CodexStoreActions {
   markDirty(): void;
   clearDirty(): void;
   setSchemaVersion(v: number): Promise<void>;
+  /** Run the schema-migration chain against the current in-memory snapshot
+   *  up to CURRENT_SCHEMA_VERSION. If a migration runs, applies the migrated
+   *  slices + schemaVersion to state and best-effort persists via
+   *  `adapter.saveAll`. No-op when already current. */
+  migrateToCurrent(): Promise<void>;
 }
 
 const initialState: Omit<CodexStoreState, "actions"> = {
@@ -288,6 +300,17 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         try {
           const snap = await adapter.loadAll();
 
+          // v0.3.0 boundary check (runs FIRST, before any adapter mutation):
+          // if the loaded codex is at a NEWER schema than this package writes,
+          // we cannot safely read/write it. Throw before the legacy migration
+          // so it never mutates a future-version codex.
+          if (!canConsumerWrite(snap.schemaVersion)) {
+            throw new CodexMigrationError(
+              "unknown-schema-version",
+              `loaded=${snap.schemaVersion}, max=${CURRENT_SCHEMA_VERSION}`
+            );
+          }
+
           // v0.2.0 legacy migration (eager half): if the loaded codex has
           // at least one kadena seed but NO seed is flagged isPrime, this
           // is a pre-v0.2.0 codex. Flag seeds[0] as the Prime Codex Seed.
@@ -314,22 +337,55 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
             }
           }
 
-          set({
+          // v0.3.0 schema migration: build a snapshot from the post-legacy
+          // values and run the migration chain to CURRENT_SCHEMA_VERSION. Every
+          // field on CodexSnapshot MUST be included here; future phases adding
+          // a snapshot field must extend this builder (see migrateToCurrent).
+          const preMigration: CodexSnapshot = {
             kadenaSeeds: migratedKadenaSeeds,
-            pureKeypairs: snap.pureKeypairs,
             ouroAccounts: snap.ouroAccounts,
+            pureKeypairs: snap.pureKeypairs,
             addressBook: snap.addressBook,
             watchList: snap.watchList,
             uiSettings: snap.uiSettings,
             schemaVersion: snap.schemaVersion,
             lastUpdatedAt: snap.lastUpdatedAt,
             lastUpdatedDevice: snap.lastUpdatedDevice,
+          };
+          const migrated = applyMigrations(
+            preMigration,
+            SCHEMA_MIGRATIONS,
+            CURRENT_SCHEMA_VERSION
+          );
+          if (migrated.schemaVersion !== preMigration.schemaVersion) {
+            // Persist eagerly so the upgrade sticks. Best-effort per design:
+            // if persistence fails the migration still applies in-memory.
+            try {
+              await adapter.saveAll(migrated);
+            } catch {
+              // swallow — next successful save picks up the migrated shape.
+            }
+          }
+
+          set({
+            // Use the MIGRATED values for all entity slices + schemaVersion so a
+            // migration that synthesizes/transforms a field is reflected in
+            // state (reading raw `snap.X` would silently discard it).
+            kadenaSeeds: migrated.kadenaSeeds,
+            pureKeypairs: migrated.pureKeypairs,
+            ouroAccounts: migrated.ouroAccounts,
+            addressBook: migrated.addressBook,
+            watchList: migrated.watchList,
+            uiSettings: migrated.uiSettings,
+            schemaVersion: migrated.schemaVersion,
+            lastUpdatedAt: migrated.lastUpdatedAt,
+            lastUpdatedDevice: migrated.lastUpdatedDevice,
             ready: true,
             dirty: false,
             // First account is the default active. Consumers can override
             // via setActiveOuroAccount() after init.
-            activeOuroAccountId: snap.ouroAccounts[0]?.id ?? null,
-            activeKadenaWalletId: migratedKadenaSeeds[0]?.id ?? null,
+            activeOuroAccountId: migrated.ouroAccounts[0]?.id ?? null,
+            activeKadenaWalletId: migrated.kadenaSeeds[0]?.id ?? null,
           });
         } catch (e) {
           set({
@@ -765,6 +821,59 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         }
         await adapter.setSchemaVersion(v);
         set({ schemaVersion: v });
+      },
+
+      async migrateToCurrent() {
+        const state = get();
+        const adapter = state.adapter;
+        if (!adapter) {
+          throw new Error("Codex store has no adapter wired.");
+        }
+
+        // Build a CodexSnapshot from the current in-memory state. Every field
+        // on CodexSnapshot MUST be included; future phases adding a snapshot
+        // field must extend this builder (cascade rule — see init's builder).
+        const current: CodexSnapshot = {
+          kadenaSeeds: state.kadenaSeeds,
+          ouroAccounts: state.ouroAccounts,
+          pureKeypairs: state.pureKeypairs,
+          addressBook: state.addressBook,
+          watchList: state.watchList,
+          uiSettings: state.uiSettings,
+          schemaVersion: state.schemaVersion,
+          lastUpdatedAt: state.lastUpdatedAt,
+          lastUpdatedDevice: state.lastUpdatedDevice,
+        };
+
+        const migrated = applyMigrations(
+          current,
+          SCHEMA_MIGRATIONS,
+          CURRENT_SCHEMA_VERSION
+        );
+
+        if (migrated.schemaVersion === current.schemaVersion) {
+          // No migration applied — nothing to set, nothing to persist.
+          return;
+        }
+
+        set({
+          kadenaSeeds: migrated.kadenaSeeds,
+          ouroAccounts: migrated.ouroAccounts,
+          pureKeypairs: migrated.pureKeypairs,
+          addressBook: migrated.addressBook,
+          watchList: migrated.watchList,
+          uiSettings: migrated.uiSettings,
+          schemaVersion: migrated.schemaVersion,
+          lastUpdatedAt: migrated.lastUpdatedAt,
+          lastUpdatedDevice: migrated.lastUpdatedDevice,
+        });
+
+        // Best-effort persist per design — swallow failures.
+        try {
+          await adapter.saveAll(migrated);
+        } catch {
+          // swallow — next successful save picks up the migrated shape.
+        }
       },
     };
 

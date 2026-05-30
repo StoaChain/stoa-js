@@ -23,3 +23,11 @@ export {
   _internal_requireUnlocked,
   CodexPasswordError,
 } from "./store.js";
+
+export type { SchemaMigration } from "./migrations.js";
+export {
+  CURRENT_SCHEMA_VERSION,
+  SCHEMA_MIGRATIONS,
+  applyMigrations,
+  canConsumerWrite,
+} from "./migrations.js";
