@@ -29,15 +29,24 @@
 
 import { useCodexStore } from "../provider/index.js";
 import type { KickstartArgs, KickstartResult } from "../state/store.js";
+import type {
+  KickstartArgsV3,
+  KickstartResultV3,
+} from "../codex-identity/index.js";
 
 export interface CodexLifecycleView {
-  /** Atomically install the Prime Codex Seed + CodexPrime ouro account
-   *  on an empty codex. Throws `CodexKickstartError` if the codex
-   *  already has a prime seed, or if the ouro is a Smart account. */
-  kickstart: (args: KickstartArgs) => Promise<KickstartResult>;
+  /** Atomically install the codex's prime entities on an empty codex.
+   *  Accepts BOTH the v0.2 pre-formed shape (`{ seed, primeOuroAccount }` →
+   *  `KickstartResult`) and the v0.3 atomic shape (`{ codexIdSeed, ... }` →
+   *  `KickstartResultV3`, generating ICodexIdentity + CodexGuard + CodexPrime +
+   *  DuoPrime). The store dispatches by shape; callers narrow the result by the
+   *  shape they passed. Throws `CodexKickstartError` on pre-flight violations. */
+  kickstart: (
+    args: KickstartArgs | KickstartArgsV3,
+  ) => Promise<KickstartResult | KickstartResultV3>;
   /** Recovery-flow variant — allows re-installing the same prime pair
    *  on a non-empty codex (idempotent), but refuses if the existing
-   *  prime has a different id. */
+   *  prime has a different id. v0.2-only in v0.3.0 (PAT-002). */
   recover: (args: KickstartArgs) => Promise<KickstartResult>;
 }
 

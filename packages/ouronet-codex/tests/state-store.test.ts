@@ -460,10 +460,10 @@ describe("CodexStore", () => {
 
   describe("v0.2.0 — kickstartCodex (§5.2)", () => {
     it("kickstart on empty codex installs prime seed + ouro atomically", async () => {
-      const result = await store.getState().actions.kickstartCodex({
+      const result = (await store.getState().actions.kickstartCodex({
         seed: seed("primeSeed"),
         primeOuroAccount: ouro("primeOuro"),
-      });
+      })) as { seed: IKadenaSeed; primeOuro: IOuroAccount };
       expect(result.seed.isPrime).toBe(true);
       expect(result.primeOuro.isPrime).toBe(true);
       expect(result.primeOuro.parentSeedId).toBe("primeSeed");

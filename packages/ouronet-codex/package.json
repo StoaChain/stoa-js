@@ -63,13 +63,14 @@
     "test:watch": "vitest",
     "clean": "rimraf dist"
   },
-  "_peerDependenciesComment": "@stoachain/dalos-crypto range is '>=4.0.0' (NOT >=4.3.0) on purpose: dalos-crypto tracks an independent v4.x line (current 4.0.3) separate from the kadena-stoic-legacy/stoa-core/ouronet-core 4.3 co-release triplet. A '>=4.3.0' pin would be unsatisfiable. Used directly by src/codex-identity/derivation.ts (Apollo curve key-gen).",
+  "_peerDependenciesComment": "@stoachain/dalos-crypto range is '>=4.0.0' (NOT >=4.3.0) on purpose: dalos-crypto tracks an independent v4.x line (current 4.0.3) separate from the kadena-stoic-legacy/stoa-core/ouronet-core 4.3 co-release triplet. A '>=4.3.0' pin would be unsatisfiable. Used directly by src/codex-identity/derivation.ts (Apollo curve key-gen). @noble/curves is pinned to 1.9.7 to match @stoachain/stoa-core's exact peer pin (single shared instance); used directly by src/state/store.ts for fresh ED25519 CodexGuard / Duo Pure Prime keypair generation.",
   "peerDependencies": {
     "react": "^18 || ^19",
     "@stoachain/kadena-stoic-legacy": ">=4.3.0",
     "@stoachain/stoa-core": ">=4.3.0",
     "@stoachain/ouronet-core": ">=4.3.0",
-    "@stoachain/dalos-crypto": ">=4.0.0"
+    "@stoachain/dalos-crypto": ">=4.0.0",
+    "@noble/curves": "1.9.7"
   },
   "dependencies": {
     "zustand": "^5.0.0"

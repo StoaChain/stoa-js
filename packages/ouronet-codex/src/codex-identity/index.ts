@@ -12,3 +12,21 @@ export type {
   DoubleApolloDerivation,
   DeriveSeedMode,
 } from "./derivation.js";
+
+// Phase 7 — v0.3 kickstart input/output shapes + runtime validator.
+export {
+  validateKickstartArgs,
+} from "./kickstart-types.js";
+export type {
+  CodexIdSeedMode,
+  CodexIdSeedInput,
+  CodexPrimeSeedSource,
+  DuoPrimeMode,
+  KickstartArgsV3,
+  KickstartResultV3,
+} from "./kickstart-types.js";
+
+// Phase 7 — internal identity-encryption helper (T7.2).
+export {
+  buildCodexIdentityFromDerivation,
+} from "./encryption.js";

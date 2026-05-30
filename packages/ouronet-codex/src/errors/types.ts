@@ -112,6 +112,10 @@ export class CodexPrimeSeedProtectedError extends CodexError {
  *   - `id-conflict`: caller tried to install a prime entity whose id
  *     doesn't match the existing prime, or tried to add a seed/ouro with
  *     `isPrime: true` set when a prime already exists.
+ *   - `invalid-args`: the v0.3 `kickstartCodex` KickstartArgs failed shape or
+ *     cross-field validation (bad discriminated-union value, missing required
+ *     field, out-of-range word count, splitIndex on a non-words mode, or a
+ *     mixed v0.2/v0.3 args object). `detail` names the offending field.
  *
  *  See docs/v0.2.0-design.md §5.4. */
 export class CodexKickstartError extends CodexError {
@@ -119,7 +123,10 @@ export class CodexKickstartError extends CodexError {
   public readonly reason:
     | "already-kickstarted"
     | "smart-account-not-allowed"
-    | "id-conflict";
+    | "id-conflict"
+    // "invalid-args" added in Phase 7 for kickstartCodex v0.3 validation —
+    // additive extension of the existing class (no new class, count unchanged).
+    | "invalid-args";
 
   constructor(
     reason: CodexKickstartError["reason"],
@@ -135,6 +142,9 @@ export class CodexKickstartError extends CodexError {
       "id-conflict":
         "Cannot install a second prime entity. Exactly one prime kadena seed " +
         "and one prime ouro account are allowed per codex.",
+      "invalid-args":
+        "Invalid KickstartArgs shape. Verify the discriminated unions for " +
+        "codexPrimeSeed.source and duoPrime.mode are well-formed.",
     };
     super(detail ? `${messages[reason]} ${detail}` : messages[reason]);
     this.reason = reason;

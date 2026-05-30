@@ -18,6 +18,7 @@ import {
   CodexPrimeProtectedError,
   CodexPrimeSeedProtectedError,
   CodexKickstartError,
+  CodexIdentityError,
   CodexPasswordError,
   CodexMigrationError,
   CodexConsumerSettingsError,
@@ -29,6 +30,48 @@ import {
   CURRENT_SCHEMA_VERSION,
   SCHEMA_MIGRATIONS,
 } from "./migrations.js";
+import {
+  deriveDoubleApollo,
+  buildCodexIdentityFromDerivation,
+  validateKickstartArgs,
+} from "../codex-identity/index.js";
+import type {
+  KickstartArgsV3,
+  KickstartResultV3,
+} from "../codex-identity/index.js";
+import type { IKeyset } from "../types/entities.js";
+import { encryptStringV2 } from "@stoachain/stoa-core/crypto";
+import { KadenaWalletBuilder } from "@stoachain/stoa-core/wallet";
+import { Apollo, DalosGenesis } from "@stoachain/dalos-crypto/registry";
+import type { FullKey } from "@stoachain/dalos-crypto/registry";
+import { ed25519 } from "@noble/curves/ed25519";
+
+/** Fresh UUID for a new codex entity. Mirrors the inline pattern already used
+ *  for password-request ids — `crypto.randomUUID` everywhere it exists, with a
+ *  timestamp+random fallback for the rare runtime without WebCrypto. */
+function newId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+  return hex;
+}
+
+/** Generate a fresh random ED25519 keypair as Kadena-style 64-char hex strings.
+ *  Kadena's `genKeyPair` (`@kadena/cryptography-utils`) is the canonical source
+ *  but isn't resolvable under this package's test transform (its vendored .cjs
+ *  `require()`s only resolve post-build). `@noble/curves/ed25519` — already a
+ *  stoa-core transitive dep — is the documented fallback and produces identical
+ *  32-byte ED25519 keys in hex. */
+function freshKadenaKeypair(): { publicKey: string; secretKey: string } {
+  const priv = ed25519.utils.randomPrivateKey();
+  const pub = ed25519.getPublicKey(priv);
+  return { publicKey: bytesToHex(pub), secretKey: bytesToHex(priv) };
+}
 
 /**
  * Internal Zustand store backing the CodexProvider. Consumers DO NOT
@@ -220,7 +263,9 @@ export interface CodexStoreActions {
    *  on an empty codex. Throws `CodexKickstartError` if the codex
    *  already has a prime seed, or if `primeOuroAccount.isSmart === true`.
    *  See docs/v0.2.0-design.md §5.2. */
-  kickstartCodex(args: KickstartArgs): Promise<KickstartResult>;
+  kickstartCodex(
+    args: KickstartArgs | KickstartArgsV3
+  ): Promise<KickstartResult | KickstartResultV3>;
   /** Recovery-flow variant of kickstartCodex. Allows non-empty codex
    *  iff the existing prime seed has the same `id` as `args.seed.id`
    *  (idempotent re-install); throws `CodexKickstartError("id-conflict")`
@@ -367,6 +412,312 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         lastUpdatedAt: meta.lastUpdatedAt,
         lastUpdatedDevice: meta.lastUpdatedDevice,
       });
+    };
+
+    /**
+     * v0.3 atomic kickstart — produces ICodexIdentity + CodexGuard + CodexPrime
+     * + exactly one of (Prime Codex Seed | Duo Pure Prime pair), optionally also
+     * a fresh-dalos backing seed. See design doc §4.2.
+     *
+     * Atomicity (F-001): every derivation/encryption/entity-build happens in
+     * local vars FIRST; a SINGLE `set({...})` is the atomic in-memory commit.
+     * Persistence is best-effort — the post-set `persistAndTouch` saves slices
+     * in a fail-recoverable order (`saveCodexIdentity` LAST) so a mid-flight
+     * write failure leaves disk WITHOUT an identity, letting the user retry
+     * kickstart cleanly (no `already-exists` fires on the next init).
+     *
+     * Captured-password semantic (F-007): `ck` is read ONCE up front via
+     * getPassword() and reused through the slow crypto — a TTL expiry that lands
+     * mid-flight does NOT abort the kickstart.
+     */
+    const _kickstartV3 = async (
+      args: KickstartArgsV3
+    ): Promise<KickstartResultV3> => {
+      // 1. Shape validation (throws CodexKickstartError("invalid-args")).
+      validateKickstartArgs(args);
+      const { codexIdSeed, codexPrimeSeed, duoPrime, createdByUsername } = args;
+
+      // 2. Auth pre-flight — captured once; reused for every encryption below.
+      const ck = actions.getPassword();
+
+      // 3. Empty-codex pre-flight (extended beyond v0.2's kadenaSeeds check).
+      if (get().kadenaSeeds.length > 0 || get().ouroAccounts.length > 0) {
+        throw new CodexKickstartError("already-kickstarted");
+      }
+      if (get().codexIdentity !== undefined) {
+        throw new CodexIdentityError("already-exists");
+      }
+      if (get().pureKeypairs.some((k) => k.isCodexGuard)) {
+        throw new CodexGuardError("already-exists");
+      }
+
+      // 4. Cross-validation that needs the tokenised word count (F-006 + F-010).
+      let words: string[] = [];
+      if (codexIdSeed.mode === "words") {
+        words = codexIdSeed.value.trim().split(/\s+/).filter(Boolean);
+        if (words.length < 2 || words.length > 512) {
+          throw new CodexKickstartError(
+            "invalid-args",
+            `words mode requires 2..512 words; got ${words.length}`
+          );
+        }
+        if (codexPrimeSeed.source === "reuse-codexid-whole" && words.length > 256) {
+          throw new CodexKickstartError(
+            "invalid-args",
+            `reuse-codexid-whole requires codexIdSeed wordCount <= 256; got ${words.length}`
+          );
+        }
+      }
+
+      // 5. Derive the double-Apollo identity material.
+      const derivation = deriveDoubleApollo(
+        codexIdSeed.value,
+        codexIdSeed.mode,
+        codexIdSeed.splitIndex
+      );
+
+      // 6. Encrypt into the ICodexIdentity (all 9 secret fields at CK).
+      const codexIdentity = await buildCodexIdentityFromDerivation(derivation, ck, {
+        codexIdSeed,
+        createdByUsername,
+      });
+
+      // 7. CodexGuard — fresh random ED25519, first pure key, label locked.
+      const guardPair = freshKadenaKeypair();
+      const codexGuard: IPureKeypair = {
+        id: newId(),
+        label: "CodexGuard",
+        publicKey: guardPair.publicKey,
+        encryptedPrivateKey: await encryptStringV2(guardPair.secretKey, ck),
+        createdAt: new Date().toISOString(),
+        isCodexGuard: true,
+      };
+
+      // 9. duoPrime FIRST — its pubkeys feed the CodexPrime guard keyset (F-008).
+      let primeCodexSeed: IKadenaSeed | undefined;
+      let duoPurePrime: [IPureKeypair, IPureKeypair] | undefined;
+      let duoPaymentPubkey: string;
+      let duoGuardPubkey: string;
+
+      if (duoPrime.mode === "kadena-seed") {
+        // Derive positions #0 (payment) + #1 (guard) from the mnemonic. The
+        // seedType discriminator selects the derivation family inside the
+        // stoa-core wallet builder (koala → BIP39/SLIP-10, chainweaver/eckowallet
+        // → BIP32-Ed25519). secretKey is encrypted-at-mnemonic by the builder;
+        // we don't store it — only the encrypted mnemonic goes on the seed.
+        const pos0 = await KadenaWalletBuilder.createWalletPairFromMnemonic(
+          duoPrime.mnemonic, duoPrime.mnemonic, 0, duoPrime.seedType
+        );
+        const pos1 = await KadenaWalletBuilder.createWalletPairFromMnemonic(
+          duoPrime.mnemonic, duoPrime.mnemonic, 1, duoPrime.seedType
+        );
+        duoPaymentPubkey = pos0.publicKey;
+        duoGuardPubkey = pos1.publicKey;
+        primeCodexSeed = {
+          id: newId(),
+          seedType: duoPrime.seedType,
+          version: "2",
+          index: 0,
+          secret: await encryptStringV2(duoPrime.mnemonic, ck),
+          main: `k:${pos0.publicKey}`,
+          // Pre-populate positions #0 + #1 so the Prime Codex Seed's "unremovable
+          // first two accounts" invariant is materialised at creation (v0.2 left
+          // accounts to be added later; the Prime seed needs them present).
+          accounts: [
+            { index: 0, publicKey: pos0.publicKey, derivationPath: "m/44'/626'/0'/0/0" },
+            { index: 1, publicKey: pos1.publicKey, derivationPath: "m/44'/626'/0'/0/1" },
+          ],
+          createdAt: new Date().toISOString(),
+          isPrime: true,
+        };
+      } else {
+        // auto-pure-keys: two fresh pure ED25519 keypairs, both unremovable.
+        const paymentPair = freshKadenaKeypair();
+        const guardPair2 = freshKadenaKeypair();
+        const paymentKey: IPureKeypair = {
+          id: newId(),
+          label: "DuoPurePrime (payment)",
+          publicKey: paymentPair.publicKey,
+          encryptedPrivateKey: await encryptStringV2(paymentPair.secretKey, ck),
+          createdAt: new Date().toISOString(),
+          isDuoPurePrime: true,
+          duoPurePrimeRole: "payment",
+        };
+        const guardKey: IPureKeypair = {
+          id: newId(),
+          label: "DuoPurePrime (guard)",
+          publicKey: guardPair2.publicKey,
+          encryptedPrivateKey: await encryptStringV2(guardPair2.secretKey, ck),
+          createdAt: new Date().toISOString(),
+          isDuoPurePrime: true,
+          duoPurePrimeRole: "guard",
+        };
+        duoPurePrime = [paymentKey, guardKey];
+        duoPaymentPubkey = paymentPair.publicKey;
+        duoGuardPubkey = guardPair2.publicKey;
+      }
+
+      // 10. fresh-dalos backing seed (F-012 — always persisted, non-prime).
+      let primeOuroAccountSeed: IKadenaSeed | undefined;
+      if (codexPrimeSeed.source === "fresh-dalos") {
+        primeOuroAccountSeed = {
+          id: newId(),
+          seedType: "koala",
+          version: "2",
+          index: 0,
+          secret: await encryptStringV2(codexPrimeSeed.words, ck),
+          main: "",
+          accounts: [],
+          createdAt: new Date().toISOString(),
+          isPrime: false,
+        };
+      }
+
+      // 8a/8b. CodexPrime payment key + address per codexPrimeSeed.source.
+      // F-005: standard/smart RE-DERIVE from the respective half-seed; whole uses
+      // the full-seed derivation; fresh-dalos uses DALOS Genesis (Ѻ. prefix).
+      let primeKey: FullKey;
+      let primeCurve: "apollo" | "dalos" = "apollo";
+      if (codexPrimeSeed.source === "reuse-codexid-whole") {
+        primeKey =
+          codexIdSeed.mode === "words"
+            ? Apollo.generateFromSeedWords(words)
+            : Apollo.generateFromBitString(derivation.standard.formats.bitstring);
+      } else if (codexPrimeSeed.source === "reuse-codexid-standard") {
+        primeKey =
+          codexIdSeed.mode === "words"
+            ? Apollo.generateFromSeedWords(words.slice(0, derivation.splitIndex))
+            : Apollo.generateFromBitString(derivation.standard.formats.bitstring);
+      } else if (codexPrimeSeed.source === "reuse-codexid-smart") {
+        primeKey =
+          codexIdSeed.mode === "words"
+            ? Apollo.generateFromSeedWords(words.slice(derivation.splitIndex))
+            : Apollo.generateFromBitString(derivation.smart.formats.bitstring);
+      } else {
+        // fresh-dalos → DALOS Genesis default primitive (Ѻ. standard prefix).
+        primeKey = DalosGenesis.generateFromSeedWords(
+          codexPrimeSeed.words.trim().split(/\s+/).filter(Boolean)
+        );
+        primeCurve = "dalos";
+      }
+
+      // 8c. Guard keyset is ALWAYS the duo pubkeys (F-008) — never the codex
+      // identity Apollo keys and never the CodexGuard. This makes CodexPrime
+      // spendable via the Duo pair regardless of the chosen primeSeed source.
+      const primeGuard: IKeyset = {
+        pred: "keys-all",
+        keys: [duoPaymentPubkey, duoGuardPubkey],
+      };
+
+      // 8d. Build the CodexPrime Standard Ouronet account.
+      const codexPrime: IOuroAccount = {
+        id: newId(),
+        version: "2",
+        name: "CodexPrime",
+        isSmart: false,
+        address: primeKey.standardAddress,
+        publicKey: primeKey.keyPair.publ,
+        secret: await encryptStringV2(primeKey.keyPair.priv, ck),
+        guard: primeGuard,
+        kadenaLedger: null,
+        originMode:
+          codexPrimeSeed.source === "fresh-dalos" ? "seedWords" : "bitString",
+        originCurve: primeCurve,
+        backup: "",
+        isPrime: true,
+        parentSeedId:
+          duoPrime.mode === "kadena-seed" ? primeCodexSeed!.id : undefined,
+      };
+
+      // 11. Assemble the next slices and commit atomically in one set().
+      const nextKadenaSeeds: IKadenaSeed[] = [];
+      if (primeCodexSeed) nextKadenaSeeds.push(primeCodexSeed);
+      if (primeOuroAccountSeed) nextKadenaSeeds.push(primeOuroAccountSeed);
+      const nextPureKeypairs: IPureKeypair[] = [codexGuard];
+      if (duoPurePrime) nextPureKeypairs.push(duoPurePrime[0], duoPurePrime[1]);
+      const nextOuroAccounts: IOuroAccount[] = [codexPrime];
+
+      set({
+        codexIdentity,
+        pureKeypairs: nextPureKeypairs,
+        kadenaSeeds: nextKadenaSeeds,
+        ouroAccounts: nextOuroAccounts,
+        activeKadenaWalletId: nextKadenaSeeds[0]?.id ?? null,
+        activeOuroAccountId: codexPrime.id,
+      });
+
+      // 12. Best-effort persistence — saveCodexIdentity LAST (F-001 ordering).
+      await persistAndTouch(async (a) => {
+        await a.saveKadenaSeeds(nextKadenaSeeds);
+        await a.savePureKeypairs(nextPureKeypairs);
+        await a.saveOuroAccounts(nextOuroAccounts);
+        await a.saveCodexIdentity(codexIdentity);
+      });
+
+      // 13. Return the full v0.3 result.
+      return {
+        codexIdentity,
+        codexGuard,
+        codexPrime,
+        primeCodexSeed,
+        duoPurePrime,
+        primeOuroAccountSeed,
+      };
+    };
+
+    /**
+     * v0.2 legacy kickstart — PURE-PASSTHROUGH (F-004 LOCKED). Installs ONLY the
+     * pre-formed seed + Standard ouro account; `codexIdentity` stays undefined and
+     * NO CodexGuard is auto-created. v0.3 features reach a legacy codex later via
+     * Phase 8's interactive `generateCodexGuardForLegacy`.
+     *
+     * PAT-003: a genuine v0.2 caller CANNOT have produced a v0.3 codexIdentity or
+     * CodexGuard (the v0.3 path is the only writer). Encountering one here means
+     * tampered/imported/partial state, so the legacy path refuses to install v0.2
+     * entities on top — that would yield a hybrid codex downstream consumers can't
+     * reason about. These checks fire BEFORE any state mutation.
+     */
+    const _kickstartV2Legacy = async (
+      args: KickstartArgs
+    ): Promise<KickstartResult> => {
+      if (get().kadenaSeeds.length > 0) {
+        throw new CodexKickstartError("already-kickstarted");
+      }
+      if (get().codexIdentity !== undefined) {
+        throw new CodexIdentityError(
+          "already-exists",
+          "v0.2 legacy kickstart called on a codex that already has a v0.3 " +
+            "codexIdentity; this is tampered/imported state — manual review required."
+        );
+      }
+      if (get().pureKeypairs.some((k) => k.isCodexGuard === true)) {
+        throw new CodexGuardError("already-exists");
+      }
+      if (args.primeOuroAccount.isSmart === true) {
+        throw new CodexKickstartError("smart-account-not-allowed");
+      }
+
+      const seed: IKadenaSeed = { ...args.seed, isPrime: true };
+      const primeOuro: IOuroAccount = {
+        ...args.primeOuroAccount,
+        isPrime: true,
+        parentSeedId: seed.id,
+      };
+
+      const nextSeeds = [seed];
+      const nextOuros = [primeOuro];
+      set({
+        kadenaSeeds: nextSeeds,
+        ouroAccounts: nextOuros,
+        activeKadenaWalletId: seed.id,
+        activeOuroAccountId: primeOuro.id,
+      });
+      await persistAndTouch(async (a) => {
+        await a.saveKadenaSeeds(nextSeeds);
+        await a.saveOuroAccounts(nextOuros);
+      });
+
+      return { seed, primeOuro };
     };
 
     const actions: CodexStoreActions = {
@@ -651,38 +1002,35 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
 
       // ----- codex lifecycle (kickstart / recover) -----
 
-      async kickstartCodex(args: KickstartArgs): Promise<KickstartResult> {
-        // v0.2.0 §5.2: pre-flight guards.
-        if (get().kadenaSeeds.length > 0) {
-          throw new CodexKickstartError("already-kickstarted");
+      async kickstartCodex(
+        args: KickstartArgs | KickstartArgsV3
+      ): Promise<KickstartResult | KickstartResultV3> {
+        // Discriminated dispatch by shape: v0.3 carries `codexIdSeed`; v0.2
+        // carries `seed` + `primeOuroAccount`.
+        const isObj = typeof args === "object" && args !== null;
+        const hasV3Fields = isObj && "codexIdSeed" in args;
+        const hasV2Fields =
+          isObj && ("seed" in args || "primeOuroAccount" in args);
+
+        // Mixed-shape: a misconfigured caller mixing both shapes gets a clean
+        // error instead of silent v3-path-wins behavior (defense-in-depth).
+        if (hasV3Fields && hasV2Fields) {
+          throw new CodexKickstartError(
+            "invalid-args",
+            "args contains both v0.2 (seed/primeOuroAccount) and v0.3 " +
+              "(codexIdSeed) fields; pick one shape"
+          );
         }
-        if (args.primeOuroAccount.isSmart === true) {
-          throw new CodexKickstartError("smart-account-not-allowed");
+        if (hasV3Fields) {
+          return _kickstartV3(args as KickstartArgsV3);
         }
-
-        // Install: seed first (so addOuroAccount's parentSeedId
-        // validation finds it), then ouro.
-        const seed: IKadenaSeed = { ...args.seed, isPrime: true };
-        const primeOuro: IOuroAccount = {
-          ...args.primeOuroAccount,
-          isPrime: true,
-          parentSeedId: seed.id,
-        };
-
-        const nextSeeds = [seed];
-        const nextOuros = [primeOuro];
-        set({
-          kadenaSeeds: nextSeeds,
-          ouroAccounts: nextOuros,
-          activeKadenaWalletId: seed.id,
-          activeOuroAccountId: primeOuro.id,
-        });
-        await persistAndTouch(async (a) => {
-          await a.saveKadenaSeeds(nextSeeds);
-          await a.saveOuroAccounts(nextOuros);
-        });
-
-        return { seed, primeOuro };
+        if (hasV2Fields) {
+          return _kickstartV2Legacy(args as KickstartArgs);
+        }
+        throw new CodexKickstartError(
+          "invalid-args",
+          "args matches neither the v0.2 nor the v0.3 kickstart shape"
+        );
       },
 
       async recoverCodexFromMnemonic(args: KickstartArgs): Promise<KickstartResult> {
