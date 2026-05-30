@@ -56,7 +56,8 @@
       "@stoachain/ouronet-codex/errors": ["./packages/ouronet-codex/src/errors/index.ts"],
       "@stoachain/ouronet-codex/types": ["./packages/ouronet-codex/src/types/index.ts"],
       "@stoachain/ouronet-codex/google-drive": ["./packages/ouronet-codex/src/google-drive/index.ts"],
-      "@stoachain/ouronet-codex/state": ["./packages/ouronet-codex/src/state/index.ts"]
+      "@stoachain/ouronet-codex/state": ["./packages/ouronet-codex/src/state/index.ts"],
+      "@stoachain/ouronet-codex/codex-identity": ["./packages/ouronet-codex/src/codex-identity/index.ts"]
     }
   }
 }
