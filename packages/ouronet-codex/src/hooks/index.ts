@@ -57,3 +57,12 @@ export type { CodexBackupView } from "./useCodexBackup.js";
 
 export { useCodexLifecycle } from "./useCodexLifecycle.js";
 export type { CodexLifecycleView } from "./useCodexLifecycle.js";
+
+export { useCodexIdentity } from "./useCodexIdentity.js";
+export type { CodexIdentityView } from "./useCodexIdentity.js";
+
+export { useCodexGuard } from "./useCodexGuard.js";
+export type { CodexGuardView } from "./useCodexGuard.js";
+
+export { useConsumerSettings } from "./useConsumerSettings.js";
+export type { ConsumerSettingsView } from "./useConsumerSettings.js";
