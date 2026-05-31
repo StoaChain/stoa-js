@@ -235,6 +235,18 @@ export interface CodexStoreState {
   actions: CodexStoreActions;
 }
 
+/**
+ * Unsigned Pact transaction envelope produced by `buildRegisterCodexIdentityTx`.
+ * PLACEHOLDER shape — `function` + `args` order are pending owner confirmation of
+ * the on-chain `ouronet-ns.CODEX.register-codex-identity` signature. The Mnemosyne
+ * backend signs this with the CodexGuard and submits it.
+ */
+export interface UnsignedPactTx {
+  module: string;
+  function: string;
+  args: unknown[];
+}
+
 export interface CodexStoreActions {
   // ----- lifecycle -----
   init(adapter: CodexAdapter, deviceVariant?: DeviceVariant): Promise<void>;
@@ -365,6 +377,15 @@ export interface CodexStoreActions {
    *  there being no public API path to mutate an existing identity (Phase 7's
    *  kickstart writes it once via an internal `set`). */
   getCodexIdentity(): ICodexIdentity | null;
+
+  /** Build the unsigned Pact tx that registers this codex's identity on chain
+   *  (`ouronet-ns.CODEX.register-codex-identity`). Pure read + builder — no state
+   *  mutation, no adapter call, no network. Throws
+   *  `CodexIdentityError("missing-codex-identity")` if the codex has no identity,
+   *  `CodexGuardError("missing-codex-guard")` if there is no active CodexGuard.
+   *  PLACEHOLDER arg order (Standard pubkey, Smart pubkey, CodexGuard keyset,
+   *  [registeredBy]) — pending owner confirmation of the real Pact signature. */
+  buildRegisterCodexIdentityTx(opts?: { registeredBy?: string }): UnsignedPactTx;
 
   // ----- active selection -----
   setActiveKadenaWallet(id: string | null): void;
@@ -1523,6 +1544,34 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
         // legacy/fresh codices, the public contract is null. Non-cloning —
         // short-circuits to the underlying immutable slot.
         return get().codexIdentity ?? null;
+      },
+
+      buildRegisterCodexIdentityTx(opts?: { registeredBy?: string }): UnsignedPactTx {
+        const identity = get().codexIdentity;
+        if (!identity) {
+          throw new CodexIdentityError("missing-codex-identity");
+        }
+        // Reuses the exactly-one-active-guard integrity defense.
+        const guardPub = get().actions.getCodexGuardPublic();
+        if (!guardPub) {
+          throw new CodexGuardError("missing-codex-guard");
+        }
+        // PLACEHOLDER — arg order pending owner confirmation of the on-chain
+        // ouronet-ns.CODEX.register-codex-identity signature. When the owner pins
+        // the real arg order, update here + the test assertions in lockstep.
+        const args: unknown[] = [
+          identity.standardPublicKey,
+          identity.smartPublicKey,
+          { keys: [guardPub], pred: "keys-all" },
+        ];
+        if (opts?.registeredBy !== undefined) {
+          args.push(opts.registeredBy);
+        }
+        return {
+          module: "ouronet-ns.CODEX",
+          function: "register-codex-identity",
+          args,
+        };
       },
 
       // ----- active selection (no persistence — runtime only) -----
