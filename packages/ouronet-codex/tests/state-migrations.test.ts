@@ -41,8 +41,9 @@ describe("CURRENT_SCHEMA_VERSION + SCHEMA_MIGRATIONS registry", () => {
     expect(CURRENT_SCHEMA_VERSION).toBe(2);
   });
 
-  it("SCHEMA_MIGRATIONS ships empty in Phase 1 (Phase 10 fills it)", () => {
-    expect(SCHEMA_MIGRATIONS).toEqual([]);
+  it("SCHEMA_MIGRATIONS contains the v0.2->v0.3 (1->2) migration (filled in Phase 10)", () => {
+    expect(SCHEMA_MIGRATIONS.length).toBe(1);
+    expect(SCHEMA_MIGRATIONS[0]).toMatchObject({ fromVersion: 1, toVersion: 2 });
   });
 });
 

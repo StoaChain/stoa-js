@@ -13,6 +13,8 @@
 
 import type { CodexSnapshot } from "../adapters/types.js";
 import { CodexMigrationError } from "../errors/index.js";
+import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
+import type { IConsumerSettings, UiSettings } from "../types/entities.js";
 
 export interface SchemaMigration {
   fromVersion: number;
@@ -28,11 +30,64 @@ export interface SchemaMigration {
  *  migration. */
 export const CURRENT_SCHEMA_VERSION = 2 as const;
 
+/** Canonical UiSettings keys — sourced from DEFAULT_UI_SETTINGS so the
+ *  whitelist stays in sync with the typed schema. Any key in a stored
+ *  uiSettings that is NOT one of these is a consumer-specific "extra"
+ *  (historically stashed by OuronetUI via the `[extra]` escape hatch) and is
+ *  relocated into `consumerSettings["OuronetUI"]` by the v1->v2 migration. */
+const CANONICAL_UI_SETTINGS_KEYS = new Set(Object.keys(DEFAULT_UI_SETTINGS));
+
+/**
+ * v0.2 (schemaVersion 1) -> v0.3 (schemaVersion 2). Pure.
+ *   - Partitions `uiSettings` into canonical (kept) vs extras (relocated).
+ *   - Seeds `consumerSettings` from the snapshot, then merges the OuronetUI
+ *     slot (only when there are extras to move).
+ *   - Strips relocated extras from `uiSettings` so data isn't duplicated.
+ *   - Leaves `codexIdentity` unset (passive — interactive flow fills it later).
+ *   - Sets `schemaVersion: 2` (the runner validates this post-condition).
+ */
+function migrateV1ToV2(snap: CodexSnapshot): CodexSnapshot {
+  const canonical: Record<string, unknown> = {};
+  const extras: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(snap.uiSettings ?? {})) {
+    if (CANONICAL_UI_SETTINGS_KEYS.has(k)) canonical[k] = v;
+    else extras[k] = v;
+  }
+
+  const consumerSettings: Record<string, IConsumerSettings> = {
+    ...(snap.consumerSettings ?? {}),
+  };
+  if (Object.keys(extras).length > 0) {
+    consumerSettings["OuronetUI"] = {
+      consumerName: "OuronetUI",
+      consumerVersion: "unknown",
+      schemaVersion: 1,
+      settings: extras,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+  }
+
+  return {
+    ...snap,
+    uiSettings: canonical as UiSettings,
+    consumerSettings,
+    codexIdentity: undefined,
+    schemaVersion: 2,
+  };
+}
+
 /** Registry of all schema migrations, applied in chain order on load when the
  *  stored codex is older than CURRENT_SCHEMA_VERSION. Never delete past
- *  entries — old codices still need them. Empty until the v0.2 -> v0.3
- *  migration lands. */
-export const SCHEMA_MIGRATIONS: SchemaMigration[] = [];
+ *  entries — old codices still need them. */
+export const SCHEMA_MIGRATIONS: SchemaMigration[] = [
+  {
+    fromVersion: 1,
+    toVersion: 2,
+    description:
+      "v0.2 -> v0.3: seed consumerSettings, relocate OuronetUI uiSettings extras into consumerSettings['OuronetUI'], leave codexIdentity unset",
+    migrate: migrateV1ToV2,
+  },
+];
 
 /** Returns true if this package version can safely WRITE a codex loaded at the
  *  given schema version. False when the loaded codex is at a NEWER schema —
