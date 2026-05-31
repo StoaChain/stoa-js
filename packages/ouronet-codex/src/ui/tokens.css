@@ -1,0 +1,71 @@
+/*
+ * @stoachain/ouronet-codex/ui — design-token contract.
+ *
+ * The `--codex-*` custom properties below are the single themeable surface for
+ * every assembled component shipped from the `./ui` subpath. Components style
+ * exclusively via `style={{ color: "var(--codex-text)" }}` — there is NO
+ * Tailwind/utility build. To reskin, a consumer overrides any `--codex-*` var
+ * (on `.codex-ui`, on `:root`, or on a per-instance wrapper).
+ *
+ * Defaults mirror OuronetUI's dark "Ouronet Codex" page so the OuronetUI
+ * consumer needs near-zero overrides. Hex values are lifted verbatim from
+ * OuronetUI's StoicTagDisplay / OuroAccountList / settings route.
+ *
+ * The token block is declared twice on purpose:
+ *   - `:root`     — global fallback, so tokens resolve even if a stray
+ *                   component renders outside a `.codex-ui` boundary.
+ *   - `.codex-ui` — the scoped contract applied by `<CodexUiRoot>`; lets a
+ *                   consumer confine Codex theming to one subtree.
+ */
+
+:root,
+.codex-ui {
+  /* ── Surfaces ─────────────────────────────────────────────── */
+  --codex-bg: #0a0a0a;          /* page/base */
+  --codex-surface: #18181b;     /* cards, stat bars, active rows */
+  --codex-surface-2: #111111;   /* nested cards / inputs */
+  --codex-border: #262626;      /* default 1px borders, dividers */
+
+  /* ── Text ─────────────────────────────────────────────────── */
+  --codex-text: #d2d3d4;        /* primary copy + headings */
+  --codex-text-dim: #888888;    /* labels, secondary copy */
+
+  /* ── Accent (CodexPrime gold) ─────────────────────────────── */
+  --codex-accent: #ceac5f;          /* primary action / CodexPrime gold */
+  --codex-accent-strong: #f59e0b;   /* amber emphasis (sync shimmer) */
+
+  /* ── Status ───────────────────────────────────────────────── */
+  --codex-success: #22c55e;     /* active / matches-chain (bright: #4ade80) */
+  --codex-error: #c0392b;       /* inactive / mismatch / foreign */
+  --codex-warning: #f97316;     /* experimental / observational (APOLLO) */
+
+  /* ── Radii ────────────────────────────────────────────────── */
+  --codex-radius: 8px;          /* buttons, small cards (rounded-lg) */
+  --codex-radius-lg: 16px;      /* large panel cards (rounded-2xl) */
+
+  /* ── Elevation ────────────────────────────────────────────── */
+  --codex-shadow: 0 14px 44px rgba(0, 0, 0, 0.65);
+
+  /* ── Fonts ────────────────────────────────────────────────── */
+  --codex-font: "Inter", system-ui, -apple-system, sans-serif;
+  --codex-font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  --codex-font-display: "Cinzel", serif;
+}
+
+/*
+ * Display font for inscription-style surfaces (e.g. the StoicTag pillar).
+ * OuronetUI loads the same Cinzel weights via Google Fonts in app.css; we
+ * import here so the `./ui` package is self-sufficient when a consumer hasn't
+ * already loaded the family. JetBrains Mono + Inter come along for the
+ * `--codex-font` / `--codex-font-mono` defaults.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/*
+ * Global spinner keyframes — used by loading affordances across the assembled
+ * components (matches the rotation OuronetUI applies to RotateCw / sync icons).
+ */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

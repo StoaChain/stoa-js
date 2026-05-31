@@ -33,6 +33,7 @@ export default defineConfig({
       { find: /^@stoachain\/ouronet-codex\/google-drive$/, replacement: `${ouronetCodexSrc}/google-drive/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/state$/, replacement: `${ouronetCodexSrc}/state/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/codex-identity$/, replacement: `${ouronetCodexSrc}/codex-identity/index.ts` },
+      { find: /^@stoachain\/ouronet-codex\/ui$/, replacement: `${ouronetCodexSrc}/ui/index.ts` },
       { find: /^@stoachain\/ouronet-codex$/, replacement: `${ouronetCodexSrc}/index.ts` },
       // Cross-package aliases — ouronet-core
       { find: /^@stoachain\/ouronet-core\/interactions\/(.+)$/, replacement: `${ouronetCoreSrc}/interactions/$1.ts` },

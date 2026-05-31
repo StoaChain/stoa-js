@@ -38,6 +38,11 @@
       "types": "./dist/codex-identity/index.d.ts",
       "import": "./dist/codex-identity/index.js"
     },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.js"
+    },
+    "./ui.css": "./dist/ui.css",
     "./types": {
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js"
@@ -49,6 +54,7 @@
   },
   "files": [
     "dist",
+    "dist/ui.css",
     "CHANGELOG.md",
     "README.md"
   ],
@@ -57,7 +63,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && npm run copy:ui-css",
+    "copy:ui-css": "node -e \"require('fs').copyFileSync('src/ui/tokens.css','dist/ui.css')\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
