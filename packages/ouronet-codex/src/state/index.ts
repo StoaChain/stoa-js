@@ -23,6 +23,7 @@ export {
   _internal_requireUnlocked,
   CodexPasswordError,
   RETIREMENT_SUFFIX_REGEX,
+  RETIREMENT_SUFFIX_CAPTURE_REGEX,
 } from "./store.js";
 
 export type { SchemaMigration } from "./migrations.js";

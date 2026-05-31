@@ -120,6 +120,13 @@ const CONSUMER_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
  *             (non-digit). */
 export const RETIREMENT_SUFFIX_REGEX = / \(retired #\d+\)$/;
 
+/** Capture-group variant of RETIREMENT_SUFFIX_REGEX, used by `rotateCodexGuard`
+ *  to extract the retirement counter (N) when computing the next available
+ *  suffix. The anchors and digit semantics MUST mirror RETIREMENT_SUFFIX_REGEX
+ *  exactly — both are the canonical retirement-label pattern, differing only in
+ *  the capture group around the integer. `m[1]` holds the matched digits. */
+export const RETIREMENT_SUFFIX_CAPTURE_REGEX = / \(retired #(\d+)\)$/;
+
 export interface PasswordCacheEntry {
   value: string;
   expiresAt: number; // epoch ms
@@ -296,6 +303,26 @@ export interface CodexStoreActions {
    *  with the codex CK and signs Pact txs with it. Same null/throw contract as
    *  `getCodexGuardPublic`. */
   getCodexGuardEncryptedPrivate(): string | null;
+  /** One-shot CodexGuard generation for v0.2-migrated codices (v0.3.0+).
+   *  Generates a fresh random ED25519 keypair, encrypts the private half at CK,
+   *  flags `isCodexGuard: true`, label `"CodexGuard"`, prepends to pureKeypairs.
+   *  Throws `CodexGuardError("already-exists")` if codex already has an active
+   *  CodexGuard. Throws `CodexGuardError("integrity-violated")` if codex has
+   *  MULTIPLE active CodexGuards (corrupted state). Auth pre-flight runs first —
+   *  propagates `CodexLockedError` on a locked codex. Returns the freshly-built
+   *  entry so the caller can surface the new public key to the user. */
+  generateCodexGuardForLegacy(): Promise<IPureKeypair>;
+  /** Rotate the active CodexGuard (v0.3.0+). Generates a new random ED25519
+   *  keypair as the active CodexGuard; demotes the previous active CodexGuard
+   *  with `isCodexGuard: false` + `wasCodexGuard: true` and a retirement-suffix
+   *  label `"<oldLabel> (retired #N)"` (N = next available counter, scanning all
+   *  labels). Throws `CodexGuardError("missing-codex-guard")` if no active guard
+   *  exists (call `generateCodexGuardForLegacy()` first). Throws
+   *  `CodexGuardError("integrity-violated")` if MULTIPLE active guards exist
+   *  (corrupted state). The demoted entry remains undeletable via Phase 6's
+   *  `wasCodexGuard` protection. ATOMIC — failure at any step leaves state
+   *  unchanged. Returns both entities so the caller can display them. */
+  rotateCodexGuard(): Promise<{ newGuard: IPureKeypair; retired: IPureKeypair }>;
 
   // ----- ouro accounts -----
   addOuroAccount(account: IOuroAccount): Promise<void>;
@@ -1200,6 +1227,133 @@ export function createCodexStore(): UseBoundStore<StoreApi<CodexStoreState>> {
           );
         }
         return active[0]?.encryptedPrivateKey ?? null;
+      },
+
+      async generateCodexGuardForLegacy(): Promise<IPureKeypair> {
+        // 1. Auth pre-flight — throws CodexLockedError BEFORE any generation, so
+        //    a locked codex never wastes entropy on a discarded keypair.
+        const ck = actions.getPassword();
+
+        // 2. Integrity-aware active-CodexGuard count. Mirrors Phase 5's canonical
+        //    active-detection filter (strict `=== true`, wasCodexGuard excluded).
+        const active = get().pureKeypairs.filter(
+          (k) => k.isCodexGuard === true && k.wasCodexGuard !== true
+        );
+        if (active.length > 1) {
+          throw new CodexGuardError(
+            "integrity-violated",
+            `Codex has ${active.length} active CodexGuards; exactly 1 expected.`
+          );
+        }
+        if (active.length === 1) {
+          throw new CodexGuardError(
+            "already-exists",
+            "Use rotateCodexGuard() to replace the existing active CodexGuard."
+          );
+        }
+
+        // 3. Build the CodexGuard — same shape as _kickstartV3's guard block
+        //    (freshKadenaKeypair + encryptStringV2 + label "CodexGuard"), the
+        //    single source of truth for "how a CodexGuard is constructed".
+        const pair = freshKadenaKeypair();
+        const codexGuard: IPureKeypair = {
+          id: newId(),
+          label: "CodexGuard",
+          publicKey: pair.publicKey,
+          encryptedPrivateKey: await encryptStringV2(pair.secretKey, ck),
+          createdAt: new Date().toISOString(),
+          isCodexGuard: true,
+        };
+
+        // 4. Prepend (position 0) — matches kickstart's CodexGuard-first
+        //    convention. addPureKeypair is bypassed: it appends (position last)
+        //    and this action needs the guard at the head of the slice.
+        const next = [codexGuard, ...get().pureKeypairs];
+
+        // 5. Atomic in-memory commit, then per-slice persist.
+        set({ pureKeypairs: next });
+        await persistAndTouch((a) => a.savePureKeypairs(next));
+
+        return codexGuard;
+      },
+
+      async rotateCodexGuard(): Promise<{
+        newGuard: IPureKeypair;
+        retired: IPureKeypair;
+      }> {
+        // 1. Auth pre-flight — throws CodexLockedError BEFORE any generation.
+        const ck = actions.getPassword();
+
+        // 2. Find the active CodexGuard (canonical filter). length===0 means the
+        //    caller must run generateCodexGuardForLegacy first; length>1 is a
+        //    corrupted codex (same loud-failure semantic as Phase 5's getters).
+        const allKeys = get().pureKeypairs;
+        const active = allKeys.filter(
+          (k) => k.isCodexGuard === true && k.wasCodexGuard !== true
+        );
+        if (active.length > 1) {
+          throw new CodexGuardError(
+            "integrity-violated",
+            `Codex has ${active.length} active CodexGuards; exactly 1 expected.`
+          );
+        }
+        if (active.length === 0) {
+          throw new CodexGuardError(
+            "missing-codex-guard",
+            "Call generateCodexGuardForLegacy() to create an initial CodexGuard before rotating."
+          );
+        }
+        const oldGuard = active[0]!;
+
+        // 3. Build the new active CodexGuard — same shape as generateCodexGuard
+        //    ForLegacy / _kickstartV3 (single source of truth).
+        const pair = freshKadenaKeypair();
+        const newGuard: IPureKeypair = {
+          id: newId(),
+          label: "CodexGuard",
+          publicKey: pair.publicKey,
+          encryptedPrivateKey: await encryptStringV2(pair.secretKey, ck),
+          createdAt: new Date().toISOString(),
+          isCodexGuard: true,
+        };
+
+        // 4. Next retirement counter = max(existing N across ALL labels) + 1.
+        //    Scanning every label (not just retired guards) defends against a
+        //    user-labeled key that happens to match the retirement pattern.
+        let maxN = 0;
+        for (const k of allKeys) {
+          const m = k.label?.match(RETIREMENT_SUFFIX_CAPTURE_REGEX);
+          if (m) {
+            const n = parseInt(m[1]!, 10);
+            if (Number.isFinite(n) && n > maxN) maxN = n;
+          }
+        }
+        const nextN = maxN + 1;
+        // Old label PRE-rotation; explicit isCodexGuard: false makes the demotion
+        // observable in JSON snapshots and matches Phase 5's strict-equality
+        // filter. Nested suffixes (re-rotating an already-retired label) are
+        // accepted as-is — simplest semantics, no special-case stripping.
+        const retired: IPureKeypair = {
+          ...oldGuard,
+          isCodexGuard: false,
+          wasCodexGuard: true,
+          label: `${oldGuard.label} (retired #${nextN})`,
+        };
+
+        // 5. Project: prepend the new guard, replace the old one in place. The
+        //    label rewrite happens directly here (NOT via renamePureKeypair) —
+        //    internal lifecycle actions own their own writes; Phase 6's rename
+        //    guard is the EXTERNAL protection surface.
+        const next: IPureKeypair[] = [
+          newGuard,
+          ...allKeys.map((k) => (k.id === oldGuard.id ? retired : k)),
+        ];
+
+        // 6. Single atomic in-memory commit + single per-slice persist.
+        set({ pureKeypairs: next });
+        await persistAndTouch((a) => a.savePureKeypairs(next));
+
+        return { newGuard, retired };
       },
 
       // ----- ouro accounts -----
