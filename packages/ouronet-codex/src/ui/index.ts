@@ -32,3 +32,32 @@ export type { StoicTagDisplayProps } from "./StoicTagDisplay.js";
 // Phase 14 — the assembled shell composing all five tabs.
 export { CodexTabs } from "./CodexTabs.js";
 export type { CodexTabsProps, CodexTabKey } from "./CodexTabs.js";
+
+// Phase 15 — token-styled Codex Settings section cards (Google Drive sync
+// card intentionally excluded — it stays redux-bound in OuronetUI).
+export { CodexInfoCard } from "./settings/CodexInfoCard.js";
+export type { CodexInfoCardProps } from "./settings/CodexInfoCard.js";
+export { ChangePasswordCard } from "./settings/ChangePasswordCard.js";
+export type {
+  ChangePasswordCardProps,
+  ChangePasswordPayload,
+} from "./settings/ChangePasswordCard.js";
+export { DownloadCodexCard } from "./settings/DownloadCodexCard.js";
+export type { DownloadCodexCardProps } from "./settings/DownloadCodexCard.js";
+export { EncryptionCard } from "./settings/EncryptionCard.js";
+export type { EncryptionCardProps } from "./settings/EncryptionCard.js";
+export { ExperimentalCurvesCard } from "./settings/ExperimentalCurvesCard.js";
+export type { ExperimentalCurvesCardProps } from "./settings/ExperimentalCurvesCard.js";
+
+// Phase 15 — the NEW v0.3.0 surfaces (Phase-12 hooks; gate gracefully on null).
+export { CodexIdentityCard } from "./settings/CodexIdentityCard.js";
+export type { CodexIdentityCardProps } from "./settings/CodexIdentityCard.js";
+export { CodexGuardCard } from "./settings/CodexGuardCard.js";
+export type { CodexGuardCardProps } from "./settings/CodexGuardCard.js";
+export { ConsumerSettingsCard } from "./settings/ConsumerSettingsCard.js";
+export type { ConsumerSettingsCardProps } from "./settings/ConsumerSettingsCard.js";
+
+// Phase 15 — the assembled section composing all eight cards (Google Drive
+// sync intentionally excluded).
+export { CodexSettingsSection } from "./settings/CodexSettingsSection.js";
+export type { CodexSettingsSectionProps } from "./settings/CodexSettingsSection.js";
