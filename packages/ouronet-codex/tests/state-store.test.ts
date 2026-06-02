@@ -137,9 +137,9 @@ describe("CodexStore", () => {
       expect(state.ouroAccounts).toHaveLength(1);
       expect(state.activeKadenaWalletId).toBe("s1");
       expect(state.activeOuroAccountId).toBe("o1");
-      // init() auto-applies the v0.2->v0.3 migration on load (Phase 10 filled
-      // the registry), so a loaded schemaVersion:1 codex lands at the current 2.
-      expect(state.schemaVersion).toBe(2);
+      // init() auto-applies the full migration chain on load (1->2->3), so a
+      // loaded schemaVersion:1 codex lands at the current 3.
+      expect(state.schemaVersion).toBe(3);
     });
   });
 

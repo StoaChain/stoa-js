@@ -13,7 +13,6 @@ import type { CodexSnapshot } from "@stoachain/ouronet-codex/adapters";
 import {
   applyMigrations,
   SCHEMA_MIGRATIONS,
-  CURRENT_SCHEMA_VERSION,
 } from "@stoachain/ouronet-codex/state";
 
 function v02Snapshot(uiExtras: Record<string, unknown> = {}): CodexSnapshot {
@@ -25,8 +24,10 @@ function v02Snapshot(uiExtras: Record<string, unknown> = {}): CodexSnapshot {
   };
 }
 
+// This file isolates the 1->2 step, so it targets schemaVersion 2 explicitly
+// (NOT CURRENT_SCHEMA_VERSION, which advances as later migrations are added).
 const run = (snap: CodexSnapshot) =>
-  applyMigrations(snap, SCHEMA_MIGRATIONS, CURRENT_SCHEMA_VERSION);
+  applyMigrations(snap, SCHEMA_MIGRATIONS, 2);
 
 describe("v0.2 -> v0.3 schema migration", () => {
   it("migrates an empty v0.2 codex: schemaVersion 2, consumerSettings {}, no OuronetUI slot", () => {
@@ -38,15 +39,15 @@ describe("v0.2 -> v0.3 schema migration", () => {
 
   it("relocates non-canonical uiSettings extras into consumerSettings['OuronetUI'] and strips them", () => {
     const out = run(
-      v02Snapshot({ zbomProfile: "fast", poolFeeUnit: "KDA", simStoicTagEnabled: true })
+      v02Snapshot({ legacyDexPref: "fast", poolFeeUnit: "KDA", simStoicTagEnabled: true })
     );
     expect(out.consumerSettings?.OuronetUI?.settings).toEqual({
-      zbomProfile: "fast",
+      legacyDexPref: "fast",
       poolFeeUnit: "KDA",
       simStoicTagEnabled: true,
     });
     // extras stripped from uiSettings
-    expect((out.uiSettings as Record<string, unknown>).zbomProfile).toBeUndefined();
+    expect((out.uiSettings as Record<string, unknown>).legacyDexPref).toBeUndefined();
     expect((out.uiSettings as Record<string, unknown>).poolFeeUnit).toBeUndefined();
     expect((out.uiSettings as Record<string, unknown>).simStoicTagEnabled).toBeUndefined();
     // canonical keys retained with original values
@@ -97,20 +98,20 @@ describe("v0.2 -> v0.3 schema migration", () => {
   });
 
   it("does not mutate the input snapshot", () => {
-    const input = v02Snapshot({ zbomProfile: "fast" });
+    const input = v02Snapshot({ legacyDexPref: "fast" });
     const clone = structuredClone(input);
     run(input);
     expect(input).toEqual(clone);
   });
 
   it("is idempotent through the runner: an already-v0.3 snapshot is returned unchanged", () => {
-    const v03 = run(v02Snapshot({ zbomProfile: "fast" }));
+    const v03 = run(v02Snapshot({ legacyDexPref: "fast" }));
     const again = run(v03);
     expect(again).toBe(v03); // runner short-circuits when schemaVersion === target
   });
 
   it("merges the OuronetUI slot on top of pre-existing consumerSettings", () => {
-    const base = v02Snapshot({ zbomProfile: "fast" });
+    const base = v02Snapshot({ legacyDexPref: "fast" });
     const input: CodexSnapshot = {
       ...base,
       consumerSettings: {
@@ -125,6 +126,6 @@ describe("v0.2 -> v0.3 schema migration", () => {
     };
     const out = run(input);
     expect(out.consumerSettings?.Mnemosyne?.settings).toEqual({ theme: "dark" });
-    expect(out.consumerSettings?.OuronetUI?.settings).toEqual({ zbomProfile: "fast" });
+    expect(out.consumerSettings?.OuronetUI?.settings).toEqual({ legacyDexPref: "fast" });
   });
 });

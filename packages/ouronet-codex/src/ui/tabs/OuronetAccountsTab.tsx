@@ -1,361 +1,612 @@
 /**
- * OuronetAccountsTab — token-styled, Redux-free port of OuronetUI's
- * OuroAccountList. Renders an account card per `useOuroAccounts()` entry with:
- *   - rotation flows reusing the package `./components` Rotate*Modal
- *     (RotateGuard for every account; RotatePaymentKey + RotateSovereign for
- *     smart accounts). RotateGovernor is deferred upstream, so it's not wired.
- *   - CodexPrime delete protection: the prime account exposes no delete control
- *     (the store throws `CodexPrimeProtectedError` on delete).
- *   - the StoicTag pillar.
+ * OuronetAccountsTab — 1:1 clone of OuronetUI's My Codex "Ouronet Accounts"
+ * subtab (src/components/settings/OuroAccountList.tsx + the parent stats bar
+ * with the Spawn buttons), rebuilt Redux-free over the package hooks.
  *
- * StoicTag is chain state, NOT codex storage. The tab takes the StoicTag read +
- * claim + release as INJECTED props (`stoicTagFor`, `onClaimStoicTag`,
- * `onReleaseStoicTag`), so the package imports no `@stoachain/ouronet-core`
- * chain readers and stays portable. The codex store remains tag-agnostic.
+ * Fidelity target: the exact OuronetUI visuals — Total Accounts header +
+ * Spawn Standard/Smart buttons, Standard/Smart filter with counts, Expand All,
+ * top+bottom pagination (7/page), and the collapsible account rows with their
+ * full expanded breakdown (Ouronet address, payment key + balance + guard,
+ * account guard, StoicTag, sovereign/governor for Smart, public-key integrity,
+ * View/Rename/Delete/Activate). APOLLO accounts read "observational"; CodexPrime
+ * is locked (no delete); every chain action self-contains in the package.
  *
- * Styled exclusively via `--codex-*` tokens; no `react-redux` / `wallet-context`.
+ * Increment status (v0.3.1): the VIEW is cloned in full and the Rotate
+ * Guard/Payment/Sovereign buttons wire to the package's own modals. The
+ * Spawn / Activate / Rotate-Governor / StoicTag add+release modals are ported
+ * in subsequent increments (v0.3.2+) — their buttons render here for visual
+ * fidelity and are marked accordingly until then.
+ *
+ * Styling: replicates OuronetUI's exact hex palette via inline styles (the
+ * package can't assume a Tailwind build), deliberately NOT the abstract
+ * --codex-* tokens, which is what made the earlier port look dissimilar.
  */
 
 import * as React from "react";
-import { useState } from "react";
-import { useOuroAccounts } from "../../hooks/useOuroAccounts.js";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
-  RotateGuardModal,
-  RotatePaymentKeyModal,
-  RotateSovereignModal,
-} from "../../components/index.js";
-import { StoicTagDisplay } from "../StoicTagDisplay.js";
-import type { IOuroAccount } from "../../types/entities.js";
+  ChevronDown,
+  ChevronRight,
+  ChevronsUpDown,
+  Eye,
+  Lock,
+  RotateCw,
+  RefreshCw,
+  Shield,
+  Zap,
+  Tag,
+  Unlink,
+  Landmark,
+  PlusCircle,
+  Atom,
+  Check,
+  X,
+} from "lucide-react";
 
-/** A StoicTag view as resolved from chain by the consumer. Injected — the
- *  package never reads chain state for tags. */
-export interface StoicTagView {
-  /** Bare tag name (no § sigil). */
-  tag: string;
-  /** Chain-side status of the tag binding. */
-  status: "active" | "released" | "unregistered";
+import { useOuroAccounts } from "../../hooks/useOuroAccounts.js";
+import { useKadenaSeeds } from "../../hooks/useKadenaSeeds.js";
+import { usePureKeypairs } from "../../hooks/usePureKeypairs.js";
+import RotatePaymentKeyModal from "../../zbom/modals/RotatePaymentKeyModal.js";
+import RotateGuardModal from "../../zbom/modals/RotateGuardModal.js";
+import ReleaseStoicTagModal from "../../zbom/modals/ReleaseStoicTagModal.js";
+import RegisterStoicTagModal from "../../zbom/modals/RegisterStoicTagModal.js";
+import RotateSovereignModal from "../../zbom/modals/RotateSovereignModal.js";
+import RotateGovernorModal from "../../zbom/modals/RotateGovernorModal.js";
+import ActivateStandardAccountModal from "../../zbom/modals/ActivateStandardAccountModal.js";
+import { flattenKadenaAccounts } from "../../zbom/cfm/seam.js";
+import { IconCopyBtn, IconDeleteBtn, IconDeleteBtnDisabled, IconRenameBtnRect } from "../internal/IconButtons.js";
+import { OuronetAddressHighlight } from "../internal/OuronetAddressHighlight.js";
+import { GuardTree } from "../internal/GuardTree.js";
+import { detectOriginCurve } from "../internal/originCurve.js";
+import { addrColor, identifyKeySource } from "../internal/keySource.js";
+import { useAccountChainData } from "../internal/useAccountChainData.js";
+import { MONO, GoldenBtn, VioletBtn, GreenBtn, pillStyle, sectionBox, sectionLabel } from "../internal/accountFields.js";
+import { ViewSeedModal } from "../internal/ViewSeedModal.js";
+import { SpawnAccountModal } from "../internal/SpawnAccountModal.js";
+import type { AccountSelectorData } from "@stoachain/ouronet-core/interactions/ouroTypes";
+import type { IOuroAccount, IKadenaSeed, IPureKeypair, IKadenaWallet } from "../../types/entities.js";
+
+/** Overlay live URC_0027 chain state onto a codex account for display. The
+ *  codex store stays the at-rest source of truth; chain fields win when present. */
+function hydrate(account: IOuroAccount, d?: AccountSelectorData): IOuroAccount {
+  if (!d) return account;
+  const sovereign = d["sovereign"];
+  const governor = d["governor"];
+  const accountGuard = d["ouronet-account-guard"];
+  const pkGuard = d["payment-key-guard"];
+  return {
+    ...account,
+    isActive: d["iz-activated"],
+    guard: accountGuard && accountGuard !== false ? accountGuard : account.guard,
+    kadenaLedger: d["payment-key-existance"] ? d["payment-key"] : account.kadenaLedger,
+    paymentKeyGuard: pkGuard !== false && pkGuard != null ? pkGuard : account.paymentKeyGuard,
+    chainPublicKey: d["public-key"] || account.chainPublicKey,
+    sovereign: sovereign !== false ? (sovereign as string) : account.sovereign,
+    governor: governor !== false && governor != null ? governor : account.governor,
+    stoicTag: d["stoic-tag-has"] ? d["stoic-tag"] : undefined,
+  };
 }
 
-type RotateKind = "guard" | "paymentKey" | "sovereign";
+/* APOLLO observational-curve accents — Standard ₱. orange, Smart Π. cherry. */
+const APOLLO_COLOR = "#f97316";
+const APOLLO_SMART_COLOR = "#a01b3f";
+const ACCOUNTS_PER_PAGE = 10;
 
 export interface OuronetAccountsTabProps {
   className?: string;
-  /** Resolve the StoicTag bound to an account (chain state). Return null when
-   *  the account has no tag. Injected so the package stays chain-IO-light. */
-  stoicTagFor?: (account: IOuroAccount) => StoicTagView | null;
-  /** Claim a StoicTag for an account. Receives the account + the bare tag. */
-  onClaimStoicTag?: (account: IOuroAccount, tag: string) => void;
-  /** Release the account's active StoicTag. */
-  onReleaseStoicTag?: (account: IOuroAccount) => void;
 }
 
-function StoicTagPillar({
-  account,
-  view,
-  onClaim,
-  onRelease,
-}: {
-  account: IOuroAccount;
-  view: StoicTagView | null;
-  onClaim?: (account: IOuroAccount, tag: string) => void;
-  onRelease?: (account: IOuroAccount) => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const isActive = view?.status === "active";
+/* Green pillar marker — at-a-glance "account has an active StoicTag" + the
+ * high-end hover card (the inscription-style §tag), ported 1:1 from My Codex's
+ * StoicTagPillar. CSS/state hover popover (no Radix dependency in the package). */
+function StoicTagPillar({ tag }: { tag: string }) {
+  const [hover, setHover] = useState(false);
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const DISPLAY = "var(--codex-font-display, 'Cinzel', serif)";
+
+  // The hover card is portalled to <body> with fixed positioning so it escapes
+  // both the header <button> (a div can't legally nest in a button) and the
+  // account row's overflow:hidden — either of which previously clipped/broke it.
+  const show = () => {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (r) setCoords({ left: r.left + r.width / 2, top: r.top });
+    setHover(true);
+  };
+
+  const card = hover && coords
+    ? createPortal(
+        <div
+          style={{
+            position: "fixed", left: coords.left, top: coords.top - 10,
+            transform: "translate(-50%, -100%)", pointerEvents: "none",
+            zIndex: 2147483647, width: "max-content", maxWidth: 360, padding: "14px 16px", borderRadius: 12,
+            backgroundColor: "#08120c", border: "1px solid #16a34a55",
+            boxShadow: "0 0 26px 2px rgba(74,222,128,0.18), 0 14px 44px rgba(0,0,0,0.65)",
+          }}
+        >
+          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 58, height: 58, borderRadius: 12, background: "radial-gradient(circle at 50% 32%, rgba(22,163,74,0.28), #08120c 72%)", border: "1px solid #16a34a45" }}>
+              <Landmark style={{ width: 36, height: 36, color: "#4ade80" }} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: DISPLAY, fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "#16a34a", marginBottom: 7 }}>StoicTag</div>
+              <div style={{ fontFamily: DISPLAY, fontWeight: 600, color: "#7ef0a3", lineHeight: 1.4, wordBreak: "break-word", overflowWrap: "anywhere", textShadow: "0 0 12px rgba(74,222,128,0.35)", maxWidth: 260, maxHeight: 210, overflowY: "auto" }}>
+                <span style={{ fontSize: 34, fontWeight: 700, marginRight: 2 }}>§</span>
+                {Array.from(tag).map((ch, i) => {
+                  const isUpper = ch !== ch.toLowerCase() && ch === ch.toUpperCase();
+                  return <span key={i} style={{ fontSize: isUpper ? 27 : 20 }}>{ch}</span>;
+                })}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
 
   return (
-    <div
-      style={{
-        marginTop: "10px",
-        paddingTop: "10px",
-        borderTop: "1px solid var(--codex-border)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "8px",
-      }}
+    <span
+      ref={triggerRef}
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", flexShrink: 0, color: "#4ade80", cursor: "help" }}
+      onMouseEnter={show}
+      onMouseLeave={() => setHover(false)}
+      aria-label="Active StoicTag"
     >
-      {view && isActive ? (
-        <>
-          <StoicTagDisplay tag={view.tag} />
-          {onRelease && (
-            <button
-              type="button"
-              onClick={() => onRelease(account)}
-              style={{
-                alignSelf: "flex-start",
-                padding: "4px 12px",
-                borderRadius: "var(--codex-radius)",
-                border: "1px solid var(--codex-error)",
-                background: "transparent",
-                color: "var(--codex-error)",
-                cursor: "pointer",
-                fontSize: "12px",
-              }}
-            >
-              Release StoicTag
-            </button>
-          )}
-        </>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input
-            aria-label="StoicTag name"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="tag name…"
-            style={{
-              flex: 1,
-              padding: "6px 10px",
-              borderRadius: "var(--codex-radius)",
-              backgroundColor: "var(--codex-surface-2)",
-              border: "1px solid var(--codex-border)",
-              color: "var(--codex-text)",
-              fontFamily: "var(--codex-font-mono)",
-              fontSize: "13px",
-            }}
-          />
-          {onClaim && (
-            <button
-              type="button"
-              onClick={() => onClaim(account, draft)}
-              disabled={!draft.trim()}
-              style={{
-                padding: "6px 12px",
-                borderRadius: "var(--codex-radius)",
-                border: "none",
-                background: "var(--codex-success)",
-                color: "var(--codex-bg)",
-                cursor: draft.trim() ? "pointer" : "not-allowed",
-                opacity: draft.trim() ? 1 : 0.5,
-                fontSize: "12px",
-                fontWeight: 600,
-              }}
-            >
-              Claim StoicTag
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+      <Landmark style={{ width: 14, height: 14 }} />
+      {card}
+    </span>
   );
 }
 
-function AccountCard({
-  account,
-  onRotate,
-  onDelete,
-  stoicTagFor,
-  onClaimStoicTag,
-  onReleaseStoicTag,
+/* ─── Account Row ─── */
+function AccountRow({
+  account, index, seeds, pureKeypairs, accounts, kadenaAccounts, forceExpanded, paymentBalance,
 }: {
   account: IOuroAccount;
-  onRotate: (account: IOuroAccount, kind: RotateKind) => void;
-  onDelete: (id: string) => void;
-  stoicTagFor?: (account: IOuroAccount) => StoicTagView | null;
-  onClaimStoicTag?: (account: IOuroAccount, tag: string) => void;
-  onReleaseStoicTag?: (account: IOuroAccount) => void;
+  index: number;
+  seeds: IKadenaSeed[];
+  pureKeypairs: IPureKeypair[];
+  accounts: IOuroAccount[];
+  kadenaAccounts: IKadenaWallet[];
+  forceExpanded: boolean;
+  paymentBalance: number | null;
 }) {
-  const view = stoicTagFor ? stoicTagFor(account) : null;
+  const { updateAccount, deleteAccount } = useOuroAccounts();
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = forceExpanded || localExpanded;
+  // A single ZBOM host serves all seven codex operations for this row; the open
+  // operation is identified by its stable id (null ⇒ closed).
+  const [activeOpId, setActiveOpId] = useState<string | null>(null);
+  const [viewSeedOpen, setViewSeedOpen] = useState(false);
+
+  const isFirst = index === 0;
+  const displayName = isFirst ? "CodexPrime" : account.name || `Account #${index + 1}`;
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(displayName);
+  const commitRename = () => {
+    const next = draftName.trim();
+    if (next && next !== displayName) void updateAccount({ ...account, name: next });
+    setRenaming(false);
+  };
+  const stoicTag = account.stoicTag;
+  const isStandard = !account.isSmart;
+  const originCurve = detectOriginCurve(account);
+  const isApollo = originCurve === "apollo";
+  const apolloAccent = account.isSmart ? APOLLO_SMART_COLOR : APOLLO_COLOR;
+  const guardKeyCount = account.guard?.keys?.length ?? 0;
+  const isActivated = account.isActive === true;
+
+  const paymentSource = account.kadenaLedger
+    ? identifyKeySource(account.kadenaLedger, seeds, pureKeypairs)
+    : { label: "", color: "#888" };
+
+  const rowBorderColor = isApollo ? apolloAccent + "55" : isFirst ? "#ceac5f40" : isActivated ? "#262626" : "#8b1a1a50";
+  const rowBgColor = isApollo ? apolloAccent + "08" : isFirst ? "#ceac5f08" : isActivated ? "#18181B" : "#8b1a1a08";
+  const nameColor = isApollo ? apolloAccent : isFirst ? "#ceac5f" : isActivated ? "#d2d3d4" : "#c0392b";
 
   return (
     <div
       data-account-id={account.id}
       style={{
-        backgroundColor: "var(--codex-surface)",
-        border: account.isPrime
-          ? "1px solid var(--codex-accent)"
-          : "1px solid var(--codex-border)",
-        borderRadius: "var(--codex-radius-lg)",
-        padding: "16px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "8px",
+        border: `${guardKeyCount > 1 ? 2 : 1}px solid ${rowBorderColor}`,
+        borderRadius: 12, overflow: "hidden", backgroundColor: rowBgColor, transition: "all 0.2s",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <span
-          style={{
-            flex: 1,
-            fontSize: "14px",
-            fontWeight: 600,
-            color: account.isPrime ? "var(--codex-accent)" : "var(--codex-text)",
-          }}
-        >
-          {account.name || account.id}
-        </span>
-        {!account.isPrime && (
-          <button
-            type="button"
-            aria-label="Delete account"
-            onClick={() => onDelete(account.id)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--codex-error)",
-              cursor: "pointer",
-              fontSize: "12px",
-            }}
-          >
-            Delete
-          </button>
-        )}
-      </div>
-
-      <div
+      {/* Header */}
+      <button
+        type="button"
+        onClick={() => setLocalExpanded(!localExpanded)}
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          backgroundColor: "var(--codex-bg)",
-          border: "1px dashed var(--codex-border)",
-          borderRadius: "6px",
-          padding: "6px 8px",
+          width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+          textAlign: "left", background: "transparent", border: "none", cursor: "pointer",
         }}
       >
-        <span
-          style={{
-            flex: 1,
-            fontFamily: "var(--codex-font-mono)",
-            fontSize: "13px",
-            color: "var(--codex-text)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {account.address}
+        {expanded
+          ? <ChevronDown style={{ width: 16, height: 16, flexShrink: 0, color: "#ceac5f" }} />
+          : <ChevronRight style={{ width: 16, height: 16, flexShrink: 0, color: "#555" }} />}
+        <div style={{ width: 32, height: 32, borderRadius: 9999, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, backgroundColor: "#262626" }}>
+          <Atom style={{ width: 20, height: 20, color: "#ceac5f" }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: nameColor }}>{displayName}</span>
+            {isFirst && <span style={pillStyle("#ceac5f20", "#ceac5f")}>🔒 Locked</span>}
+            {stoicTag && <StoicTagPillar tag={stoicTag} />}
+            <span style={pillStyle(
+              isApollo ? apolloAccent + "20" : isStandard ? "#ceac5f20" : "#8b5cf620",
+              isApollo ? apolloAccent : isStandard ? "#ceac5f" : "#a78bfa",
+            )}>
+              {isStandard ? "Standard" : "Smart"}
+            </span>
+            {isApollo && (
+              <span style={pillStyle(apolloAccent + "15", apolloAccent, apolloAccent + "40")} title="APOLLO 1024-bit curve — observational only, cannot be activated on StoaChain™.">
+                APOLLO · observational
+              </span>
+            )}
+          </div>
+        </div>
+        <span style={pillStyle(
+          isApollo ? apolloAccent + "20" : isActivated ? "#22c55e20" : "#8b1a1a20",
+          isApollo ? apolloAccent : isActivated ? "#4ade80" : "#c0392b",
+        )}>
+          {isApollo ? "Observational" : isActivated ? "Active" : "Inactive"}
         </span>
-      </div>
+      </button>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-        <button
-          type="button"
-          onClick={() => onRotate(account, "guard")}
-          style={rotateBtnStyle}
-        >
-          Rotate Guard
-        </button>
-        {account.isSmart && (
-          <>
-            <button
-              type="button"
-              onClick={() => onRotate(account, "paymentKey")}
-              style={rotateBtnStyle}
-            >
-              Rotate Payment Key
-            </button>
-            <button
-              type="button"
-              onClick={() => onRotate(account, "sovereign")}
-              style={rotateBtnStyle}
-            >
-              Rotate Sovereign
-            </button>
-          </>
-        )}
-      </div>
+      {/* Expanded content */}
+      {expanded && (
+        <div style={{ padding: "0 16px 12px", borderTop: "1px solid #262626" }}>
+          {/* Ouronet Address */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, minWidth: 0, overflow: "hidden", backgroundColor: "#080808", border: "1px dashed #2a2a2a", borderRadius: 6, padding: "5px 6px 5px 8px" }}>
+            <span style={{ ...sectionLabel, letterSpacing: "0.08em" }}>Ouronet Account</span>
+            <Lock style={{ width: 12, height: 12, flexShrink: 0, color: "#444" }} />
+            <OuronetAddressHighlight address={account.address} />
+            <IconCopyBtn text={account.address} size={24} />
+          </div>
 
-      <StoicTagPillar
-        account={account}
-        view={view}
-        onClaim={onClaimStoicTag}
-        onRelease={onReleaseStoicTag}
-      />
+          {/* Payment Key + guard */}
+          {isActivated && account.kadenaLedger && (
+            <div style={sectionBox}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={sectionLabel}>Payment Key</span>
+                {paymentBalance !== null && <span style={{ fontSize: 10, fontFamily: MONO, color: "#ceac5f" }}>{paymentBalance} STOA</span>}
+                <div style={{ flex: 1 }} />
+                <GoldenBtn icon={<RotateCw style={{ width: 14, height: 14 }} />} label="Rotate Payment Key" onClick={() => setActiveOpId("rotate-payment-key")} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <code style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, wordBreak: "break-all", flex: 1, color: addrColor(account.kadenaLedger) }}>{account.kadenaLedger}</code>
+                {paymentSource.label && <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0, color: paymentSource.color }}>{paymentSource.label}</span>}
+                <IconCopyBtn text={account.kadenaLedger} size={28} />
+              </div>
+              {account.paymentKeyGuard != null && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #1f1f23" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={sectionLabel}>Payment-Key Guard</span><div style={{ flex: 1 }} />
+                  </div>
+                  <GuardTree guard={account.paymentKeyGuard} identifyKeySource={(k) => identifyKeySource(k, seeds, pureKeypairs)} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Account Guard */}
+          {isActivated && account.guard && (
+            <div style={sectionBox}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={sectionLabel}>Guard</span><div style={{ flex: 1 }} />
+                <GoldenBtn icon={<Shield style={{ width: 14, height: 14 }} />} label="Rotate Guard" onClick={() => setActiveOpId("rotate-guard")} />
+              </div>
+              <GuardTree guard={account.guard} identifyKeySource={(k) => identifyKeySource(k, seeds, pureKeypairs)} />
+            </div>
+          )}
+
+          {/* StoicTag */}
+          {isActivated && (
+            <div style={{ ...sectionBox, border: "1px solid #16a34a30" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={sectionLabel}>StoicTag</span><div style={{ flex: 1 }} />
+                {stoicTag
+                  ? <GreenBtn icon={<Unlink style={{ width: 14, height: 14 }} />} label="Release StoicTag" onClick={() => setActiveOpId("release-stoic-tag")} />
+                  : <GreenBtn icon={<Tag style={{ width: 14, height: 14 }} />} label="Add StoicTag" onClick={() => setActiveOpId("register-stoic-tag")} />}
+              </div>
+              {stoicTag ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <code style={{ fontSize: 12, fontWeight: 700, wordBreak: "break-all", color: "#4ade80" }}>§{stoicTag}</code>
+                  <IconCopyBtn text={stoicTag} size={28} />
+                </div>
+              ) : (
+                <span style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>
+                  {account.isActive ? "— (no StoicTag registered)" : "— (activate to load from chain)"}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Sovereign (Smart) */}
+          {isActivated && account.isSmart && (
+            <div style={{ ...sectionBox, border: "1px solid #8b5cf630" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={sectionLabel}>Sovereign</span>
+                <span style={pillStyle("#8b5cf620", "#a78bfa")}>Ѻ. standard account</span>
+                <div style={{ flex: 1 }} />
+                <VioletBtn icon={<RotateCw style={{ width: 14, height: 14 }} />} label="Rotate Sovereign" onClick={() => setActiveOpId("rotate-sovereign")} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                {account.sovereign
+                  ? (<><OuronetAddressHighlight address={account.sovereign} /><IconCopyBtn text={account.sovereign} size={28} /></>)
+                  : <span style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{account.isActive ? "— (no sovereign set on chain)" : "— (activate to load from chain)"}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Governor (Smart) */}
+          {isActivated && account.isSmart && (
+            <div style={{ ...sectionBox, border: "1px solid #8b5cf630" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={sectionLabel}>Governor</span><div style={{ flex: 1 }} />
+                <VioletBtn icon={<RotateCw style={{ width: 14, height: 14 }} />} label="Rotate Governor" onClick={() => setActiveOpId("rotate-governor")} />
+              </div>
+              {account.governor != null
+                ? <GuardTree guard={account.governor} identifyKeySource={(k) => identifyKeySource(k, seeds, pureKeypairs)} />
+                : <span style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{account.isActive ? "— (no governor set on chain)" : "— (activate to load from chain)"}</span>}
+            </div>
+          )}
+
+          {/* Public Key */}
+          <div style={sectionBox}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={sectionLabel}>Public Key</span>
+              <span style={pillStyle("#8b1a1a15", "#c0392b", "#8b1a1a40")} title="The public key is derived deterministically from the private key — it cannot be changed.">🔒 immutable</span>
+              {!isActivated ? (
+                <span style={pillStyle("#26262680", "#888")}>codex only (not activated)</span>
+              ) : account.chainPublicKey ? (
+                account.publicKey === account.chainPublicKey
+                  ? <span style={pillStyle("#22c55e20", "#4ade80")}>✓ codex matches chain</span>
+                  : <span style={pillStyle("#8b1a1a20", "#c0392b")}>⚠ codex ≠ chain (rotated or corrupted)</span>
+              ) : null}
+              <div style={{ flex: 1 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 4 }}>
+              <code style={{ fontFamily: MONO, fontSize: 11, wordBreak: "break-all", flex: 1, color: "#c0c0c0" }}>{account.publicKey}</code>
+              <IconCopyBtn text={account.publicKey} size={28} />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <button type="button" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, padding: "6px 10px", borderRadius: 6, backgroundColor: "#0a0a0a", border: "1px solid #262626", color: "#d2d3d4", cursor: "pointer" }} onClick={() => setViewSeedOpen(true)}>
+              <Eye style={{ width: 14, height: 14 }} /> View Seed
+            </button>
+            {!isFirst && (renaming ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <input
+                  autoFocus
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenaming(false); }}
+                  style={{ height: 28, fontSize: 12, padding: "0 8px", borderRadius: 6, backgroundColor: "#0a0a0a", border: "1px solid #4ade8060", color: "#d2d3d4" }}
+                />
+                <button type="button" title="Save" onClick={commitRename} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, backgroundColor: "#0a2010", color: "#4ade80", border: "2px solid rgba(20,80,40,0.9)", cursor: "pointer" }}><Check size={13} /></button>
+                <button type="button" title="Cancel" onClick={() => setRenaming(false)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, backgroundColor: "#141414", color: "#777", border: "2px solid #252525", cursor: "pointer" }}><X size={13} /></button>
+              </span>
+            ) : (
+              <IconRenameBtnRect onClick={() => { setDraftName(displayName); setRenaming(true); }} />
+            ))}
+            {!account.isActive && !isApollo && (
+              <button type="button" onClick={() => setActiveOpId("activate-standard")} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 6, backgroundColor: "#ceac5f", color: "#0a0a0a", border: "1px solid transparent", cursor: "pointer" }}>
+                <Zap style={{ width: 14, height: 14 }} /> Activate
+              </button>
+            )}
+            {!account.isActive && isApollo && (
+              <button type="button" disabled title="APOLLO is observational — activation is not supported for ₱./Π. prefixes." style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 6, backgroundColor: "#18181B", color: apolloAccent, border: `1px solid ${apolloAccent}30`, cursor: "not-allowed", opacity: 0.8 }}>
+                <Zap style={{ width: 14, height: 14 }} /> Activate
+              </button>
+            )}
+            <div style={{ flex: 1 }} />
+            {isFirst
+              ? <IconDeleteBtnDisabled size={28} title="CodexPrime cannot be removed" />
+              : <IconDeleteBtn onClick={() => { void deleteAccount(account.id); }} size={28} />}
+          </div>
+        </div>
+      )}
+
+      {/* ZBOM hosts — the seven verbatim-cloned codex modals, each its own
+          self-contained debouncer + patron + signing flow. Keyed off the open
+          operation id; each mounts only while open so its hooks stay idle. */}
+      {activeOpId === "rotate-payment-key" && (
+        <RotatePaymentKeyModal open onClose={() => setActiveOpId(null)} account={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      {activeOpId === "rotate-guard" && (
+        <RotateGuardModal open onClose={() => setActiveOpId(null)} account={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      {activeOpId === "release-stoic-tag" && (
+        <ReleaseStoicTagModal open onClose={() => setActiveOpId(null)} account={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      {activeOpId === "register-stoic-tag" && (
+        <RegisterStoicTagModal open onClose={() => setActiveOpId(null)} account={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      {activeOpId === "rotate-sovereign" && (
+        <RotateSovereignModal open onClose={() => setActiveOpId(null)} account={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      {activeOpId === "rotate-governor" && (
+        <RotateGovernorModal open onClose={() => setActiveOpId(null)} account={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      {activeOpId === "activate-standard" && (
+        <ActivateStandardAccountModal open onClose={() => setActiveOpId(null)} ouroAccount={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      <ViewSeedModal isOpen={viewSeedOpen} onClose={() => setViewSeedOpen(false)} account={account} name={displayName} />
+      {void updateAccount /* reserved for optimistic post-rotate mirror */}
     </div>
   );
 }
 
-const rotateBtnStyle: React.CSSProperties = {
-  padding: "4px 12px",
-  borderRadius: "var(--codex-radius)",
-  border: "1px solid var(--codex-border)",
-  background: "transparent",
-  color: "var(--codex-accent)",
-  cursor: "pointer",
-  fontSize: "12px",
-};
+const pageBtn = (disabled: boolean): React.CSSProperties => ({
+  fontSize: 12, padding: "6px 12px", borderRadius: 8, border: "1px solid #262626", color: "#d2d3d4",
+  background: "transparent", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.3 : 1,
+});
 
-export function OuronetAccountsTab({
-  className,
-  stoicTagFor,
-  onClaimStoicTag,
-  onReleaseStoicTag,
-}: OuronetAccountsTabProps) {
-  const { accounts, deleteAccount } = useOuroAccounts();
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [rotating, setRotating] = useState<{
-    account: IOuroAccount;
-    kind: RotateKind;
-  } | null>(null);
+/* ─── Main tab ─── */
+export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
+  const { accounts } = useOuroAccounts();
+  const { seeds } = useKadenaSeeds();
+  const { keypairs } = usePureKeypairs();
 
-  const handleDelete = async (id: string) => {
-    setDeleteError(null);
-    try {
-      await deleteAccount(id);
-    } catch {
-      setDeleteError("This account is protected and cannot be deleted.");
-    }
-  };
+  const [activeTab, setActiveTab] = useState<"standard" | "smart">("standard");
+  const [page, setPage] = useState(0);
+  const [allExpanded, setAllExpanded] = useState(false);
+  const [spawnMode, setSpawnMode] = useState<"standard" | "smart" | null>(null);
 
-  const closeRotate = () => setRotating(null);
+  // Live on-chain state (URC_0027) — activation, sovereign, governor, payment
+  // key + guard + balance, on-chain public key, StoicTag. The package reads the
+  // same immutable Pact function My Codex uses; APOLLO accounts are excluded.
+  const addresses = useMemo(() => accounts.map((a) => a.address), [accounts]);
+  const { byAddress, loading: chainLoading, error: chainError, refresh } = useAccountChainData(addresses);
+
+  // Codex at-rest + live chain overlay. Preserves codex order so index 0 stays
+  // CodexPrime regardless of the display sort below.
+  const hydratedAccounts = useMemo(
+    () => accounts.map((a) => hydrate(a, byAddress[a.address])),
+    [accounts, byAddress],
+  );
+
+  const { standardAccounts, smartAccounts } = useMemo(() => {
+    const sorted = [...hydratedAccounts].sort((a, b) => {
+      const aI = hydratedAccounts.indexOf(a), bI = hydratedAccounts.indexOf(b);
+      if (aI === 0) return -1;
+      if (bI === 0) return 1;
+      return (a.name || a.address).localeCompare(b.name || b.address);
+    });
+    return {
+      standardAccounts: sorted.filter((a) => !a.isSmart),
+      smartAccounts: sorted.filter((a) => a.isSmart),
+    };
+  }, [hydratedAccounts]);
+
+  // Flat kadena signing material (IKadenaWallet[]) the ZBOM modals need for
+  // payment-key / guard pub-set lookup — derived the same way My Codex's
+  // wallet-context carried it.
+  const kadenaAccounts = useMemo(() => flattenKadenaAccounts(seeds), [seeds]);
+
+  const currentList = activeTab === "standard" ? standardAccounts : smartAccounts;
+  const totalPages = Math.ceil(currentList.length / ACCOUNTS_PER_PAGE);
+  const pageAccounts = currentList.slice(page * ACCOUNTS_PER_PAGE, (page + 1) * ACCOUNTS_PER_PAGE);
+
+  useEffect(() => setPage(0), [activeTab]);
+
+  const prevStdCount = useRef(standardAccounts.length);
+  const prevSmartCount = useRef(smartAccounts.length);
+  useEffect(() => {
+    if (smartAccounts.length > prevSmartCount.current && activeTab !== "smart") setActiveTab("smart");
+    else if (standardAccounts.length > prevStdCount.current && activeTab !== "standard") setActiveTab("standard");
+    prevStdCount.current = standardAccounts.length;
+    prevSmartCount.current = smartAccounts.length;
+  }, [standardAccounts.length, smartAccounts.length, activeTab]);
+
+  const Pagination = () => totalPages > 1 ? (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+      <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={pageBtn(page === 0)}>← Prev</button>
+      <span style={{ fontSize: 12, fontFamily: MONO, color: "#888" }}>{page + 1} / {totalPages}</span>
+      <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} style={pageBtn(page >= totalPages - 1)}>Next →</button>
+    </div>
+  ) : null;
 
   return (
-    <div
-      className={className}
-      style={{
-        fontFamily: "var(--codex-font)",
-        color: "var(--codex-text)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-      }}
-    >
-      {accounts.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "32px 12px",
-            border: "1px dashed var(--codex-border)",
-            borderRadius: "var(--codex-radius-lg)",
-            color: "var(--codex-text-dim)",
-          }}
+    <div className={className} style={{ fontFamily: "var(--codex-font, inherit)", color: "#d2d3d4", display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Live-chain-read status (URC_0027) — surfaces node reachability */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
+        {chainLoading ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#888" }}>
+            <RefreshCw style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} />
+            Reading live chain state…
+          </span>
+        ) : chainError ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#c0392b" }}>
+            ⚠ Live chain read failed — {chainError} Showing codex-only data.
+          </span>
+        ) : (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#4ade80" }}>
+            ✓ Live chain state (URC_0027)
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={refresh}
+          title="Re-read chain state"
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 6, border: "1px solid #262626", background: "transparent", color: "#888", cursor: "pointer", fontSize: 11 }}
         >
-          No Ouronet accounts in the codex yet.
+          <RefreshCw style={{ width: 11, height: 11 }} /> Refresh
+        </button>
+      </div>
+
+      {/* Total + Standard/Smart filter + Expand All */}
+      <div style={{ fontSize: 14, color: "#888" }}>
+        Total <span style={{ fontWeight: 700, color: "#d2d3d4" }}>{accounts.length}</span> Accounts{" "}
+        <span style={{ color: "#555" }}>({standardAccounts.length} Standard, {smartAccounts.length} Smart)</span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {(["standard", "smart"] as const).map((tab) => {
+          const active = activeTab === tab;
+          const accent = tab === "standard" ? "#ceac5f" : "#a78bfa";
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: "8px 16px", borderRadius: 12, fontSize: 14, fontWeight: 600,
+                border: `2px solid ${active ? accent : "#262626"}`,
+                backgroundColor: active ? accent + "15" : "#0a0a0a",
+                color: active ? accent : "#888", cursor: "pointer",
+              }}
+            >
+              {tab === "standard" ? "Standard" : "Smart"} ({tab === "standard" ? standardAccounts.length : smartAccounts.length})
+            </button>
+          );
+        })}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <GoldenBtn icon={<PlusCircle style={{ width: 16, height: 16 }} />} label="Spawn Standard Ouronet Account" onClick={() => setSpawnMode("standard")} />
+          <VioletBtn icon={<PlusCircle style={{ width: 16, height: 16 }} />} label="Spawn Smart Ouronet Account" onClick={() => setSpawnMode("smart")} />
+          <button
+            onClick={() => setAllExpanded(!allExpanded)}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", borderRadius: 12, fontSize: 12, fontWeight: 500, border: "1px solid #262626", color: "#888", background: "transparent", cursor: "pointer" }}
+          >
+            <ChevronsUpDown style={{ width: 14, height: 14 }} />
+            {allExpanded ? "Collapse All" : "Expand All"}
+          </button>
+        </div>
+      </div>
+
+      <Pagination />
+
+      {pageAccounts.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {pageAccounts.map((account) => (
+            <AccountRow
+              key={account.id || account.address}
+              account={account}
+              index={hydratedAccounts.indexOf(account)}
+              seeds={seeds}
+              pureKeypairs={keypairs}
+              accounts={hydratedAccounts}
+              kadenaAccounts={kadenaAccounts}
+              forceExpanded={allExpanded}
+              paymentBalance={byAddress[account.address]?.["payment-key-balance"] ?? null}
+            />
+          ))}
         </div>
       ) : (
-        accounts.map((account) => (
-          <AccountCard
-            key={account.id}
-            account={account}
-            onRotate={(acct, kind) => setRotating({ account: acct, kind })}
-            onDelete={(id) => void handleDelete(id)}
-            stoicTagFor={stoicTagFor}
-            onClaimStoicTag={onClaimStoicTag}
-            onReleaseStoicTag={onReleaseStoicTag}
-          />
-        ))
+        <div style={{ textAlign: "center", padding: "32px 0", borderRadius: 12, border: "1px dashed #262626", color: "#555" }}>
+          <span style={{ fontSize: 14 }}>No {activeTab} accounts in Codex</span>
+        </div>
       )}
 
-      {deleteError && (
-        <p role="alert" style={{ fontSize: "12px", color: "var(--codex-error)", margin: 0 }}>
-          {deleteError}
-        </p>
-      )}
+      <Pagination />
 
-      <RotateGuardModal
-        isOpen={rotating?.kind === "guard"}
-        onClose={closeRotate}
-        account={rotating?.account}
-      />
-      <RotatePaymentKeyModal
-        isOpen={rotating?.kind === "paymentKey"}
-        onClose={closeRotate}
-        account={rotating?.account}
-      />
-      <RotateSovereignModal
-        isOpen={rotating?.kind === "sovereign"}
-        onClose={closeRotate}
-        account={rotating?.account}
-      />
+      {spawnMode && (
+        <SpawnAccountModal isSmart={spawnMode === "smart"} onClose={() => setSpawnMode(null)} />
+      )}
     </div>
   );
 }

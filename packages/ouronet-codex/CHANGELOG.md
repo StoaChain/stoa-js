@@ -2,6 +2,32 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.0 — 2026-06-01
+
+**Feature release — the full ZBOM (Zone-Based Operation Modal) transaction surface.** Brings the package to 1:1 functional parity with OuronetUI's "My Codex" per-account operation buttons. Every codex-management operation now runs inside the package's own descriptor-driven modal host — debouncer, patron selection, signing, and execute glue included — replacing the seven bespoke OuronetUI modals with a single component.
+
+### What's new
+
+- **`ZbomOperationModal`** (`./ui` → `ZbomOperationModal`) — one host that renders ZONE 0–3 for any `ZbomOperation` descriptor inside the real `ZbomModal` chrome, honoring `uiSettings.zbomZone0..3` / `zbomExecutePosition`:
+  - **ZONE 0 INFO** — debounced on-chain cost read (`useZbomInfoRead`) rendered by `FunctionInfoZone` (IGNIS or native-STOA cost).
+  - **ZONE 1 PATRON** — `PatronZone` driven by `usePatronAutoSelect` (wealthiest / prime / resident modes + IGNIS-fallback), skipped for the patronless Activate op.
+  - **ZONE 2 INPUTS** — per-op typed editors (`ZBOM_INPUTS`), plus the smart-account `AuthPathZone` enforce-one branch picker for Sovereign / Governor.
+  - **ZONE 3 SIGNING** — `SigningZone` auto signer + caps preview; native-STOA payment split surfaced for STOA-cost ops.
+  - **EXECUTE** — `useZbomExecute` (build → sign → submit) with prompt-to-unlock via `useRequestPassword`.
+- **The seven operations** (`./zbom` → `ZBOM_OPERATIONS` / `ZBOM_OPERATIONS_BY_ID`), in My Codex button order: Activate Standard (patronless, STOA), Rotate Payment Key, Rotate Guard, Rotate Sovereign (smart-only), Rotate Governor (smart-only), Register StoicTag (STOA), Release StoicTag.
+- **Package-local debouncer** (`./zbom` → `useZbomInfoRead`, `parseIgnisInfo` / `parseKadenaInfo` / `parseKadenaSplit`, `useZbomRefresh`, `DebouncerCircle`) — the INFO-read + cost-parse layer, individually testable.
+- New ZBOM settings on the store: `zbomZone0..3`, `zbomExecutePosition`, `patronSelectionMode`.
+
+### Integration
+
+`OuronetAccountsTab` now wires all seven account-row buttons (Activate / Rotate Payment·Guard·Sovereign·Governor / Add·Release StoicTag) to the single `ZbomOperationModal`, replacing the prior `Styled*` rotate-modal wrappers. The host mounts only while an operation is open so its hooks stay idle otherwise.
+
+### Compatibility
+
+Additive — every prior export keeps its signature. New public surface: `./ui` gains `ZbomOperationModal`; `./zbom` exposes the operation registry, debouncer, and execution glue.
+
+> Note: the `0.3.x` and `0.4.0` local increments (drop-in `./ui` account tabs, Codex Identity / CodexGuard surfaces, Spawn Standard/Smart flow) shipped into consumers via local dist drops and were not separately published; this `0.5.0` entry is the first CHANGELOG entry since `0.2.1`.
+
 ## 0.2.1 — 2026-05-27
 
 **Bugfix release** — fixes a packaging bug introduced in v0.1.0 that prevented Node ESM consumers from dynamic-importing any subpath of the package. Reported by the AncientHoldings hub team's Caduceus.1 integration; documented at `AncientHoldings/.bee/discussions/2026-05-27-ouronet-codex-packaging-bug.md`.

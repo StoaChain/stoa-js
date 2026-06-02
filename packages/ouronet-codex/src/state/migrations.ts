@@ -14,7 +14,11 @@
 import type { CodexSnapshot } from "../adapters/types.js";
 import { CodexMigrationError } from "../errors/index.js";
 import { DEFAULT_UI_SETTINGS } from "../types/entities.js";
-import type { IConsumerSettings, UiSettings } from "../types/entities.js";
+import type {
+  IConsumerSettings,
+  PatronSelectionMode,
+  UiSettings,
+} from "../types/entities.js";
 
 export interface SchemaMigration {
   fromVersion: number;
@@ -26,9 +30,9 @@ export interface SchemaMigration {
   migrate: (snapshot: CodexSnapshot) => CodexSnapshot;
 }
 
-/** Current schema version this package writes. v0.3 writes 2. Bumped per
- *  migration. */
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+/** Current schema version this package writes. v0.3 writes 2; v0.5 writes 3
+ *  (ZBOM settings + patron-enum reconcile). Bumped per migration. */
+export const CURRENT_SCHEMA_VERSION = 3 as const;
 
 /** Canonical UiSettings keys — sourced from DEFAULT_UI_SETTINGS so the
  *  whitelist stays in sync with the typed schema. Any key in a stored
@@ -76,6 +80,67 @@ function migrateV1ToV2(snap: CodexSnapshot): CodexSnapshot {
   };
 }
 
+/** Maps a stored `patronSelectionMode` onto the v0.5.0 vocabulary
+ *  (`wealthiest | prime | resident`). The package shipped 0.4.0 with
+ *  `wealthiest | active-wallet | manual`; OuronetUI persists
+ *  `wealthiest | prime | resident`. Legacy package values are remapped
+ *  (`active-wallet`->`prime`, `manual`->`resident`); already-current values
+ *  pass through; anything unrecognized falls back to the default. */
+function reconcilePatronMode(raw: unknown): PatronSelectionMode {
+  switch (raw) {
+    case "active-wallet":
+      return "prime";
+    case "manual":
+      return "resident";
+    case "wealthiest":
+    case "prime":
+    case "resident":
+      return raw;
+    default:
+      return DEFAULT_UI_SETTINGS.patronSelectionMode;
+  }
+}
+
+/** ZBOM uiSettings keys introduced in v0.5.0. Seeded from DEFAULT_UI_SETTINGS
+ *  when absent on a codex persisted before the schema bump. */
+const ZBOM_SETTING_KEYS = [
+  "zbomProfile",
+  "zbomZone0",
+  "zbomZone1",
+  "zbomZone2",
+  "zbomZone3",
+  "zbomExecutePosition",
+] as const;
+
+/**
+ * v0.3 (schemaVersion 2) -> v0.5 (schemaVersion 3). Pure.
+ *   - Reconciles `patronSelectionMode` onto the v0.5.0 vocabulary (D2):
+ *     `active-wallet`->`prime`, `manual`->`resident`.
+ *   - Seeds the new ZBOM settings (`zbomProfile`, `zbomZone0..3`,
+ *     `zbomExecutePosition`) from DEFAULT_UI_SETTINGS when absent, so a
+ *     persisted 0.4.0 codex gets the basic profile (D5).
+ *   - Leaves every other field untouched.
+ *   - Sets `schemaVersion: 3` (the runner validates this post-condition).
+ */
+function migrateV2ToV3(snap: CodexSnapshot): CodexSnapshot {
+  const prev = (snap.uiSettings ?? {}) as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...prev };
+
+  next.patronSelectionMode = reconcilePatronMode(prev.patronSelectionMode);
+
+  for (const key of ZBOM_SETTING_KEYS) {
+    if (prev[key] === undefined) {
+      next[key] = DEFAULT_UI_SETTINGS[key];
+    }
+  }
+
+  return {
+    ...snap,
+    uiSettings: next as UiSettings,
+    schemaVersion: 3,
+  };
+}
+
 /** Registry of all schema migrations, applied in chain order on load when the
  *  stored codex is older than CURRENT_SCHEMA_VERSION. Never delete past
  *  entries — old codices still need them. */
@@ -86,6 +151,13 @@ export const SCHEMA_MIGRATIONS: SchemaMigration[] = [
     description:
       "v0.2 -> v0.3: seed consumerSettings, relocate OuronetUI uiSettings extras into consumerSettings['OuronetUI'], leave codexIdentity unset",
     migrate: migrateV1ToV2,
+  },
+  {
+    fromVersion: 2,
+    toVersion: 3,
+    description:
+      "v0.3 -> v0.5: reconcile patronSelectionMode onto wealthiest|prime|resident, seed ZBOM settings defaults",
+    migrate: migrateV2ToV3,
   },
 ];
 

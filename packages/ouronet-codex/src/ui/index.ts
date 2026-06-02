@@ -22,12 +22,25 @@ export type { SeedWordsTabProps } from "./tabs/SeedWordsTab.js";
 export { StoaAccountsTab } from "./tabs/StoaAccountsTab.js";
 export type { StoaAccountsTabProps } from "./tabs/StoaAccountsTab.js";
 export { OuronetAccountsTab } from "./tabs/OuronetAccountsTab.js";
-export type {
-  OuronetAccountsTabProps,
-  StoicTagView,
-} from "./tabs/OuronetAccountsTab.js";
+export type { OuronetAccountsTabProps } from "./tabs/OuronetAccountsTab.js";
 export { StoicTagDisplay } from "./StoicTagDisplay.js";
 export type { StoicTagDisplayProps } from "./StoicTagDisplay.js";
+export { CodexLockControl, CodexPasswordPrompt } from "./CodexLockControl.js";
+export type { CodexLockControlProps } from "./CodexLockControl.js";
+export {
+  ObservationalCodexIdSettings,
+  ObservationalCodexIdDisplay,
+} from "./ObservationalCodexId.js";
+export type {
+  ObservationalCodexIdSettingsProps,
+  ObservationalCodexIdDisplayProps,
+  ObservationalCodexIdConfig,
+} from "./ObservationalCodexId.js";
+
+// ZBOM (Zone-Based Operation Modal) transaction surface — the seven codex
+// operations are now the verbatim-cloned modals in `../zbom/modals/*`, mounted
+// directly by `OuronetAccountsTab`. The earlier descriptor-driven shell
+// (`ui/zbom/*`) was retired, so nothing is re-exported here.
 
 // Phase 14 — the assembled shell composing all five tabs.
 export { CodexTabs } from "./CodexTabs.js";
@@ -56,6 +69,10 @@ export { CodexGuardCard } from "./settings/CodexGuardCard.js";
 export type { CodexGuardCardProps } from "./settings/CodexGuardCard.js";
 export { ConsumerSettingsCard } from "./settings/ConsumerSettingsCard.js";
 export type { ConsumerSettingsCardProps } from "./settings/ConsumerSettingsCard.js";
+export { ZbomSettingsCard } from "./settings/ZbomSettingsCard.js";
+export type { ZbomSettingsCardProps } from "./settings/ZbomSettingsCard.js";
+export { GasSettingsCard } from "./settings/GasSettingsCard.js";
+export type { GasSettingsCardProps } from "./settings/GasSettingsCard.js";
 
 // Phase 15 — the assembled section composing all eight cards (Google Drive
 // sync intentionally excluded).

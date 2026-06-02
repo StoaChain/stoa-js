@@ -76,6 +76,19 @@ export interface IKadenaSeed {
   isPrime?: boolean;
 }
 
+/** A single derived kadena account flattened with its seed linkage + live
+ *  chain state. Cloned verbatim from OuronetUI `ouro.d.ts` — the ZBOM modals
+ *  take `kadenaAccounts: IKadenaWallet[]` as a prop (payment-key / guard
+ *  signing material lookup). */
+export interface IKadenaWallet extends WalletAccount {
+  address: string;
+  secret: string;
+  seedId: string;
+  balance?: string;
+  paired?: string[];
+  seedType?: SeedType;
+}
+
 /** A raw Pact -g keypair stored directly in the codex (not derived from a
  *  seed). The `encryptedPrivateKey` is encrypted at the codex password,
  *  same envelope as seed secrets. Signed via the `seedType: "foreign"`
@@ -170,6 +183,11 @@ export interface IOuroAccount {
   paymentKeyGuard?: unknown;
   /** DALOS-family curve that produced this account's keys. */
   originCurve?: OuronetOriginCurve;
+  /** Last-known StoicTag bound to this account on chain (no § sigil), as
+   *  surfaced by the URC_0027 selector / sync cycle. Chain state mirrored
+   *  into the codex for display; absent when the account has no tag. The
+   *  CodexUI account row renders the StoicTag pillar + Add/Release from this. */
+  stoicTag?: string;
   /** CodexPrime non-deletion flag (spec §B2). True for the auto-created
    *  primary account on every fresh codex; false (or absent) for all
    *  user-added accounts. The package's `useOuroAccounts().deleteAccount`
@@ -198,15 +216,28 @@ export interface AddressBookEntry {
   updatedAt: string;
 }
 
+/** Patron-picker default mode. Matches OuronetUI's persisted vocabulary
+ *  (`wallet.uiSettings.patronSelectionMode`) for 1:1 ZBOM parity:
+ *    - `wealthiest` — auto-pick the codex account with the most IGNIS whose
+ *                     guard the codex can satisfy.
+ *    - `prime`      — prefer the CodexPrime account as patron.
+ *    - `resident`   — prefer the currently-active ("resident") account. */
+export type PatronSelectionMode = "wealthiest" | "prime" | "resident";
+
+/** ZBOM popup profile — preset bundle of which zones open by default.
+ *  `custom` means the individual `zbomZone0..3` flags are authoritative. */
+export type ZbomProfile = "simple" | "basic" | "advanced" | "custom";
+
 /** Codex-level UI preferences. Subset of OuronetUI's existing
- *  `walletsSlice.uiSettings` that's codex-scoped (NOT app-scoped — fields
- *  like `zbomProfile` and `poolFeeUnit` that are OuronetUI-specific stay
- *  in OuronetUI's app state). */
+ *  `walletsSlice.uiSettings` that's codex-scoped. As of v0.5.0 the ZBOM
+ *  operation settings (`zbomProfile`, `zbomZone0..3`, `zbomExecutePosition`)
+ *  are first-class here so the package's ported ZBOM modals are configurable
+ *  1:1 with My Codex. */
 export interface UiSettings {
   /** How long to cache the unlocked password in memory after authenticate(). */
   passwordCacheMinutes: number;
-  /** Default behavior for CFM patron-picker. */
-  patronSelectionMode: "wealthiest" | "active-wallet" | "manual";
+  /** Default behavior for the ZBOM patron-picker (v0.5.0 vocabulary). */
+  patronSelectionMode: PatronSelectionMode;
   /** Active node preset. */
   selectedNode: "node1" | "node2" | "custom";
   customNodeUrl: string;
@@ -215,6 +246,18 @@ export interface UiSettings {
   legacyKoalaSigning: boolean;
   /** Experimental APOLLO curve opt-in. */
   experimentalCurvesEnabled: boolean;
+  /** ZBOM popup zone-default profile (v0.5.0+). */
+  zbomProfile: ZbomProfile;
+  /** ZONE 0 (INFO) open-by-default. */
+  zbomZone0: boolean;
+  /** ZONE 1 (PATRON) open-by-default. */
+  zbomZone1: boolean;
+  /** ZONE 2 (INPUTS) open-by-default. */
+  zbomZone2: boolean;
+  /** ZONE 3 (SIGNING) open-by-default. */
+  zbomZone3: boolean;
+  /** Execute button position in the ZBOM popup. */
+  zbomExecutePosition: "top" | "bottom";
   /** Allow consumer-specific keys without forcing a typed extension here.
    *  OuronetUI stashes its DEX-specific UI settings under the same
    *  `uiSettings` umbrella historically; this escape hatch keeps that
@@ -223,7 +266,8 @@ export interface UiSettings {
 }
 
 /** Sensible UiSettings defaults — used by adapters on first boot when
- *  nothing has been persisted yet. */
+ *  nothing has been persisted yet. ZBOM defaults mirror OuronetUI's
+ *  `walletsSlice.ts` (profile `basic`, only INFO open, execute on top). */
 export const DEFAULT_UI_SETTINGS: UiSettings = {
   passwordCacheMinutes: 1,
   patronSelectionMode: "wealthiest",
@@ -232,6 +276,12 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   customNodeGasLimit: 1_600_000,
   legacyKoalaSigning: false,
   experimentalCurvesEnabled: false,
+  zbomProfile: "basic",
+  zbomZone0: true,
+  zbomZone1: false,
+  zbomZone2: false,
+  zbomZone3: false,
+  zbomExecutePosition: "top",
 };
 
 /** Device-variant marker — Vite consumers usually read this from

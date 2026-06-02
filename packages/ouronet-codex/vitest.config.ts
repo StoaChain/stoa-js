@@ -34,6 +34,7 @@ export default defineConfig({
       { find: /^@stoachain\/ouronet-codex\/state$/, replacement: `${ouronetCodexSrc}/state/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/codex-identity$/, replacement: `${ouronetCodexSrc}/codex-identity/index.ts` },
       { find: /^@stoachain\/ouronet-codex\/ui$/, replacement: `${ouronetCodexSrc}/ui/index.ts` },
+      { find: /^@stoachain\/ouronet-codex\/zbom$/, replacement: `${ouronetCodexSrc}/zbom/index.ts` },
       { find: /^@stoachain\/ouronet-codex$/, replacement: `${ouronetCodexSrc}/index.ts` },
       // Cross-package aliases — ouronet-core
       { find: /^@stoachain\/ouronet-core\/interactions\/(.+)$/, replacement: `${ouronetCoreSrc}/interactions/$1.ts` },
@@ -61,6 +62,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    setupFiles: ["./tests/setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts", "tests/**/*.test.tsx"],
   },
 });

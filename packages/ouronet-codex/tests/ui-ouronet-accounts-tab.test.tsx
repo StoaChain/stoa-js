@@ -1,26 +1,47 @@
 /**
- * OuronetAccountsTab specs (Phase 14, T14.5).
+ * OuronetAccountsTab specs — updated for the v0.3.x "1:1 My Codex clone"
+ * rewrite of the tab.
  *
- * The richest tab: account cards from `useOuroAccounts`, the rotation flows
- * (reusing the package `./components` Rotate*Modal), CodexPrime delete
- * protection, and the StoicTag pillar.
+ * The tab is now self-contained: it reads live chain state (URC_0027) via the
+ * package's own `useAccountChainData`, derives StoicTag / sovereign / governor
+ * from that chain overlay, and self-hosts every action modal. The earlier
+ * injected-StoicTag contract (`stoicTagFor` / `onClaimStoicTag` /
+ * `onReleaseStoicTag`) is gone — props are now `{ className? }` only — so the
+ * old claim/release specs are retired here. StoicTag Add/Release + Activate +
+ * Rotate-Governor are deferred clone stubs (v0.3.2 / ZBOM Wave 8) and are not
+ * asserted yet.
  *
- * StoicTag is chain state, NOT codex storage — so the tab takes the StoicTag
- * read + claim + release as INJECTED props/callbacks (`stoicTagFor`,
- * `onClaimStoicTag`, `onReleaseStoicTag`). The codex store stays tag-agnostic;
- * the package imports no ouronet-core chain readers here. These specs pin that
- * injection contract.
+ * What these specs pin about the new contract:
+ *   - the empty state ("No standard accounts in Codex", default Standard tab);
+ *   - the CodexPrime invariant (index 0 always displays as "CodexPrime", locked);
+ *   - non-prime accounts display their own name + Standard/Smart counts;
+ *   - a collapsed row expands to reveal the on-chain breakdown (Ouronet Account
+ *     section), and an activated, guarded account exposes "Rotate Guard" which
+ *     opens the self-hosted rotate dialog;
+ *   - CodexPrime delete is blocked (disabled control), non-prime is deletable.
  */
 
 import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+
+// The tab reads live URC_0027 chain state via getAccountSelectorData, which
+// hits a real Stoa node. In jsdom there is no node, so each render would fire a
+// hanging network read; left in-flight, those reads race across tests and make
+// the modal-open spec flaky. Stub it to return no rows — the codex-only view
+// these specs assert is exactly what the tab renders when chain data is absent.
+vi.mock("@stoachain/ouronet-core/interactions/ouroAccountFunctions", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, getAccountSelectorData: async () => [] };
+});
 
 import { CodexProvider } from "@stoachain/ouronet-codex/provider";
 import { MemoryCodexAdapter } from "@stoachain/ouronet-codex/adapters";
 import { useCodex, useOuroAccounts } from "@stoachain/ouronet-codex/hooks";
 import { OuronetAccountsTab } from "@stoachain/ouronet-codex/ui";
 import type { IOuroAccount } from "@stoachain/ouronet-codex/types";
+
+const KEY = "a".repeat(64);
 
 const ouroFx = (over: Partial<IOuroAccount> = {}): IOuroAccount => ({
   id: over.id ?? "o1",
@@ -58,85 +79,82 @@ async function renderTab(
     </CodexProvider>,
   );
   if (accounts.length > 0) {
-    await screen.findByText(accounts[0].name as string);
+    // index 0 always displays as CodexPrime; later rows show their own name.
+    await screen.findByText(accounts.length === 1 ? "CodexPrime" : (accounts[1].name as string));
   } else {
-    await waitFor(() => expect(screen.getByText(/No Ouronet accounts/i)).toBeTruthy());
+    await screen.findByText(/No standard accounts in Codex/i);
   }
   return utils;
+}
+
+/** Expand a collapsed account row by clicking its header button. */
+function expandRow(card: HTMLElement) {
+  const header = card.querySelector("button") as HTMLButtonElement;
+  fireEvent.click(header);
 }
 
 describe("<OuronetAccountsTab>", () => {
   it("renders the empty state when the codex holds no ouro accounts", async () => {
     await renderTab([]);
-    expect(screen.getByText(/No Ouronet accounts/i)).toBeTruthy();
+    expect(screen.getByText(/No standard accounts in Codex/i)).toBeTruthy();
   });
 
-  it("renders an account card with name and address from useOuroAccounts", async () => {
-    await renderTab([ouroFx({ id: "o1", name: "Main", address: "Ѻ.main-acct" })]);
-    expect(screen.getByText("Main")).toBeTruthy();
-    expect(screen.getByText("Ѻ.main-acct")).toBeTruthy();
+  it("displays the first account as the locked CodexPrime regardless of its name", async () => {
+    await renderTab([ouroFx({ id: "prime", name: "Some Name", address: "Ѻ.prime-acct" })]);
+    expect(screen.getByText("CodexPrime")).toBeTruthy();
+    expect(screen.getByText(/Locked/i)).toBeTruthy();
+    // The seeded name is intentionally overridden for the prime slot.
+    expect(screen.queryByText("Some Name")).toBeNull();
   });
 
-  it("opens the rotate-guard modal for an account from its card action", async () => {
-    await renderTab([ouroFx({ id: "o1", name: "Rotatable" })]);
-    const card = (await screen.findByText("Rotatable")).closest("[data-account-id]") as HTMLElement;
-    fireEvent.click(within(card).getByRole("button", { name: /rotate guard/i }));
-    // The RotateGuardModal renders its dialog once opened.
-    expect(await screen.findByRole("dialog")).toBeTruthy();
+  it("renders a non-prime account by its own name and counts it under Standard", async () => {
+    await renderTab([
+      ouroFx({ id: "prime", name: "Prime" }),
+      ouroFx({ id: "o2", name: "Second", address: "Ѻ.second-acct" }),
+    ]);
+    expect(screen.getByText("Second")).toBeTruthy();
+    expect(screen.getByText("Standard (2)")).toBeTruthy();
   });
 
-  it("blocks deleting the CodexPrime account and surfaces the protection", async () => {
-    // First-added account auto-becomes CodexPrime (store invariant).
-    await renderTab([ouroFx({ id: "prime", name: "Prime Acct" })]);
-    const card = (await screen.findByText("Prime Acct")).closest("[data-account-id]") as HTMLElement;
-    // The prime account exposes no delete control.
-    expect(within(card).queryByRole("button", { name: /^delete/i })).toBeNull();
+  it("expands a row to reveal the on-chain Ouronet Account breakdown", async () => {
+    await renderTab([ouroFx({ id: "prime", name: "Prime", address: "Ѻ.prime-acct" })]);
+    const card = (await screen.findByText("CodexPrime")).closest("[data-account-id]") as HTMLElement;
+    expandRow(card);
+    expect(await within(card).findByText(/Ouronet Account/i)).toBeTruthy();
   });
 
-  it("offers the claim flow for an untagged account and fires onClaimStoicTag with the account + tag", async () => {
-    const onClaimStoicTag = vi.fn();
-    await renderTab(
-      [
-        ouroFx({ id: "prime", name: "Prime Acct" }),
-        ouroFx({ id: "o2", name: "Untagged", address: "Ѻ.untagged" }),
-      ],
-      {
-        // No active tag → the claim affordance shows.
-        stoicTagFor: (acct) =>
-          acct.id === "o2" ? { tag: "", status: "unregistered" } : null,
-        onClaimStoicTag,
-      },
-    );
-    const card = (await screen.findByText("Untagged")).closest("[data-account-id]") as HTMLElement;
-    fireEvent.change(within(card).getByLabelText(/stoictag name/i), {
-      target: { value: "NewTag" },
-    });
-    fireEvent.click(within(card).getByRole("button", { name: /claim/i }));
-    expect(onClaimStoicTag).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "o2" }),
-      "NewTag",
-    );
+  it("opens the self-hosted rotate-guard dialog for an activated, guarded account", async () => {
+    await renderTab([
+      ouroFx({
+        id: "prime",
+        name: "Prime",
+        isActive: true,
+        guard: { pred: "keys-all", keys: [KEY] },
+      }),
+    ]);
+    const card = (await screen.findByText("CodexPrime")).closest("[data-account-id]") as HTMLElement;
+    expandRow(card);
+    const btn = await within(card).findByRole("button", { name: /rotate guard/i });
+    fireEvent.click(btn);
+    // The verbatim-cloned RotateGuardModal opens with an <h2>Rotate Guard</h2>
+    // heading (the row's trigger is a button, so the heading role is unique).
+    expect(await screen.findByRole("heading", { name: /rotate guard/i })).toBeTruthy();
   });
 
-  it("renders the injected StoicTag display and fires onReleaseStoicTag for an active tag", async () => {
-    const onReleaseStoicTag = vi.fn();
-    await renderTab(
-      [
-        ouroFx({ id: "prime", name: "Prime Acct" }),
-        ouroFx({ id: "o2", name: "Tagged", address: "Ѻ.tagged" }),
-      ],
-      {
-        stoicTagFor: (acct) =>
-          acct.id === "o2" ? { tag: "Hodler", status: "active" } : null,
-        onReleaseStoicTag,
-      },
-    );
-    const card = (await screen.findByText("Tagged")).closest("[data-account-id]") as HTMLElement;
-    // The injected active tag is displayed via StoicTagDisplay.
-    expect(within(card).getByText("Hodler")).toBeTruthy();
-    fireEvent.click(within(card).getByRole("button", { name: /release/i }));
-    expect(onReleaseStoicTag).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "o2" }),
-    );
+  it("blocks deleting the CodexPrime account but allows deleting a non-prime one", async () => {
+    await renderTab([
+      ouroFx({ id: "prime", name: "Prime", isActive: true }),
+      ouroFx({ id: "o2", name: "Second", address: "Ѻ.second-acct", isActive: true }),
+    ]);
+
+    const prime = (await screen.findByText("CodexPrime")).closest("[data-account-id]") as HTMLElement;
+    expandRow(prime);
+    // The prime exposes only a disabled delete control.
+    expect(within(prime).getByRole("button", { name: /cannot be removed/i })).toBeTruthy();
+    expect(within(prime).queryByRole("button", { name: /^delete$/i })).toBeNull();
+
+    const second = (await screen.findByText("Second")).closest("[data-account-id]") as HTMLElement;
+    expandRow(second);
+    expect(within(second).getByRole("button", { name: /^delete$/i })).toBeTruthy();
   });
 });

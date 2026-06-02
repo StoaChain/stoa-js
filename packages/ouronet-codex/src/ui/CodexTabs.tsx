@@ -1,28 +1,21 @@
 /**
- * CodexTabs — the assembled shell composing the five token-styled account
- * tabs into a single tab switcher. Drop it inside a <CodexProvider> (and,
- * for theming, a <CodexUiRoot>) and it renders the whole Codex management
- * surface: Ouronet accounts, seed words, pure key pairs, Stoa accounts, and
- * the address book.
+ * CodexTabs — the assembled shell composing the five account tabs into a single
+ * switcher. Drop it inside a <CodexProvider> (and, for theming, a <CodexUiRoot>)
+ * and it renders the whole Codex management surface.
  *
- * State is local (the active tab); all data flows through the provider hooks
- * each tab consumes. The StoicTag injection props pass straight through to
- * OuronetAccountsTab, keeping the package chain-IO-light.
- *
- * Styled exclusively via `--codex-*` tokens; no `react-redux` / `wallet-context`.
+ * The tab strip mirrors My Codex's big bordered icon tiles (rounded-xl, border-2,
+ * h-10 icons, gold active fill — violet for Pure Key Pairs), inline-styled so the
+ * package needs no Tailwind. OURO/WSTOA image icons are substituted with lucide
+ * equivalents to keep the package asset-free.
  */
 
 import { useState } from "react";
+import { Atom, BookKey, KeyRound, Gem, BookOpen } from "lucide-react";
 import { OuronetAccountsTab } from "./tabs/OuronetAccountsTab.js";
 import { SeedWordsTab } from "./tabs/SeedWordsTab.js";
 import { PureKeypairsTab } from "./tabs/PureKeypairsTab.js";
 import { StoaAccountsTab } from "./tabs/StoaAccountsTab.js";
 import { AddressBookTab } from "./tabs/AddressBookTab.js";
-import type {
-  OuronetAccountsTabProps,
-  StoicTagView,
-} from "./tabs/OuronetAccountsTab.js";
-import type { IOuroAccount } from "../types/entities.js";
 
 export type CodexTabKey =
   | "ouronet-accounts"
@@ -31,60 +24,52 @@ export type CodexTabKey =
   | "stoa-accounts"
   | "address-book";
 
-const TAB_ORDER: { key: CodexTabKey; label: string }[] = [
-  { key: "ouronet-accounts", label: "Ouronet Accounts" },
-  { key: "seed-words", label: "Seed Words" },
-  { key: "pure-keypairs", label: "Pure Key Pairs" },
-  { key: "stoa-accounts", label: "Stoa Accounts" },
-  { key: "address-book", label: "Address Book" },
+interface TabDef {
+  key: CodexTabKey;
+  label: string;
+  Icon: typeof Atom;
+  accent: string;
+}
+
+const TAB_ORDER: TabDef[] = [
+  { key: "ouronet-accounts", label: "Ouronet Accounts", Icon: Atom, accent: "#ceac5f" },
+  { key: "seed-words", label: "Seed Words", Icon: BookKey, accent: "#ceac5f" },
+  { key: "pure-keypairs", label: "Pure Key Pairs", Icon: KeyRound, accent: "#a78bfa" },
+  { key: "stoa-accounts", label: "Stoa Accounts", Icon: Gem, accent: "#ceac5f" },
+  { key: "address-book", label: "Address Book", Icon: BookOpen, accent: "#ceac5f" },
 ];
 
 export interface CodexTabsProps {
   className?: string;
   /** Tab shown on first render. Defaults to "ouronet-accounts". */
   defaultTab?: CodexTabKey;
-  /** Injected StoicTag resolver — passed through to OuronetAccountsTab. */
-  stoicTagFor?: (account: IOuroAccount) => StoicTagView | null;
-  /** Injected StoicTag claim callback — passed through. */
-  onClaimStoicTag?: OuronetAccountsTabProps["onClaimStoicTag"];
-  /** Injected StoicTag release callback — passed through. */
-  onReleaseStoicTag?: OuronetAccountsTabProps["onReleaseStoicTag"];
 }
 
-export function CodexTabs({
-  className,
-  defaultTab = "ouronet-accounts",
-  stoicTagFor,
-  onClaimStoicTag,
-  onReleaseStoicTag,
-}: CodexTabsProps) {
+export function CodexTabs({ className, defaultTab = "ouronet-accounts" }: CodexTabsProps) {
   const [active, setActive] = useState<CodexTabKey>(defaultTab);
 
   return (
     <div
       className={className}
       style={{
-        fontFamily: "var(--codex-font)",
+        fontFamily: "var(--codex-font, inherit)",
         color: "var(--codex-text)",
         display: "flex",
         flexDirection: "column",
-        gap: "16px",
+        gap: "24px",
       }}
     >
+      {/* Big bordered icon tabs */}
       <div
         role="tablist"
         aria-label="Codex sections"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "4px",
-          padding: "4px",
-          borderRadius: "var(--codex-radius)",
-          backgroundColor: "var(--codex-surface-2)",
-          border: "1px solid var(--codex-border)",
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "16px",
         }}
       >
-        {TAB_ORDER.map(({ key, label }) => {
+        {TAB_ORDER.map(({ key, label, Icon, accent }) => {
           const selected = active === key;
           return (
             <button
@@ -94,34 +79,29 @@ export function CodexTabs({
               aria-selected={selected}
               onClick={() => setActive(key)}
               style={{
-                flex: "1 1 auto",
-                padding: "8px 14px",
-                borderRadius: "6px",
-                fontSize: "13px",
-                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                padding: "12px 16px",
+                borderRadius: "12px",
+                border: `2px solid ${selected ? accent : "#262626"}`,
+                backgroundColor: selected ? accent : "#0a0a0a",
+                color: selected ? "#0a0a0a" : "#d2d3d4",
                 cursor: "pointer",
-                whiteSpace: "nowrap",
-                backgroundColor: selected ? "var(--codex-border)" : "transparent",
-                color: selected ? "var(--codex-accent)" : "var(--codex-text-dim)",
-                border: selected
-                  ? "1px solid var(--codex-accent)"
-                  : "1px solid transparent",
+                transition: "all 0.2s",
+                fontWeight: 600,
               }}
             >
-              {label}
+              <Icon style={{ width: 40, height: 40, flexShrink: 0 }} strokeWidth={1.5} />
+              <span style={{ fontWeight: 600 }}>{label}</span>
             </button>
           );
         })}
       </div>
 
       <div role="tabpanel">
-        {active === "ouronet-accounts" && (
-          <OuronetAccountsTab
-            stoicTagFor={stoicTagFor}
-            onClaimStoicTag={onClaimStoicTag}
-            onReleaseStoicTag={onReleaseStoicTag}
-          />
-        )}
+        {active === "ouronet-accounts" && <OuronetAccountsTab />}
         {active === "seed-words" && <SeedWordsTab />}
         {active === "pure-keypairs" && <PureKeypairsTab />}
         {active === "stoa-accounts" && <StoaAccountsTab />}

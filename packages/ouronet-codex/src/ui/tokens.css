@@ -18,6 +18,17 @@
  *                   consumer confine Codex theming to one subtree.
  */
 
+/*
+ * Web fonts for the assembled components. `@import` MUST be the first statement
+ * (CSS hoists it above all rules), so it sits ahead of the token blocks below:
+ *   - Cinzel       — inscription/display surfaces (StoicTag pillar, CodexID prefix)
+ *   - JetBrains Mono — the high-tech monospace for the DALOS glyph string + key input
+ *   - Inter        — default `--codex-font` UI copy
+ * OuronetUI loads the same families in app.css; importing here keeps the `./ui`
+ * package self-sufficient when a consumer hasn't already loaded them.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
 :root,
 .codex-ui {
   /* ── Surfaces ─────────────────────────────────────────────── */
@@ -53,19 +64,19 @@
 }
 
 /*
- * Display font for inscription-style surfaces (e.g. the StoicTag pillar).
- * OuronetUI loads the same Cinzel weights via Google Fonts in app.css; we
- * import here so the `./ui` package is self-sufficient when a consumer hasn't
- * already loaded the family. JetBrains Mono + Inter come along for the
- * `--codex-font` / `--codex-font-mono` defaults.
- */
-@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
-
-/*
  * Global spinner keyframes — used by loading affordances across the assembled
  * components (matches the rotation OuronetUI applies to RotateCw / sync icons).
  */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/*
+ * Pulsed glow for the CodexID half prefixes (₱. / Π.). The glow color is the
+ * element's own `currentColor`, so each side glows in its own accent.
+ */
+@keyframes codex-glow-pulse {
+  0%, 100% { text-shadow: 0 0 4px currentColor, 0 0 8px currentColor; opacity: 0.92; }
+  50%      { text-shadow: 0 0 12px currentColor, 0 0 22px currentColor; opacity: 1; }
 }

@@ -37,24 +37,26 @@ const mig = (
 });
 
 describe("CURRENT_SCHEMA_VERSION + SCHEMA_MIGRATIONS registry", () => {
-  it("CURRENT_SCHEMA_VERSION is 2 (the version v0.3 writes)", () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(2);
+  it("CURRENT_SCHEMA_VERSION is 3 (the version v0.5 writes)", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(3);
   });
 
-  it("SCHEMA_MIGRATIONS contains the v0.2->v0.3 (1->2) migration (filled in Phase 10)", () => {
-    expect(SCHEMA_MIGRATIONS.length).toBe(1);
+  it("SCHEMA_MIGRATIONS contains the 1->2 and 2->3 migrations", () => {
+    expect(SCHEMA_MIGRATIONS.length).toBe(2);
     expect(SCHEMA_MIGRATIONS[0]).toMatchObject({ fromVersion: 1, toVersion: 2 });
+    expect(SCHEMA_MIGRATIONS[1]).toMatchObject({ fromVersion: 2, toVersion: 3 });
   });
 });
 
 describe("canConsumerWrite", () => {
   it("returns true at or below CURRENT_SCHEMA_VERSION, false above", () => {
-    // loaded <= 2 is writable; a future schema (>2) is not, because writing
+    // loaded <= 3 is writable; a future schema (>3) is not, because writing
     // could drop fields this package doesn't know about.
     expect(canConsumerWrite(0)).toBe(true);
     expect(canConsumerWrite(1)).toBe(true);
     expect(canConsumerWrite(2)).toBe(true);
-    expect(canConsumerWrite(3)).toBe(false);
+    expect(canConsumerWrite(3)).toBe(true);
+    expect(canConsumerWrite(4)).toBe(false);
     expect(canConsumerWrite(99)).toBe(false);
   });
 });

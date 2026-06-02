@@ -79,6 +79,24 @@ describe("<CodexIdentityCard>", () => {
       "₱.STANDARD-x:Π.SMART-y",
     );
   });
+
+  it("shows the observational 'fed in' identity when no real identity but a CodexID is configured", async () => {
+    await renderUnder(<CodexIdentityCard />);
+    await act(async () => {
+      capturedStore!.setState({
+        ouroAccounts: [
+          { id: "std-1", address: "₱.OBSERVED-STANDARD", isSmart: false } as never,
+          { id: "smt-1", address: "Π.OBSERVED-SMART", isSmart: true } as never,
+        ],
+      });
+      await capturedStore!.getState().actions.updateUiSettings({
+        observationalCodexId: { enabled: true, standardId: "std-1", smartId: "smt-1" },
+      } as never);
+    });
+    const code = screen.getByTestId("identity-formatted");
+    expect(code.textContent).toContain("₱.OBSERVED-STANDARD:Π.OBSERVED-SMART");
+    expect(screen.getByText(/observational — fed in/i)).toBeTruthy();
+  });
 });
 
 describe("<CodexGuardCard>", () => {

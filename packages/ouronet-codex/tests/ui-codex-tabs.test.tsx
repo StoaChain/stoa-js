@@ -3,12 +3,13 @@
  *
  * The tab switcher composing the five assembled account tabs. Pins the shell
  * contract: it renders a tab strip, defaults to the Ouronet Accounts tab, and
- * switches the visible tab on click. The injected StoicTag props pass through
- * to OuronetAccountsTab.
+ * switches the visible tab on click. (The v0.3.x clone rewrite of the Ouronet
+ * Accounts tab dropped the injected-StoicTag props, so CodexTabs no longer
+ * threads them — only `className` / `defaultTab` remain.)
  */
 
 import * as React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { CodexProvider } from "@stoachain/ouronet-codex/provider";
@@ -47,7 +48,7 @@ describe("<CodexTabs>", () => {
 
   it("defaults to the Ouronet Accounts tab so its empty state shows on mount", async () => {
     await renderShell();
-    expect(screen.getByText(/No Ouronet accounts in the codex/i)).toBeTruthy();
+    expect(screen.getByText(/No standard accounts in Codex/i)).toBeTruthy();
     // The seed-words panel is NOT mounted by default.
     expect(screen.queryByText(/No seeds in the codex/i)).toBeNull();
   });
@@ -57,7 +58,7 @@ describe("<CodexTabs>", () => {
     // The address-book search input is the unambiguous signal that tab mounted.
     expect(screen.getByLabelText(/search addresses/i)).toBeTruthy();
     // The ouro-accounts panel is NOT mounted.
-    expect(screen.queryByText(/No Ouronet accounts in the codex/i)).toBeNull();
+    expect(screen.queryByText(/No standard accounts in Codex/i)).toBeNull();
   });
 
   it("switches the visible tab on click", async () => {
@@ -65,15 +66,6 @@ describe("<CodexTabs>", () => {
     fireEvent.click(screen.getByRole("tab", { name: /seed words/i }));
     expect(await screen.findByText(/No seeds in the codex/i)).toBeTruthy();
     // The ouro-accounts panel is no longer mounted.
-    expect(screen.queryByText(/No Ouronet accounts in the codex/i)).toBeNull();
-  });
-
-  it("passes injected StoicTag props through to the Ouronet Accounts tab", async () => {
-    const stoicTagFor = vi.fn(() => null);
-    await renderShell({ stoicTagFor });
-    // Mounting the default ouro tab invokes the injected resolver (zero
-    // accounts → still safe; the prop is threaded, not dropped).
-    expect(stoicTagFor).not.toHaveBeenCalled(); // no accounts yet, but no throw
-    expect(screen.getByText(/No Ouronet accounts/i)).toBeTruthy();
+    expect(screen.queryByText(/No standard accounts in Codex/i)).toBeNull();
   });
 });

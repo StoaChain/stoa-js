@@ -121,6 +121,12 @@ describe("CodexProvider — passwordCacheMinutes (Phase 7)", () => {
         customNodeGasLimit: 1_600_000,
         legacyKoalaSigning: false,
         experimentalCurvesEnabled: false,
+        zbomProfile: "basic",
+        zbomZone0: true,
+        zbomZone1: false,
+        zbomZone2: false,
+        zbomZone3: false,
+        zbomExecutePosition: "top",
       },
       schemaVersion: 1, // non-zero = NOT fresh
       lastUpdatedAt: "2026-01-01T00:00:00.000Z",
@@ -147,7 +153,7 @@ describe("CodexProvider — initialUiSettings (Phase 7)", () => {
         adapter={adapter}
         initialUiSettings={{
           selectedNode: "node1",
-          patronSelectionMode: "active-wallet",
+          patronSelectionMode: "resident",
         }}
       >
         {children}
@@ -157,7 +163,7 @@ describe("CodexProvider — initialUiSettings (Phase 7)", () => {
     await waitFor(() => {
       expect(result.current.uiSettings.selectedNode).toBe("node1");
       expect(result.current.uiSettings.patronSelectionMode).toBe(
-        "active-wallet"
+        "resident"
       );
     });
     // Other fields preserved from DEFAULT_UI_SETTINGS.
@@ -180,6 +186,12 @@ describe("CodexProvider — initialUiSettings (Phase 7)", () => {
         customNodeGasLimit: 1_600_000,
         legacyKoalaSigning: false,
         experimentalCurvesEnabled: false,
+        zbomProfile: "basic",
+        zbomZone0: true,
+        zbomZone1: false,
+        zbomZone2: false,
+        zbomZone3: false,
+        zbomExecutePosition: "top",
       },
       schemaVersion: 1,
       lastUpdatedAt: "2026-01-01T00:00:00.000Z",
