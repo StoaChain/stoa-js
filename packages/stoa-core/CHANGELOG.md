@@ -4,6 +4,10 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.3.4 — 2026-06-08
+
+Atomic-triplet lockstep bump — `4.3.3 → 4.3.4` alongside `@stoachain/ouronet-core` (which carries the UrStoa Collect-button hover fix) and `@stoachain/kadena-stoic-legacy`, per the cross-package version-pin invariant. This package is functionally identical to its 4.3.3 release.
+
 ## 4.3.3 — 2026-05-30
 
 **PATCH — atomic-triplet alignment**. No code changes in THIS package; version bumped solely to maintain the atomic-triplet invariant enforced by `tests/v4-1-1-cross-package-version-pin.test.ts` (all 3 packages share the exact same version). The v4.3.3 release surface lives entirely in [`@stoachain/ouronet-core@4.3.3`](https://www.npmjs.com/package/@stoachain/ouronet-core) — additive StoicTag + governor-rotation builders/readers. The peer-dep pin on `@stoachain/kadena-stoic-legacy` was updated 4.3.2 → 4.3.3. Functionally identical to v4.3.2.

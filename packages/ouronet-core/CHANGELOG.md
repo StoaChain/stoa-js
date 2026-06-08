@@ -4,6 +4,12 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.3.4 — 2026-06-08
+
+**Bugfix — UrStoa vault earnings hover.** `ouroPrimordialsFunctions.parseResponse` routed the `urstoa-vault-earning-hover` field through `String(...)` before formatting. The chain returns that field as a `{ decimal: "…" }` object (like the supply hover), so `String({decimal})` produced `"[object Object]"`, which parsed back to `0` and wrongly disabled the Dashboard UrStoa **Collect** button (showing an `[object Object]` tooltip). It is now routed through `supplyHoverVal` (→ `mayComeWithDeimal`), matching the supply row, so the hover unwraps correctly and Collect re-enables when earnings are available.
+
+Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped 4.3.3 → 4.3.4 in lockstep per the cross-package version-pin invariant; those two packages are functionally identical to their 4.3.3 release.
+
 ## 4.3.3 — 2026-05-30
 
 **Additive — StoicTag + governor-rotation builder/reader surface** supporting the OuronetUI v1.2.5 StoicTag wiring cycle (Register / Release StoicTag modals, Rotate Governor modal, tag-aware receiver fields). Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped 4.3.2 → 4.3.3 in lockstep per the cross-package version-pin invariant; those two packages are functionally identical to their 4.3.2 release.

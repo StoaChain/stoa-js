@@ -329,7 +329,11 @@ const parseResponse = (data: any[]): any => {
       {
         label: "UrStoa Vault Earnings in STOA",
         value: fmt(d["urstoa-vault-earnings"]),
-        hoverValue: fmt(String(d["urstoa-vault-earning-hover"] ?? 0)),
+        // The chain returns this hover as a { decimal: "…" } object (like the
+        // supply hover). Route it through supplyHoverVal so mayComeWithDeimal
+        // unwraps it — `String({decimal})` would yield "[object Object]", which
+        // parses back to 0 and wrongly disables the Collect button. See supply row.
+        hoverValue: supplyHoverVal(d["urstoa-vault-earning-hover"]),
         suffix: " ❖",
         suffixColor: "#ceac5f",
       },
