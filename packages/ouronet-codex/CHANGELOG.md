@@ -2,6 +2,10 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.1 — 2026-06-08
+
+**Patch — fixes a crash when expanding an Ouronet Account whose payment key holds a balance.** `OuronetAccountsTab` rendered the on-chain `payment-key-balance` directly, but Pact returns decimals as `{ decimal: "…" }` objects — rendering one as a React child throws *"Objects are not valid as a React child"* (#31) and blanks the whole CodexUI page. The value is now coerced through a `decimalToDisplay` helper (inner string for `{ decimal }`, passthrough for number/string, `null` → hidden) before render. No API changes. (The Stoa Accounts tab already coerced balances; this was the one unguarded render.)
+
 ## 0.5.0 — 2026-06-08
 
 **Feature release — the complete drop-in CodexUI.** Brings the package to 1:1 functional *and* visual parity with OuronetUI's "My Codex", delivered as a single portable React surface any consumer can mount. With this release OuronetUI retires its legacy My Codex page entirely and serves its Codex **solely** through this package.

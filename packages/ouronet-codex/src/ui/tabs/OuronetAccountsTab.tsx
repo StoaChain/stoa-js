@@ -94,6 +94,19 @@ const APOLLO_COLOR = "#f97316";
 const APOLLO_SMART_COLOR = "#a01b3f";
 const ACCOUNTS_PER_PAGE = 10;
 
+/** Pact returns decimals as `{ decimal: "…" }` objects. Rendering one directly
+ *  as a React child throws "Objects are not valid as a React child" (#31) and
+ *  blanks the page — hit when expanding an account whose payment key holds a
+ *  balance. Coerce to the inner string; tolerate plain number/string;
+ *  null/undefined → null (so the `!== null` render guard still hides it). */
+const decimalToDisplay = (v: unknown): string | null => {
+  if (v == null) return null;
+  if (typeof v === "object" && "decimal" in (v as object)) {
+    return String((v as { decimal: unknown }).decimal);
+  }
+  return String(v);
+};
+
 export interface OuronetAccountsTabProps {
   className?: string;
 }
@@ -183,7 +196,7 @@ function AccountRow({
   accounts: IOuroAccount[];
   kadenaAccounts: IKadenaWallet[];
   forceExpanded: boolean;
-  paymentBalance: number | null;
+  paymentBalance: string | number | null;
   /** When set, this account is a prime CodexID half — shown with this name
    *  (StandardCodexID/SmartCodexID + original), locked + non-deletable. */
   primeName?: string;
@@ -624,7 +637,7 @@ export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
                   accounts={hydratedAccounts}
                   kadenaAccounts={kadenaAccounts}
                   forceExpanded={allExpanded}
-                  paymentBalance={byAddress[account.address]?.["payment-key-balance"] ?? null}
+                  paymentBalance={decimalToDisplay(byAddress[account.address]?.["payment-key-balance"])}
                   primeName={primeName}
                 />
               ))}
@@ -641,7 +654,7 @@ export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
               accounts={hydratedAccounts}
               kadenaAccounts={kadenaAccounts}
               forceExpanded={allExpanded}
-              paymentBalance={byAddress[account.address]?.["payment-key-balance"] ?? null}
+              paymentBalance={decimalToDisplay(byAddress[account.address]?.["payment-key-balance"])}
             />
           ))}
         </div>
