@@ -4,7 +4,7 @@
 
 ## Status
 
-**`0.5.0` on public npmjs** (alpha track) — Released 2026-06-08. **Feature release — the complete drop-in CodexUI**, bringing the package to 1:1 functional *and* visual parity with OuronetUI's "My Codex" as a single portable React surface. Ships the full `./ui` tab set under `CodexTabs` / `CodexUiRoot` — `OuronetAccountsTab`, `StoaAccountsTab`, `SeedWordsTab`, `PureKeypairsTab`, `AddressBookTab` — plus `CodexSettingsSection` (Operations / Debouncer / Read Functions / Security / Identity & Backup / Advanced), a segregated per-codex debouncer (`CodexDebouncerPanel`, `codexClock` seam-monitor), the observational CodexID surface (`ObservationalCodexIdDisplay`, rendered through the shared `GuardTree` engine), and the seven per-account operation modals (Activate Standard, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) ported code-for-code and wired into each `OuronetAccountsTab` row with debouncer / patron / signing / execute glue. **OuronetUI retires its legacy My Codex page entirely and serves its Codex solely through this package.** An interim `ZbomOperationModal` host explored mid-development was dropped during reconciliation in favor of the seven verbatim-cloned modals. Additive at the package level — every prior export keeps its signature. The `0.3.x`/`0.4.0` increments shipped to consumers via local dist drops and were not separately published. See CHANGELOG for full details.
+**`0.5.0` on public npmjs** — Released 2026-06-08. **Feature release — the complete drop-in CodexUI**, bringing the package to 1:1 functional *and* visual parity with OuronetUI's "My Codex" as a single portable React surface. Ships the full `./ui` tab set under `CodexTabs` / `CodexUiRoot` — `OuronetAccountsTab`, `StoaAccountsTab`, `SeedWordsTab`, `PureKeypairsTab`, `AddressBookTab` — plus `CodexSettingsSection` (Operations / Debouncer / Read Functions / Security / Identity & Backup / Advanced), a segregated per-codex debouncer (`CodexDebouncerPanel`, `codexClock` seam-monitor), the observational CodexID surface (`ObservationalCodexIdDisplay`, rendered through the shared `GuardTree` engine), and the seven per-account operation modals (Activate Standard, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) ported code-for-code and wired into each `OuronetAccountsTab` row with debouncer / patron / signing / execute glue. **OuronetUI retires its legacy My Codex page entirely and serves its Codex solely through this package.** An interim `ZbomOperationModal` host explored mid-development was dropped during reconciliation in favor of the seven verbatim-cloned modals. Additive at the package level — every prior export keeps its signature. The `0.3.x`/`0.4.0` increments shipped to consumers via local dist drops and were not separately published. See CHANGELOG for full details.
 
 **`0.2.1` on public npmjs** (alpha track) — Released 2026-05-27. **Bugfix release** — fixes a packaging bug present since v0.1.0 where `dist/**/*.js` re-exported from relative paths without `.js` extensions, causing `ERR_MODULE_NOT_FOUND` under Node 22+ strict ESM (any consumer doing `await import('@stoachain/ouronet-codex/...')` would crash). Static-import consumers (Vite, Next.js bundlers) were unaffected. AncientHoldings hub's Caduceus.1 integration surfaced + diagnosed it. Tests + typecheck unchanged from v0.2.0 (161 specs pass). No API changes; consumers can `npm update` and drop workarounds. See CHANGELOG for full details.
 
@@ -40,14 +40,14 @@ When **AncientHoldings** needed Codex-equivalent functionality, the team attempt
 ## Install
 
 ```bash
-npm install @stoachain/ouronet-codex@alpha \
+npm install @stoachain/ouronet-codex \
             @stoachain/ouronet-core \
             @stoachain/stoa-core \
             @stoachain/kadena-stoic-legacy \
             react react-dom
 ```
 
-(if you're already consuming the triplet for non-codex purposes, only `@stoachain/ouronet-codex@alpha` is new — the `@alpha` tag is required while in v0.x)
+(if you're already consuming the triplet for non-codex purposes, only `@stoachain/ouronet-codex` is new)
 
 ## Quick start
 
@@ -90,7 +90,7 @@ Full API + integration patterns: see [the spec doc](https://github.com/StoaChain
 
 ## Version history
 
-**v0.5.0** — Feature release: the complete drop-in CodexUI. Ships the full `./ui` tab set (Ouronet/Stoa Accounts, Seed Words, Pure Key Pairs, Address Book) under `CodexTabs` / `CodexUiRoot`, `CodexSettingsSection`, a segregated per-codex debouncer (`CodexDebouncerPanel` + the `codexClock` seam-monitor), the observational CodexID (`ObservationalCodexIdDisplay`, rendered through the shared `GuardTree` engine), and the seven per-account operation modals (Activate Standard, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) wired into each `OuronetAccountsTab` row. OuronetUI retires its legacy My Codex page and serves its Codex solely through this package. An interim `ZbomOperationModal` host explored mid-development was dropped in favor of the seven verbatim modals. Additive — every prior export keeps its signature. Published under the npm `alpha` dist-tag. The `0.3.x`/`0.4.0` increments shipped via local dist drops and were not separately published. See CHANGELOG.
+**v0.5.0** — Feature release: the complete drop-in CodexUI. Ships the full `./ui` tab set (Ouronet/Stoa Accounts, Seed Words, Pure Key Pairs, Address Book) under `CodexTabs` / `CodexUiRoot`, `CodexSettingsSection`, a segregated per-codex debouncer (`CodexDebouncerPanel` + the `codexClock` seam-monitor), the observational CodexID (`ObservationalCodexIdDisplay`, rendered through the shared `GuardTree` engine), and the seven per-account operation modals (Activate Standard, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) wired into each `OuronetAccountsTab` row. OuronetUI retires its legacy My Codex page and serves its Codex solely through this package. An interim `ZbomOperationModal` host explored mid-development was dropped in favor of the seven verbatim modals. Additive — every prior export keeps its signature. Published to the npm `latest` dist-tag. The `0.3.x`/`0.4.0` increments shipped via local dist drops and were not separately published. See CHANGELOG.
 
 **v0.2.1** — Bugfix release. Fixed extensionless relative imports in emitted `dist/**/*.js` (35 source files updated, 121 imports rewritten). Resolves `ERR_MODULE_NOT_FOUND` for Node ESM dynamic-import consumers. 161 specs still pass; no API changes; backward-compatible with v0.2.0 consumers. Reported by AncientHoldings hub Caduceus.1 work. See CHANGELOG entry for the full diagnosis.
 

@@ -267,29 +267,24 @@ jobs:
             npm publish --workspace=@stoachain/ouronet-core --access public --provenance
           fi
 
-      # @stoachain/ouronet-codex has independent semver (v0.x alpha track)
-      # — peer-deps the v4.2 atomic triplet but is NOT part of the triplet
-      # lock. Publishes with `--tag alpha` while in v0.x so consumers
-      # don't get pre-1.0 surface as `latest`. v1.0.0 will drop the
-      # `--tag alpha` and become the default install.
-      - name: Publish @stoachain/ouronet-codex to npmjs.org (alpha while v0.x)
+      # @stoachain/ouronet-codex has independent semver (v0.x) but, like every
+      # package in this monorepo, publishes ONLY to the `latest` dist-tag — no
+      # pre-release (alpha/beta) tags. When we publish, it's verified code and
+      # becomes the default install. The dist-tag add at the end also promotes
+      # any version previously published under another tag.
+      - name: Publish @stoachain/ouronet-codex to npmjs.org
         if: steps.queue.outputs.PUBLISH_OURONET_CODEX == 'true'
         run: |
           TAG_VERSION="${{ steps.queue.outputs.TAG_VERSION }}"
           if npm view @stoachain/ouronet-codex@${TAG_VERSION} version >/dev/null 2>&1; then
-            echo "@stoachain/ouronet-codex@${TAG_VERSION} already on npm — skipping (idempotent)."
+            echo "@stoachain/ouronet-codex@${TAG_VERSION} already on npm — skipping publish."
           else
-            # Per spec §8 Q6: alpha dist-tag while in v0.x, promoted to
-            # 'latest' at v1.0.0 (after OuronetUI + AncientHoldings have
-            # both integrated cleanly).
-            DIST_TAG="alpha"
-            case "$TAG_VERSION" in
-              0.*) DIST_TAG="alpha" ;;
-              *)   DIST_TAG="latest" ;;
-            esac
-            echo "Publishing @stoachain/ouronet-codex@${TAG_VERSION} with dist-tag '${DIST_TAG}'"
-            npm publish --workspace=@stoachain/ouronet-codex --access public --provenance --tag "${DIST_TAG}"
+            echo "Publishing @stoachain/ouronet-codex@${TAG_VERSION} to 'latest'"
+            npm publish --workspace=@stoachain/ouronet-codex --access public --provenance
           fi
+          # Always (re)point `latest` at this version — promotes a release that
+          # was previously published under a different dist-tag (e.g. legacy alpha).
+          npm dist-tag add @stoachain/ouronet-codex@${TAG_VERSION} latest
 
       # ------------------------------------------------------------------
       # GitHub Release creation (single Release per tag, regardless of
