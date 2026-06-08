@@ -17,7 +17,7 @@ import { useGetKeypair } from "../../hooks/useGetKeypair.js";
 import { usePatronSelectionDefaults } from "../patron/usePatronSelectionDefaults.js";
 import { toast } from "sonner";
 import { txPending } from "../toast/toastManager.js";
-import { getIgnisBalance } from "@stoachain/ouronet-core/interactions/ouroBalanceFunctions";
+import { getIgnisBalance } from "../debouncer/monitoredReads.js";
 import { getRotateKadenaInfo, rotateKadenaPaymentKey } from "@stoachain/ouronet-core/interactions/ouroRotateFunctions";
 import { mayComeWithDeimal } from "@stoachain/stoa-core/pact";
 import { analyzeGuard, buildCodexPubSet, selectCapsSigningKey } from "@stoachain/stoa-core/guard";
@@ -250,6 +250,7 @@ export default function RotatePaymentKeyModal({
         {/* ── Zone 0 — Function Info ── */}
         <FunctionInfoZone
           key={patronAccount?.address}
+          readId="INFO_RotateKadena"
           label="DALOS-INFO|URC_RotateKadena"
           pactCall={`(ouronet-ns.INFO-ZERO.DALOS-INFO|URC_RotateKadena "${(patronAccount?.address ?? "").slice(0, 20)}…" "${account.address.slice(0, 20)}…")`}
           fetcher={() => getRotateKadenaInfo(patronAccount?.address ?? "", account.address)}

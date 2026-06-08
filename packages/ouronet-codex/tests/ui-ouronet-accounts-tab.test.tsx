@@ -102,7 +102,8 @@ describe("<OuronetAccountsTab>", () => {
   it("displays the first account as the locked CodexPrime regardless of its name", async () => {
     await renderTab([ouroFx({ id: "prime", name: "Some Name", address: "Ѻ.prime-acct" })]);
     expect(screen.getByText("CodexPrime")).toBeTruthy();
-    expect(screen.getByText(/Locked/i)).toBeTruthy();
+    // Prime entities share a unified "🔒 Prime" badge (distinct from the name).
+    expect(screen.getByText(/🔒\s*Prime/)).toBeTruthy();
     // The seeded name is intentionally overridden for the prime slot.
     expect(screen.queryByText("Some Name")).toBeNull();
   });

@@ -32,7 +32,6 @@ import {
   Eye,
   Lock,
   RotateCw,
-  RefreshCw,
   Shield,
   Zap,
   Tag,
@@ -47,6 +46,8 @@ import {
 import { useOuroAccounts } from "../../hooks/useOuroAccounts.js";
 import { useKadenaSeeds } from "../../hooks/useKadenaSeeds.js";
 import { usePureKeypairs } from "../../hooks/usePureKeypairs.js";
+import { useCodex } from "../../hooks/useCodex.js";
+import { readObservationalCodexIdConfig, CODEXID_PRIME_NAMES, codexIdPrimeName } from "../ObservationalCodexId.js";
 import RotatePaymentKeyModal from "../../zbom/modals/RotatePaymentKeyModal.js";
 import RotateGuardModal from "../../zbom/modals/RotateGuardModal.js";
 import ReleaseStoicTagModal from "../../zbom/modals/ReleaseStoicTagModal.js";
@@ -161,8 +162,19 @@ function StoicTagPillar({ tag }: { tag: string }) {
 }
 
 /* ─── Account Row ─── */
+/** A labeled divider between prime CodexID entities and the normal accounts. */
+function PrimeSeparator({ label }: { label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "2px 0" }}>
+      <div style={{ flex: 1, height: 1, backgroundColor: "#262626" }} />
+      <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#555" }}>{label}</span>
+      <div style={{ flex: 1, height: 1, backgroundColor: "#262626" }} />
+    </div>
+  );
+}
+
 function AccountRow({
-  account, index, seeds, pureKeypairs, accounts, kadenaAccounts, forceExpanded, paymentBalance,
+  account, index, seeds, pureKeypairs, accounts, kadenaAccounts, forceExpanded, paymentBalance, primeName,
 }: {
   account: IOuroAccount;
   index: number;
@@ -172,6 +184,9 @@ function AccountRow({
   kadenaAccounts: IKadenaWallet[];
   forceExpanded: boolean;
   paymentBalance: number | null;
+  /** When set, this account is a prime CodexID half — shown with this name
+   *  (StandardCodexID/SmartCodexID + original), locked + non-deletable. */
+  primeName?: string;
 }) {
   const { updateAccount, deleteAccount } = useOuroAccounts();
   const [localExpanded, setLocalExpanded] = useState(false);
@@ -182,7 +197,9 @@ function AccountRow({
   const [viewSeedOpen, setViewSeedOpen] = useState(false);
 
   const isFirst = index === 0;
-  const displayName = isFirst ? "CodexPrime" : account.name || `Account #${index + 1}`;
+  const isCodexIdPrime = !!primeName;
+  const locked = isFirst || isCodexIdPrime;
+  const displayName = primeName ?? (isFirst ? "CodexPrime" : account.name || `Account #${index + 1}`);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(displayName);
   const commitRename = () => {
@@ -232,7 +249,12 @@ function AccountRow({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: nameColor }}>{displayName}</span>
-            {isFirst && <span style={pillStyle("#ceac5f20", "#ceac5f")}>🔒 Locked</span>}
+            {locked && (
+              <span style={pillStyle(
+                `${isCodexIdPrime ? apolloAccent : "#ceac5f"}20`,
+                isCodexIdPrime ? apolloAccent : "#ceac5f",
+              )}>🔒 Prime</span>
+            )}
             {stoicTag && <StoicTagPillar tag={stoicTag} />}
             <span style={pillStyle(
               isApollo ? apolloAccent + "20" : isStandard ? "#ceac5f20" : "#8b5cf620",
@@ -379,7 +401,7 @@ function AccountRow({
             <button type="button" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, padding: "6px 10px", borderRadius: 6, backgroundColor: "#0a0a0a", border: "1px solid #262626", color: "#d2d3d4", cursor: "pointer" }} onClick={() => setViewSeedOpen(true)}>
               <Eye style={{ width: 14, height: 14 }} /> View Seed
             </button>
-            {!isFirst && (renaming ? (
+            {!locked && (renaming ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <input
                   autoFocus
@@ -399,14 +421,14 @@ function AccountRow({
                 <Zap style={{ width: 14, height: 14 }} /> Activate
               </button>
             )}
-            {!account.isActive && isApollo && (
+            {!account.isActive && isApollo && !isCodexIdPrime && (
               <button type="button" disabled title="APOLLO is observational — activation is not supported for ₱./Π. prefixes." style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 6, backgroundColor: "#18181B", color: apolloAccent, border: `1px solid ${apolloAccent}30`, cursor: "not-allowed", opacity: 0.8 }}>
                 <Zap style={{ width: 14, height: 14 }} /> Activate
               </button>
             )}
             <div style={{ flex: 1 }} />
-            {isFirst
-              ? <IconDeleteBtnDisabled size={28} title="CodexPrime cannot be removed" />
+            {locked
+              ? <IconDeleteBtnDisabled size={28} title={isCodexIdPrime ? `${primeName} cannot be removed while it is part of the CodexID` : "CodexPrime cannot be removed"} />
               : <IconDeleteBtn onClick={() => { void deleteAccount(account.id); }} size={28} />}
           </div>
         </div>
@@ -452,6 +474,13 @@ export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
   const { accounts } = useOuroAccounts();
   const { seeds } = useKadenaSeeds();
   const { keypairs } = usePureKeypairs();
+  const { uiSettings } = useCodex();
+
+  // The APOLLO accounts chosen for the observational CodexID are prime: pinned
+  // first in their sub-tab, locked (non-deletable), renamed Standard/SmartCodexID.
+  const idCfg = readObservationalCodexIdConfig(uiSettings);
+  const stdPrimeId = idCfg.enabled ? idCfg.standardId : "";
+  const smtPrimeId = idCfg.enabled ? idCfg.smartId : "";
 
   const [activeTab, setActiveTab] = useState<"standard" | "smart">("standard");
   const [page, setPage] = useState(0);
@@ -462,7 +491,7 @@ export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
   // key + guard + balance, on-chain public key, StoicTag. The package reads the
   // same immutable Pact function My Codex uses; APOLLO accounts are excluded.
   const addresses = useMemo(() => accounts.map((a) => a.address), [accounts]);
-  const { byAddress, loading: chainLoading, error: chainError, refresh } = useAccountChainData(addresses);
+  const { byAddress } = useAccountChainData(addresses);
 
   // Codex at-rest + live chain overlay. Preserves codex order so index 0 stays
   // CodexPrime regardless of the display sort below.
@@ -490,8 +519,32 @@ export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
   const kadenaAccounts = useMemo(() => flattenKadenaAccounts(seeds), [seeds]);
 
   const currentList = activeTab === "standard" ? standardAccounts : smartAccounts;
-  const totalPages = Math.ceil(currentList.length / ACCOUNTS_PER_PAGE);
-  const pageAccounts = currentList.slice(page * ACCOUNTS_PER_PAGE, (page + 1) * ACCOUNTS_PER_PAGE);
+  const primeDesignated = activeTab === "standard" ? CODEXID_PRIME_NAMES.standard : CODEXID_PRIME_NAMES.smart;
+
+  // The prime zone pins all prime entities to the top (excluded from pagination,
+  // separated from the rest): the CodexID APOLLO half for this sub-tab AND the
+  // codex's own CodexPrime account (index 0) when it lives in this sub-tab.
+  const primeId = activeTab === "standard" ? stdPrimeId : smtPrimeId;
+  const apolloPrime = primeId ? currentList.find((a) => a.id === primeId) : undefined;
+  const codexPrimeAcct = hydratedAccounts[0];
+  const codexPrimeInTab = codexPrimeAcct
+    ? (activeTab === "standard" ? !codexPrimeAcct.isSmart : codexPrimeAcct.isSmart)
+    : false;
+
+  const primeRows: { account: IOuroAccount; primeName?: string }[] = [];
+  const primeIds = new Set<string>();
+  if (apolloPrime) {
+    primeRows.push({ account: apolloPrime, primeName: codexIdPrimeName(primeDesignated, apolloPrime.name) });
+    primeIds.add(apolloPrime.id);
+  }
+  if (codexPrimeInTab && codexPrimeAcct && !primeIds.has(codexPrimeAcct.id)) {
+    primeRows.push({ account: codexPrimeAcct }); // index-0 ⇒ AccountRow renders it as CodexPrime
+    primeIds.add(codexPrimeAcct.id);
+  }
+
+  const restList = currentList.filter((a) => !primeIds.has(a.id));
+  const totalPages = Math.ceil(restList.length / ACCOUNTS_PER_PAGE);
+  const pageAccounts = restList.slice(page * ACCOUNTS_PER_PAGE, (page + 1) * ACCOUNTS_PER_PAGE);
 
   useEffect(() => setPage(0), [activeTab]);
 
@@ -514,31 +567,8 @@ export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
 
   return (
     <div className={className} style={{ fontFamily: "var(--codex-font, inherit)", color: "#d2d3d4", display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Live-chain-read status (URC_0027) — surfaces node reachability */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
-        {chainLoading ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#888" }}>
-            <RefreshCw style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} />
-            Reading live chain state…
-          </span>
-        ) : chainError ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#c0392b" }}>
-            ⚠ Live chain read failed — {chainError} Showing codex-only data.
-          </span>
-        ) : (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#4ade80" }}>
-            ✓ Live chain state (URC_0027)
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={refresh}
-          title="Re-read chain state"
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 6, border: "1px solid #262626", background: "transparent", color: "#888", cursor: "pointer", fontSize: 11 }}
-        >
-          <RefreshCw style={{ width: 11, height: 11 }} /> Refresh
-        </button>
-      </div>
+      {/* Live-read status + manual refresh removed — the CodexUI debouncer panel
+          now surfaces URC_0027's live/fetching/error state (T5) and auto-refresh. */}
 
       {/* Total + Standard/Smart filter + Expand All */}
       <div style={{ fontSize: 14, color: "#888" }}>
@@ -580,8 +610,27 @@ export function OuronetAccountsTab({ className }: OuronetAccountsTabProps) {
 
       <Pagination />
 
-      {pageAccounts.length > 0 ? (
+      {(primeRows.length > 0 || pageAccounts.length > 0) ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {primeRows.length > 0 && (
+            <>
+              {primeRows.map(({ account, primeName }) => (
+                <AccountRow
+                  key={account.id || account.address}
+                  account={account}
+                  index={hydratedAccounts.indexOf(account)}
+                  seeds={seeds}
+                  pureKeypairs={keypairs}
+                  accounts={hydratedAccounts}
+                  kadenaAccounts={kadenaAccounts}
+                  forceExpanded={allExpanded}
+                  paymentBalance={byAddress[account.address]?.["payment-key-balance"] ?? null}
+                  primeName={primeName}
+                />
+              ))}
+              {restList.length > 0 && <PrimeSeparator label={`Other ${activeTab} accounts`} />}
+            </>
+          )}
           {pageAccounts.map((account) => (
             <AccountRow
               key={account.id || account.address}

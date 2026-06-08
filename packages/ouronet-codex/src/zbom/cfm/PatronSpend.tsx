@@ -14,7 +14,7 @@ import { Flame, ChevronDown, ChevronRight } from "lucide-react";
 import { InfoTooltip } from "../ui/InfoTooltip.js";
 import { formatEU } from "@stoachain/stoa-core/pact";
 import { AutonomicAmountInput } from "./inputs.js";
-import { getIgnisBalance } from "@stoachain/ouronet-core/interactions/ouroBalanceFunctions";
+import { getIgnisBalance } from "../debouncer/monitoredReads.js";
 import { analyzeGuard, buildCodexPubSet } from "@stoachain/stoa-core/guard";
 import { useWallet, useUiSetting } from "./seam.js";
 import type { IOuroAccount } from "../../types/entities.js";

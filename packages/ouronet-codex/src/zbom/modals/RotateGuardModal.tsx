@@ -17,7 +17,7 @@ import { useGetKeypair } from "../../hooks/useGetKeypair.js";
 import { usePatronSelectionDefaults } from "../patron/usePatronSelectionDefaults.js";
 import { toast } from "sonner";
 import { txPending } from "../toast/toastManager.js";
-import { getIgnisBalance } from "@stoachain/ouronet-core/interactions/ouroBalanceFunctions";
+import { getIgnisBalance } from "../debouncer/monitoredReads.js";
 import { getRotateGuardInfo, rotateGuard } from "@stoachain/ouronet-core/interactions/guardFunctions";
 import { mayComeWithDeimal } from "@stoachain/stoa-core/pact";
 import { analyzeGuard, buildCodexPubSet, selectCapsSigningKey } from "@stoachain/stoa-core/guard";
@@ -256,6 +256,7 @@ export default function RotateGuardModal({
         {/* ── Zone 0 — Function Info ── */}
         <FunctionInfoZone
           key={patronAccount?.address}
+          readId="INFO_RotateGuard"
           label="DALOS-INFO|URC_RotateGuard"
           pactCall={`(ouronet-ns.INFO-ZERO.DALOS-INFO|URC_RotateGuard "${(patronAccount?.address ?? "").slice(0, 20)}…" "${account.address.slice(0, 20)}…")`}
           fetcher={() => getRotateGuardInfo(patronAccount?.address ?? "", account.address)}

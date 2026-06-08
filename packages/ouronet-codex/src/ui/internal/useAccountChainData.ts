@@ -23,6 +23,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { getAccountSelectorData } from "@stoachain/ouronet-core/interactions/ouroAccountFunctions";
 import type { AccountSelectorData } from "@stoachain/ouronet-core/interactions/ouroTypes";
+import { codexClock } from "../../zbom/debouncer/codexClock.js";
 
 const DALOS_PREFIXES = ["Ѻ.", "Σ."];
 const isDalos = (addr: string) => DALOS_PREFIXES.some((p) => addr.startsWith(p));
@@ -63,7 +64,9 @@ export function useAccountChainData(addresses: string[]): AccountChainData {
     setLoading(true);
     setError(null);
     try {
-      const rows = await getAccountSelectorData(dalos);
+      const rows = await codexClock.report("URC_0027", undefined, () =>
+        getAccountSelectorData(dalos),
+      );
       const map: Record<string, AccountSelectorData> = {};
       for (const r of rows) map[r["ouronet-account"]] = r;
       setByAddress(map);

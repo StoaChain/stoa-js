@@ -203,13 +203,15 @@ export interface IOuroAccount {
   parentSeedId?: string;
 }
 
-/** Address-book entry — a labeled recipient address for the address picker. */
+/** Address-book entry — a labeled recipient address for the address picker.
+ *  `stoic-tag` entries store the BARE tag name (no `§` sigil) in `address`;
+ *  the sigil is added for display/copy and the name is resolved on-chain. */
 export interface AddressBookEntry {
   id: string;
   name: string;
   address: string;
   notes?: string;
-  type: "ouronet" | "stoa";
+  type: "ouronet" | "stoa" | "stoic-tag";
   /** ISO timestamp */
   createdAt: string;
   /** ISO timestamp */

@@ -38,8 +38,7 @@ import { InfoTooltip } from "../ui/InfoTooltip.js";
 import { usePatronSelectionDefaults } from "../patron/usePatronSelectionDefaults.js";
 import { txPending } from "../toast/toastManager.js";
 import { Gavel, Loader2 } from "lucide-react";
-import { getIgnisBalance } from "@stoachain/ouronet-core/interactions/ouroBalanceFunctions";
-import { getKadenaAccountGuard } from "@stoachain/ouronet-core/interactions/ouroAccountFunctions";
+import { getIgnisBalance, getKadenaAccountGuard } from "../debouncer/monitoredReads.js";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { KADENA_CHAIN_ID, KADENA_NETWORK } from "@stoachain/stoa-core/constants";
 import {
@@ -391,6 +390,7 @@ export default function RotateGovernorModal({
         {/* ── Zone 0 — Function Info ── */}
         <FunctionInfoZone
           key={patronAccount?.address}
+          readId="INFO_RotateGovernor"
           label="DALOS-INFO|URC_RotateGovernor"
           pactCall={`(ouronet-ns.INFO-ZERO.DALOS-INFO|URC_RotateGovernor "${(patronAccount?.address ?? "").slice(0, 20)}…" "${account.address.slice(0, 20)}…")`}
           fetcher={async () => {

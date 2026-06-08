@@ -11,6 +11,7 @@ import { useUiSetting } from "./seam.js";
 import { mayComeWithDeimal } from "@stoachain/stoa-core/pact";
 import { IgnisCostDisplay } from "../ui/IgnisCostDisplay.js";
 import { KadenaCostDisplay } from "../ui/KadenaCostDisplay.js";
+import { codexClock } from "../debouncer/codexClock.js";
 
 const GOLD = "#ceac5f";
 const BD   = "#ceac5f40";
@@ -99,9 +100,11 @@ export interface FunctionInfoZoneProps {
   label:     string;
   pactCall?: string;
   fetcher:   () => Promise<any | null>;
+  /** readRegistry id — when set, this INFO read reports into the codexClock monitor. */
+  readId?:   string;
 }
 
-export function FunctionInfoZone({ label, pactCall, fetcher }: FunctionInfoZoneProps) {
+export function FunctionInfoZone({ label, pactCall, fetcher, readId }: FunctionInfoZoneProps) {
   const defaultOpen = useUiSetting("infoZoneOpen", true);
   const [open, setOpen]     = useState(defaultOpen);
   const [loaded, setLoaded] = useState(false);
@@ -112,7 +115,7 @@ export function FunctionInfoZone({ label, pactCall, fetcher }: FunctionInfoZoneP
   useEffect(() => {
     if (!open || loaded) return;
     setLoading(true);
-    fetcher()
+    (readId ? codexClock.report(readId, undefined, fetcher) : fetcher())
       .then(setData)
       .finally(() => { setLoading(false); setLoaded(true); });
   // eslint-disable-next-line react-hooks/exhaustive-deps

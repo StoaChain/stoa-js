@@ -46,6 +46,14 @@ export type {
 export { CodexTabs } from "./CodexTabs.js";
 export type { CodexTabsProps, CodexTabKey } from "./CodexTabs.js";
 
+// Phase 16 — the CodexUI debouncer panel (full MainDebouncer-style read monitor)
+// + the read registry, re-surfaced here for consumers importing from `./ui`.
+export { CodexDebouncerPanel } from "../zbom/debouncer/CodexDebouncerPanel.js";
+export type { CodexDebouncerPanelProps } from "../zbom/debouncer/CodexDebouncerPanel.js";
+export { codexClock } from "../zbom/debouncer/codexClock.js";
+export { CODEX_READ_REGISTRY } from "../zbom/debouncer/readRegistry.js";
+export type { CodexReadFn } from "../zbom/debouncer/readRegistry.js";
+
 // Phase 15 — token-styled Codex Settings section cards (Google Drive sync
 // card intentionally excluded — it stays redux-bound in OuronetUI).
 export { CodexInfoCard } from "./settings/CodexInfoCard.js";
@@ -73,6 +81,10 @@ export { ZbomSettingsCard } from "./settings/ZbomSettingsCard.js";
 export type { ZbomSettingsCardProps } from "./settings/ZbomSettingsCard.js";
 export { GasSettingsCard } from "./settings/GasSettingsCard.js";
 export type { GasSettingsCardProps } from "./settings/GasSettingsCard.js";
+export { DebouncerSettingsCard } from "./settings/DebouncerSettingsCard.js";
+export type { DebouncerSettingsCardProps } from "./settings/DebouncerSettingsCard.js";
+export { ReadFunctionsCard } from "./settings/ReadFunctionsCard.js";
+export type { ReadFunctionsCardProps } from "./settings/ReadFunctionsCard.js";
 
 // Phase 15 — the assembled section composing all eight cards (Google Drive
 // sync intentionally excluded).

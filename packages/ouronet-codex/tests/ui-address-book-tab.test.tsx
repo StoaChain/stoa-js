@@ -7,13 +7,19 @@
  * it, and tab-filter ouronet vs stoa entries.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 import { CodexProvider } from "@stoachain/ouronet-codex/provider";
 import { MemoryCodexAdapter } from "@stoachain/ouronet-codex/adapters";
 import { useCodex } from "@stoachain/ouronet-codex/hooks";
 import { AddressBookTab } from "@stoachain/ouronet-codex/ui";
+import { setPactReader } from "@stoachain/stoa-core/reads";
+
+// Stub the read seam so the StoicTags on-chain resolution never hits the network.
+beforeEach(() => {
+  setPactReader(async () => ({ result: { data: [] } }) as never);
+});
 
 // Surfaces the provider's async hydration so a test can wait for it before
 // mutating — adapter.loadAll() runs in an effect and overwrites slices on
@@ -47,7 +53,7 @@ describe("<AddressBookTab>", () => {
   it("adds an entry through the form and shows it in the list (add → list round-trip)", async () => {
     await renderTab();
     // Open the add form.
-    fireEvent.click(screen.getByRole("button", { name: /add address/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add ouronet/i }));
 
     fireEvent.change(screen.getByLabelText(/^name/i), {
       target: { value: "Alice" },
@@ -65,7 +71,7 @@ describe("<AddressBookTab>", () => {
 
   it("edits an entry's name in place so updateEntry is wired to the rename control", async () => {
     await renderTab();
-    fireEvent.click(screen.getByRole("button", { name: /add address/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add ouronet/i }));
     fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "Bob" } });
     fireEvent.change(screen.getByLabelText(/^address/i), {
       target: { value: "Ѻ.bob-account" },
@@ -85,7 +91,7 @@ describe("<AddressBookTab>", () => {
 
   it("deletes an entry so deleteEntry drops it from the list", async () => {
     await renderTab();
-    fireEvent.click(screen.getByRole("button", { name: /add address/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add ouronet/i }));
     fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "Carol" } });
     fireEvent.change(screen.getByLabelText(/^address/i), {
       target: { value: "Ѻ.carol-account" },
@@ -101,7 +107,7 @@ describe("<AddressBookTab>", () => {
   it("filters entries by type when switching to the StoaChain tab", async () => {
     await renderTab();
     // Add an ouronet entry on the default tab.
-    fireEvent.click(screen.getByRole("button", { name: /add address/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add ouronet/i }));
     fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "OuroOne" } });
     fireEvent.change(screen.getByLabelText(/^address/i), {
       target: { value: "Ѻ.ouro-one" },
@@ -114,5 +120,25 @@ describe("<AddressBookTab>", () => {
     await waitFor(() => expect(screen.queryByText("OuroOne")).toBeNull());
     // And the stoa empty state shows.
     expect(screen.getByText(/No StoaChain.* Addresses/i)).toBeTruthy();
+  });
+
+  it("adds a StoicTag entry, storing the bare name but displaying the § sigil", async () => {
+    await renderTab();
+    // Switch to the StoicTags subsection.
+    fireEvent.click(screen.getByRole("button", { name: /stoictags/i }));
+    expect(screen.getByText(/No StoicTags/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /add stoictags/i }));
+    fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "My Tag" } });
+    // User types with a leading § — it must be stripped to the bare name on save.
+    fireEvent.change(screen.getByLabelText(/tag name/i), { target: { value: "§mytag" } });
+    fireEvent.click(screen.getByRole("button", { name: /^save/i }));
+
+    expect(await screen.findByText("My Tag")).toBeTruthy();
+    // Displayed WITH the sigil…
+    expect(screen.getByText("§mytag")).toBeTruthy();
+    // …but the empty-state for the OTHER tabs is unaffected (bare name stored under stoic-tag).
+    fireEvent.click(screen.getByRole("button", { name: /^ouronet$/i }));
+    expect(screen.queryByText("§mytag")).toBeNull();
   });
 });

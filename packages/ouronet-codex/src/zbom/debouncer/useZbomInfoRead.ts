@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { parseIgnisInfo } from "./parseIgnisInfo.js";
+import { codexClock } from "./codexClock.js";
 
 export type ZbomReadStatus = "idle" | "loading" | "fresh" | "error";
 
@@ -49,6 +50,8 @@ export interface UseZbomInfoReadOptions {
   tier?: string;
   /** Bump to force a re-read (e.g. post-tx propagation from useZbomRefresh). */
   refreshKey?: number;
+  /** readRegistry id — when set, this read reports into the codexClock monitor. */
+  readId?: string;
 }
 
 const IDLE: Omit<ZbomInfoRead, "refresh"> = {
@@ -66,7 +69,7 @@ export function useZbomInfoRead(
   pactCode: string | null,
   opts: UseZbomInfoReadOptions = {},
 ): ZbomInfoRead {
-  const { debounceMs = 400, tier = "T2", refreshKey = 0 } = opts;
+  const { debounceMs = 400, tier = "T2", refreshKey = 0, readId } = opts;
 
   const [state, setState] = useState<Omit<ZbomInfoRead, "refresh">>(IDLE);
 
@@ -78,7 +81,8 @@ export function useZbomInfoRead(
     (code: string) => {
       const myReq = ++reqIdRef.current;
       setState((prev) => ({ ...prev, status: "loading", error: null }));
-      void pactRead(code, { tier })
+      const doRead = () => pactRead(code, { tier });
+      void (readId ? codexClock.report(readId, undefined, doRead) : doRead())
         .then((raw) => {
           if (myReq !== reqIdRef.current) return; // superseded
           const parsed = parseIgnisInfo(raw);
@@ -99,7 +103,7 @@ export function useZbomInfoRead(
           }));
         });
     },
-    [tier],
+    [tier, readId],
   );
 
   // Debounced read on code / refreshKey change.

@@ -22,10 +22,14 @@ import { Fingerprint, ChevronDown, ChevronRight, Eye } from "lucide-react";
 import { useCodex } from "../hooks/useCodex.js";
 import { useOuroAccounts } from "../hooks/useOuroAccounts.js";
 import { useCodexIdentity } from "../hooks/useCodexIdentity.js";
+import { usePureKeypairs } from "../hooks/usePureKeypairs.js";
+import { useKadenaSeeds } from "../hooks/useKadenaSeeds.js";
 import { useCodexStore } from "../provider/index.js";
 import { detectOriginCurve } from "./internal/originCurve.js";
 import { IconCopyBtn } from "./internal/IconButtons.js";
 import { PublicKeyFieldBox, GuardFieldBox } from "./internal/accountFields.js";
+import { GuardTree } from "./internal/GuardTree.js";
+import { identifyKeySource } from "./internal/keySource.js";
 import { ViewSeedModal } from "./internal/ViewSeedModal.js";
 import { CodexIdField, CopyValueTag } from "./CodexIdField.js";
 import { CodexLockControl } from "./CodexLockControl.js";
@@ -46,18 +50,43 @@ function RevealSeedBtn({ onClick }: { onClick: () => void }) {
 
 const STD_ACCENT = "#f97316"; // APOLLO Standard ₱.
 const SMT_ACCENT = "#a01b3f"; // APOLLO Smart Π.
+const GUARD_ACCENT = "#a78bfa"; // Pure-Key guard (matches the Pure Key Pairs tab)
 
 export interface ObservationalCodexIdConfig {
   enabled: boolean;
   standardId: string;
   smartId: string;
+  /** Pure-keypair id chosen as the CodexID guard (a Pure Key, per convention —
+   *  never a seed-derived key). Optional: the CodexID still previews without it. */
+  guardKeypairId: string;
 }
 
-const DEFAULT_CONFIG: ObservationalCodexIdConfig = { enabled: false, standardId: "", smartId: "" };
+const DEFAULT_CONFIG: ObservationalCodexIdConfig = {
+  enabled: false,
+  standardId: "",
+  smartId: "",
+  guardKeypairId: "",
+};
 
 export function readObservationalCodexIdConfig(uiSettings: Record<string, unknown>): ObservationalCodexIdConfig {
   const raw = uiSettings.observationalCodexId as Partial<ObservationalCodexIdConfig> | undefined;
   return { ...DEFAULT_CONFIG, ...(raw ?? {}) };
+}
+
+/**
+ * The names a CodexID's prime entities take in LIVE mode. In observational mode
+ * the entity keeps its real name; lists show `${designated} (${original})`.
+ */
+export const CODEXID_PRIME_NAMES = {
+  standard: "StandardCodexID",
+  smart: "SmartCodexID",
+  guard: "GuardOfCodexID",
+} as const;
+
+/** Display name for a prime CodexID entity: designated name + original in parens. */
+export function codexIdPrimeName(designated: string, original: string | undefined): string {
+  const orig = (original ?? "").trim();
+  return orig ? `${designated} (${orig})` : designated;
 }
 
 function useApolloAccounts() {
@@ -87,11 +116,15 @@ const labelStyle = (color: string): React.CSSProperties => ({
   letterSpacing: "0.05em", color, marginBottom: 6,
 });
 
+const kpLabel = (kp: { label?: string; publicKey: string }, i: number) =>
+  `${kp.label || `Pure Key #${i + 1}`} — ${kp.publicKey.slice(0, 10)}…`;
+
 export function ObservationalCodexIdSettings({ className }: ObservationalCodexIdSettingsProps) {
   const { uiSettings } = useCodex();
   const store = useCodexStore();
   const cfg = readObservationalCodexIdConfig(uiSettings);
   const { standardApollo, smartApollo } = useApolloAccounts();
+  const { keypairs } = usePureKeypairs();
 
   const write = (patch: Partial<ObservationalCodexIdConfig>) => {
     void store.getState().actions.updateUiSettings({
@@ -148,6 +181,13 @@ export function ObservationalCodexIdSettings({ className }: ObservationalCodexId
               {smartApollo.map((a, i) => <option key={a.id} value={a.id}>{accLabel(a, i)}</option>)}
             </select>
           </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label style={labelStyle(GUARD_ACCENT)}>Guard (Pure Key)</label>
+            <select style={selectStyle} value={cfg.guardKeypairId} onChange={(e) => write({ guardKeypairId: e.target.value })}>
+              <option value="">{keypairs.length ? "Select… (optional)" : "No Pure Keys"}</option>
+              {keypairs.map((kp, i) => <option key={kp.id} value={kp.id}>{kpLabel(kp, i)}</option>)}
+            </select>
+          </div>
         </div>
       )}
     </div>
@@ -158,6 +198,14 @@ export function ObservationalCodexIdSettings({ className }: ObservationalCodexId
 
 export interface ObservationalCodexIdDisplayProps {
   className?: string;
+  /**
+   * Consumer seam to launch the "establish a real Codex Identity" flow (the
+   * Mnemosyne Stage-1 registration). When provided, the empty-state
+   * "Define Codex Identity" button is enabled and calls this; when omitted, the
+   * button renders disabled with a "coming with Mnemosyne" hint. Wiring this in
+   * is what will let a fresh codex establish its on-chain CodexIdentity.
+   */
+  onDefineIdentity?: () => void;
 }
 
 /**
@@ -168,9 +216,11 @@ export interface ObservationalCodexIdDisplayProps {
  * + a "details" dropdown revealing each half's public key + a Guard field with
  * a (placeholder) Rotate Guard button; otherwise "CODEXID not yet established".
  */
-export function ObservationalCodexIdDisplay({ className }: ObservationalCodexIdDisplayProps) {
+export function ObservationalCodexIdDisplay({ className, onDefineIdentity }: ObservationalCodexIdDisplayProps) {
   const { uiSettings } = useCodex();
   const { accounts } = useOuroAccounts();
+  const { keypairs } = usePureKeypairs();
+  const { seeds } = useKadenaSeeds();
   const { identity } = useCodexIdentity();
   const cfg = readObservationalCodexIdConfig(uiSettings);
   const [expanded, setExpanded] = useState(false);
@@ -179,6 +229,19 @@ export function ObservationalCodexIdDisplay({ className }: ObservationalCodexIdD
   const std = cfg.enabled ? accounts.find((a) => a.id === cfg.standardId) : undefined;
   const smt = cfg.enabled ? accounts.find((a) => a.id === cfg.smartId) : undefined;
   const observational = std && smt ? { std, smt } : null;
+  // The chosen Pure-Key guard (optional).
+  const guardKp = cfg.enabled && cfg.guardKeypairId
+    ? keypairs.find((k) => k.id === cfg.guardKeypairId)
+    : undefined;
+
+  // The CodexID guard, as a real guard object rendered through the SAME GuardTree
+  // engine the Ouronet Accounts use:
+  //   • observational ⇒ a `keys-all` keyset over the chosen Pure Key (a key is
+  //     not a guard — a guard is a keyset).
+  //   • live (real identity) ⇒ the on-chain CodexID guard, when present.
+  const codexIdGuard: unknown = guardKp
+    ? { pred: "keys-all", keys: [guardKp.publicKey] }
+    : (identity as { guard?: unknown } | null)?.guard ?? null;
 
   // Real registered identity (rare for now) — formatted is "₱.std:Π.smart".
   const realFormatted = (identity as { formatted?: string } | null)?.formatted ?? null;
@@ -199,6 +262,20 @@ export function ObservationalCodexIdDisplay({ className }: ObservationalCodexIdD
         <Fingerprint style={{ width: 16, height: 16, flexShrink: 0, color: "#22c55e" }} />
         <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#888" }}>CodexID</span>
         <span style={{ fontSize: 12, fontStyle: "italic", color: "#555" }}>not yet established</span>
+        <button
+          type="button"
+          disabled={!onDefineIdentity}
+          onClick={() => onDefineIdentity?.()}
+          title={onDefineIdentity ? "Define your Codex Identity" : "Define your Codex Identity — coming with Mnemosyne"}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 4, padding: "5px 12px",
+            borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "var(--codex-font, inherit)",
+            border: "1px solid #22c55e55", backgroundColor: "#22c55e1a", color: "#22c55e",
+            cursor: onDefineIdentity ? "pointer" : "not-allowed", opacity: onDefineIdentity ? 1 : 0.55,
+          }}
+        >
+          <Fingerprint style={{ width: 13, height: 13 }} /> Define Codex Identity
+        </button>
         <div style={{ flex: 1 }} />
         <CodexLockControl />
       </div>
@@ -262,9 +339,21 @@ export function ObservationalCodexIdDisplay({ className }: ObservationalCodexIdD
             headerAction={<RevealSeedBtn onClick={() => setRevealHalf("smt")} />}
           />
           <GuardFieldBox onRotate={() => { /* placeholder — wired in the ZBOM port */ }}>
-            <span style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>
-              — (CodexID guard — Rotate Guard is a placeholder until the ZBOM port wires it)
-            </span>
+            {codexIdGuard ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+                {guardKp && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: GUARD_ACCENT }}>
+                    {codexIdPrimeName(CODEXID_PRIME_NAMES.guard, guardKp.label)}
+                  </span>
+                )}
+                {/* Same guard-detection engine the Ouronet Accounts use. */}
+                <GuardTree guard={codexIdGuard} identifyKeySource={(k) => identifyKeySource(k, seeds, keypairs)} />
+              </div>
+            ) : (
+              <span style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>
+                no guard selected — pick a Pure Key in Codex UI Settings → Identity &amp; Backup
+              </span>
+            )}
           </GuardFieldBox>
         </>
       )}

@@ -33,6 +33,8 @@ import { ConsumerSettingsCard } from "./ConsumerSettingsCard.js";
 import { PasswordCacheCard } from "./PasswordCacheCard.js";
 import { ZbomSettingsCard } from "./ZbomSettingsCard.js";
 import { GasSettingsCard } from "./GasSettingsCard.js";
+import { DebouncerSettingsCard } from "./DebouncerSettingsCard.js";
+import { ReadFunctionsCard } from "./ReadFunctionsCard.js";
 import { ObservationalCodexIdSettings } from "../ObservationalCodexId.js";
 
 export interface CodexSettingsSectionProps {
@@ -51,22 +53,32 @@ export interface CodexSettingsSectionProps {
   className?: string;
 }
 
-type SettingsTab = "operations" | "security" | "identity" | "advanced";
+type SettingsTab =
+  | "operations"
+  | "debouncer"
+  | "read-functions"
+  | "security"
+  | "identity"
+  | "advanced";
 
 const TABS: { key: SettingsTab; label: string; color: string }[] = [
   { key: "operations", label: "Operations", color: "#ceac5f" },
+  { key: "debouncer", label: "Debouncer", color: "#ec4899" },
+  { key: "read-functions", label: "Read Functions", color: "#06b6d4" },
   { key: "security", label: "Security", color: "#22c55e" },
   { key: "identity", label: "Identity & Backup", color: "#8b5cf6" },
   { key: "advanced", label: "Advanced", color: "#f59e0b" },
 ];
 
-/** Responsive auto-fit grid used to lay out the small action cards in a tab. */
+/** Responsive auto-fit grid used to lay out the small action cards in a tab.
+ *  `alignItems: stretch` makes every card in a row share the tallest card's
+ *  height — so the rectangles line up cleanly instead of looking ragged. */
 function cardGrid(min: number): CSSProperties {
   return {
     display: "grid",
     gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))`,
     gap: "12px",
-    alignItems: "start",
+    alignItems: "stretch",
   };
 }
 
@@ -124,6 +136,12 @@ export function CodexSettingsSection({
           <GasSettingsCard />
         </div>
       )}
+
+      {/* ── Debouncer ── the live read monitor + the tier explainer. */}
+      {tab === "debouncer" && <DebouncerSettingsCard />}
+
+      {/* ── Read Functions ── the CodexUI's on-chain read registry + live status. */}
+      {tab === "read-functions" && <ReadFunctionsCard />}
 
       {/* ── Security ── password change / encryption upgrade / codex guard,
           with the auto-lock duration in its own labelled box. */}

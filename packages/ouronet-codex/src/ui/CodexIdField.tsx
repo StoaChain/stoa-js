@@ -80,9 +80,16 @@ function Half({ address, color }: { address: string; color: string; label?: stri
           <span style={{ color: WHITE }}>{leftRest}</span>
         </span>
         <span style={{ color, fontSize: 24, fontWeight: 700, lineHeight: 1, flexShrink: 0, padding: "0 3px" }}>…</span>
-        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap", textAlign: "right", fontSize: 17, letterSpacing: "0.5px" }}>
-          <span style={{ color: WHITE }}>{rightRest}</span>
-          <span style={{ color }}>{rightTail}</span>
+        {/* Right portion shows the END of the body (…middle + last-3). `text-align:
+            right` does NOT survive overflow — when the content is wider than the box
+            the browser keeps the START visible and clips the END, hiding the colored
+            tail. A flex container with justify-content:flex-end pins the inner line to
+            the right edge so the overflow clips the START instead, keeping last-3 visible. */}
+        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", justifyContent: "flex-end", fontSize: 17, letterSpacing: "0.5px" }}>
+          <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+            <span style={{ color: WHITE }}>{rightRest}</span>
+            <span style={{ color }}>{rightTail}</span>
+          </span>
         </span>
       </div>
     </div>

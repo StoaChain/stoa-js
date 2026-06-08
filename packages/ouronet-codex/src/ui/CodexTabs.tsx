@@ -9,13 +9,28 @@
  * equivalents to keep the package asset-free.
  */
 
+import * as React from "react";
 import { useState } from "react";
-import { Atom, BookKey, KeyRound, Gem, BookOpen } from "lucide-react";
+import { Atom, Sprout, KeySquare, BookOpen } from "lucide-react";
 import { OuronetAccountsTab } from "./tabs/OuronetAccountsTab.js";
 import { SeedWordsTab } from "./tabs/SeedWordsTab.js";
 import { PureKeypairsTab } from "./tabs/PureKeypairsTab.js";
 import { StoaAccountsTab } from "./tabs/StoaAccountsTab.js";
 import { AddressBookTab } from "./tabs/AddressBookTab.js";
+
+type IconProps = { style?: React.CSSProperties; strokeWidth?: number };
+
+/** Stoa Accounts logo — the Stoa rhombus as the ❖ glyph (a diamond divided by an
+ *  X into four petals), matching the StoaChain mark. Custom SVG so it's the brand
+ *  shape, not a generic gem. */
+function StoaDiamond({ style, strokeWidth = 1.5 }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinejoin="round" style={style} aria-hidden>
+      <path d="M12 1.5 L22.5 12 L12 22.5 L1.5 12 Z" />
+      <path d="M6.75 6.75 L17.25 17.25 M17.25 6.75 L6.75 17.25" />
+    </svg>
+  );
+}
 
 export type CodexTabKey =
   | "ouronet-accounts"
@@ -27,16 +42,18 @@ export type CodexTabKey =
 interface TabDef {
   key: CodexTabKey;
   label: string;
-  Icon: typeof Atom;
+  Icon: React.ComponentType<IconProps>;
   accent: string;
 }
 
+// Per-tab logo colour: Ouronet blue · Seed Words green · Pure Key Pairs purple ·
+// Stoa Accounts gold-yellow · Address Book white.
 const TAB_ORDER: TabDef[] = [
-  { key: "ouronet-accounts", label: "Ouronet Accounts", Icon: Atom, accent: "#ceac5f" },
-  { key: "seed-words", label: "Seed Words", Icon: BookKey, accent: "#ceac5f" },
-  { key: "pure-keypairs", label: "Pure Key Pairs", Icon: KeyRound, accent: "#a78bfa" },
-  { key: "stoa-accounts", label: "Stoa Accounts", Icon: Gem, accent: "#ceac5f" },
-  { key: "address-book", label: "Address Book", Icon: BookOpen, accent: "#ceac5f" },
+  { key: "ouronet-accounts", label: "Ouronet Accounts", Icon: Atom, accent: "#3b82f6" },
+  { key: "seed-words", label: "Seed Words", Icon: Sprout, accent: "#22c55e" },
+  { key: "pure-keypairs", label: "Pure Key Pairs", Icon: KeySquare, accent: "#a78bfa" },
+  { key: "stoa-accounts", label: "Stoa Accounts", Icon: StoaDiamond, accent: "#ceac5f" },
+  { key: "address-book", label: "Address Book", Icon: BookOpen, accent: "#e8e8ea" },
 ];
 
 export interface CodexTabsProps {
@@ -93,7 +110,7 @@ export function CodexTabs({ className, defaultTab = "ouronet-accounts" }: CodexT
                 fontWeight: 600,
               }}
             >
-              <Icon style={{ width: 40, height: 40, flexShrink: 0 }} strokeWidth={1.5} />
+              <Icon style={{ width: 40, height: 40, flexShrink: 0, color: selected ? "#0a0a0a" : accent }} strokeWidth={1.5} />
               <span style={{ fontWeight: 600 }}>{label}</span>
             </button>
           );

@@ -1,67 +1,21 @@
 /**
- * tierClock — minimal singleton visual tier clock for the ZbomDebouncer bar.
+ * tierClock — back-compat alias for the real `codexClock` monitor.
  *
- * OuronetUI drives the 7 tier circles from `pactQueryCache.getTierState(tier)`.
- * The package deliberately does NOT own that global cache subsystem (the D3
- * decision — see `useZbomInfoRead.ts`), so this is a faithful VISUAL shim:
- * each tier's ring counts down from its interval and resets, ticking a
- * subscription so the bar animates identically to My Codex. Tier T1 (interval
- * 0) is event-driven — `triggerPostTx()` flashes T4 (post-tx propagation),
- * matching the cache's behaviour without the real fetch machinery.
+ * This used to be a cosmetic free-running wall-clock shim (queryCount hardcoded
+ * to 1, monitoring nothing). It is now an alias of `codexClock`, the genuine
+ * read monitor: every CodexUI read reports start/done/error into it, so the
+ * ZbomDebouncer bar and `useDebouncerState` reflect real network activity.
+ *
+ * Existing importers (`useDebouncerState`, `ZbomDebouncer`) consume the same
+ * `{ remaining, isFetching, queryCount }` shape, so they keep working verbatim —
+ * only now the data is real. Prefer importing `codexClock` directly in new code.
  */
 
-import { getTierInterval, type PactQueryTier } from "./pactQueryTiers.js";
-
-export interface TierClockState {
-  /** Seconds until this tier's next cycle boundary (0 for interval-0 tiers). */
-  remaining: number;
-  /** True briefly after a post-tx trigger (T4 flash). */
-  isFetching: boolean;
-  /** >0 marks the tier as "active" so its ring renders colored. */
-  queryCount: number;
-}
-
-let _listeners: Array<() => void> = [];
-let _interval: ReturnType<typeof setInterval> | null = null;
-let _t4FlashUntil = 0;
-
-function _notify() {
-  for (const fn of _listeners) fn();
-}
-
-function _start() {
-  if (_interval) return;
-  _interval = setInterval(_notify, 200);
-}
-
-function _stop() {
-  if (_interval && _listeners.length === 0) {
-    clearInterval(_interval);
-    _interval = null;
-  }
-}
-
-export const tierClock = {
-  subscribe(fn: () => void): () => void {
-    _listeners.push(fn);
-    _start();
-    return () => {
-      _listeners = _listeners.filter((l) => l !== fn);
-      _stop();
-    };
-  },
-
-  getTierState(tier: PactQueryTier): TierClockState {
-    const interval = getTierInterval(tier);
-    const remaining =
-      interval <= 0 ? 0 : interval - ((Date.now() / 1000) % interval);
-    const isFetching = tier === "T4" && Date.now() < _t4FlashUntil;
-    return { remaining, isFetching, queryCount: 1 };
-  },
-
-  /** Post-tx propagation flash — mirrors `pactQueryCache.triggerPostTx()`. */
-  triggerPostTx(): void {
-    _t4FlashUntil = Date.now() + 800;
-    _notify();
-  },
-};
+export {
+  codexClock as tierClock,
+  codexClock,
+  reportRead,
+  type TierClockState,
+  type ReadStatus,
+  type TierQueryRow,
+} from "./codexClock.js";

@@ -28,7 +28,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { getIgnisBalance as defaultGetIgnisBalance } from "@stoachain/ouronet-core/interactions/ouroBalanceFunctions";
+import { getIgnisBalance as defaultGetIgnisBalance } from "../debouncer/monitoredReads.js";
 import { analyzeGuard, buildCodexPubSet } from "@stoachain/stoa-core/guard";
 import { useCodex } from "../../hooks/useCodex.js";
 import { useActiveWallet } from "../../hooks/useActiveWallet.js";

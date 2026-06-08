@@ -38,8 +38,7 @@ import { usePatronSelectionDefaults } from "../patron/usePatronSelectionDefaults
 import { txPending } from "../toast/toastManager.js";
 import { Copy, Crown, Loader2, Lock } from "lucide-react";
 import { OuronetAddressHighlight } from "../../ui/internal/OuronetAddressHighlight.js";
-import { getIgnisBalance } from "@stoachain/ouronet-core/interactions/ouroBalanceFunctions";
-import { getKadenaAccountGuard } from "@stoachain/ouronet-core/interactions/ouroAccountFunctions";
+import { getIgnisBalance, getKadenaAccountGuard } from "../debouncer/monitoredReads.js";
 import { pactRead } from "@stoachain/stoa-core/reads";
 import { KADENA_CHAIN_ID, KADENA_NETWORK } from "@stoachain/stoa-core/constants";
 import {
@@ -461,6 +460,7 @@ export default function RotateSovereignModal({
         {/* ── Zone 0 — Function Info ── */}
         <FunctionInfoZone
           key={patronAccount?.address}
+          readId="INFO_RotateSovereign"
           label="DALOS-INFO|URC_RotateSovereign"
           pactCall={`(ouronet-ns.INFO-ZERO.DALOS-INFO|URC_RotateSovereign "${(patronAccount?.address ?? "").slice(0, 20)}…" "${account.address.slice(0, 20)}…")`}
           fetcher={async () => {

@@ -21,7 +21,7 @@ import { useGetKeypair } from "../../hooks/useGetKeypair.js";
 import { usePatronSelectionDefaults } from "../patron/usePatronSelectionDefaults.js";
 import { txPending } from "../toast/toastManager.js";
 import { Tag, Loader2, AlertTriangle, Trash2 } from "lucide-react";
-import { getIgnisBalance } from "@stoachain/ouronet-core/interactions/ouroBalanceFunctions";
+import { getIgnisBalance } from "../debouncer/monitoredReads.js";
 import { getWrapperPaymentKey, getPaymentKeyBalance } from "@stoachain/ouronet-core/interactions/wrapFunctions";
 import { getRegisterStoicTagInfo } from "@stoachain/ouronet-core/interactions/ouroAccountFunctions";
 import { KADENA_CHAIN_ID, KADENA_NETWORK } from "@stoachain/stoa-core/constants";
@@ -311,6 +311,7 @@ export default function RegisterStoicTagModal({
         {/* ── Zone 0 — Function Info ── */}
         <FunctionInfoZone
           key={(patronAccount?.address ?? "") + tagName}
+          readId="INFO_RegisterStoicTag"
           label="CODEX.CODEX|INFO_RegisterStoicTag"
           pactCall={`(ouronet-ns.CODEX.CODEX|INFO_RegisterStoicTag "${(patronAccount?.address ?? "").slice(0, 16)}…" "§${tagName.slice(0, 12)}${tagName.length > 12 ? "…" : ""}" "${account.address.slice(0, 16)}…")`}
           fetcher={async () => (tagName ? (await getRegisterStoicTagInfo(patronAccount?.address ?? "", tagName, account.address))?.info ?? null : null)}

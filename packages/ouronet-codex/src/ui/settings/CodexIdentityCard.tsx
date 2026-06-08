@@ -18,6 +18,7 @@ import { useCodexIdentity } from "../../hooks/useCodexIdentity.js";
 import { useCodex } from "../../hooks/useCodex.js";
 import { useOuroAccounts } from "../../hooks/useOuroAccounts.js";
 import { readObservationalCodexIdConfig } from "../ObservationalCodexId.js";
+import { CopyValueTag } from "../CodexIdField.js";
 
 export interface CodexIdentityCardProps {
   className?: string;
@@ -86,6 +87,12 @@ export function CodexIdentityCard({ className }: CodexIdentityCardProps) {
           ) : (
             <Badge label="observational — fed in" color={STD_ACCENT} />
           ))}
+        <span style={{ flex: 1 }} />
+        {/* Copy the whole CodexID — colour-matched to the header CodexID display
+            (gold when registered, APOLLO-Standard orange when observational). */}
+        {formatted && (
+          <CopyValueTag text={formatted} color={isRegistered ? "var(--codex-accent)" : STD_ACCENT} />
+        )}
       </div>
 
       {formatted === null ? (

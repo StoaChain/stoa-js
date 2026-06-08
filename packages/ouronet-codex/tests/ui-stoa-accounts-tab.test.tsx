@@ -1,14 +1,16 @@
 /**
- * StoaAccountsTab specs (Phase 14, T14.4).
+ * StoaAccountsTab specs.
  *
- * Token-styled, Redux-free, read-only derived list. Each seed's accounts and
- * each pure keypair map to a `k:<publicKey>` Stoa address, grouped by their
- * source. No chain balance IO (kept chain-IO-light per the phase constraint) —
- * the tab is a pure projection of `useKadenaSeeds` + `usePureKeypairs`.
+ * Rebuilt tab: a "Total Addresses" header, a Codex/Watched sub-tab toggle, and
+ * per-source collapsible groups whose rows each map a seed account / pure
+ * keypair to its `k:<publicKey>` Stoa address (carried on a `data-stoa-address`
+ * attribute; the visible code is truncated). The first seed is the
+ * "Prime Codex Seed". Live per-chain balances flow through the `pactRead` seam,
+ * which we stub here so the specs stay hermetic.
  */
 
 import * as React from "react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
 import { CodexProvider } from "@stoachain/ouronet-codex/provider";
@@ -16,6 +18,12 @@ import { MemoryCodexAdapter } from "@stoachain/ouronet-codex/adapters";
 import { useCodex, useKadenaSeeds, usePureKeypairs } from "@stoachain/ouronet-codex/hooks";
 import { StoaAccountsTab } from "@stoachain/ouronet-codex/ui";
 import type { IKadenaSeed, IPureKeypair } from "@stoachain/ouronet-codex/types";
+import { setPactReader } from "@stoachain/stoa-core/reads";
+
+// Stub the read seam so the tab's live-balance effect never touches the network.
+beforeEach(() => {
+  setPactReader(async () => ({ result: { data: [] } }) as never);
+});
 
 const seedFx = (over: Partial<IKadenaSeed> = {}): IKadenaSeed => ({
   id: over.id ?? "s1",
@@ -60,22 +68,19 @@ async function renderTab(seeds: IKadenaSeed[] = [], pairs: IPureKeypair[] = []) 
       <StoaAccountsTab />
     </CodexProvider>,
   );
-  if (seeds.length === 0 && pairs.length === 0) {
-    await waitFor(() =>
-      expect(screen.getByText(/No seeds or keys/i)).toBeTruthy(),
-    );
-  }
+  // The "Total Addresses" header is always present once mounted.
+  await waitFor(() => expect(screen.getByText(/Total Addresses/i)).toBeTruthy());
   return utils;
 }
 
 describe("<StoaAccountsTab>", () => {
   it("renders the empty state when the codex has no seeds or keys", async () => {
     await renderTab([], []);
-    expect(screen.getByText(/No seeds or keys/i)).toBeTruthy();
+    expect(screen.getByText(/No Stoa accounts in the codex/i)).toBeTruthy();
   });
 
   it("derives a k: address per seed account so the list mirrors useKadenaSeeds", async () => {
-    await renderTab([
+    const { container } = await renderTab([
       seedFx({
         id: "s1",
         name: "Trading",
@@ -85,14 +90,19 @@ describe("<StoaAccountsTab>", () => {
         ],
       }),
     ]);
-    expect(await screen.findByText("Trading")).toBeTruthy();
-    expect(screen.getByText("k:" + "a".repeat(64))).toBeTruthy();
-    expect(screen.getByText("k:" + "b".repeat(64))).toBeTruthy();
+    // First (and only) seed surfaces as the Prime Codex Seed group.
+    expect(await screen.findByText("Prime Codex Seed")).toBeTruthy();
+    // One row per account, each carrying its full k: address on the data attr.
+    expect(container.querySelector(`[data-stoa-address="k:${"a".repeat(64)}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-stoa-address="k:${"b".repeat(64)}"]`)).toBeTruthy();
+    // Per-account sublabels.
+    expect(screen.getByText("Key #0")).toBeTruthy();
+    expect(screen.getByText("Key #1")).toBeTruthy();
   });
 
   it("derives a k: address per pure keypair under a Pure Key Pairs group", async () => {
-    await renderTab([], [kpFx({ id: "kp1", publicKey: "f".repeat(64) })]);
+    const { container } = await renderTab([], [kpFx({ id: "kp1", publicKey: "f".repeat(64) })]);
     expect(await screen.findByText(/Pure Key Pairs/i)).toBeTruthy();
-    expect(screen.getByText("k:" + "f".repeat(64))).toBeTruthy();
+    expect(container.querySelector(`[data-stoa-address="k:${"f".repeat(64)}"]`)).toBeTruthy();
   });
 });
