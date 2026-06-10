@@ -35,6 +35,7 @@ import {
 import { buildRotateGuardPactCode } from "@stoachain/ouronet-core/pact";
 
 import { useSignTransaction } from "../hooks/useSignTransaction.js";
+import { useEnsureCodexUnlocked } from "../zbom/hooks/useEnsureCodexUnlocked.js";
 import { useActiveWallet } from "../hooks/useActiveWallet.js";
 import { useOuroAccounts } from "../hooks/useOuroAccounts.js";
 import type { IOuroAccount, IKeyset } from "../types/entities.js";
@@ -94,6 +95,7 @@ export function RotateGuardModal({
   const { activeOuroAccount } = useActiveWallet();
   const { updateAccount } = useOuroAccounts();
   const { execute } = useSignTransaction();
+  const ensureCodexUnlocked = useEnsureCodexUnlocked();
 
   const account = accountProp ?? activeOuroAccount;
   const patron = patronProp ?? account;
@@ -139,6 +141,9 @@ export function RotateGuardModal({
     setSubmitting(true);
     setLastError(null);
     try {
+      // Prompt for the codex password if locked; abort on cancel.
+      if (!(await ensureCodexUnlocked())) { setLastError("Authentication required"); return; }
+
       const pactCode = buildRotateGuardPactCode({
         patron: patron.address,
         account: account.address,
@@ -219,6 +224,7 @@ export function RotateGuardModal({
     }
   }, [
     canSubmit,
+    ensureCodexUnlocked,
     account,
     patron,
     mode,

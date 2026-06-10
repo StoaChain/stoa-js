@@ -1,15 +1,23 @@
 /**
- * ActivateStandardAccountModal — CFM Architecture v2
+ * ActivateSmartAccountModal — CFM Architecture v2
+ *
+ * Smart (Σ.) account deploy. IDENTICAL to ActivateStandardAccountModal except
+ * for ONE extra input — `sovereign` — an existing Standard (Ѻ.) Ouronet account
+ * that holds the new Smart account's sovereignty. On-chain that maps to the
+ * extra positional arg in `C_DeploySmartAccount`
+ * (`<account> <guard> <kadena> <sovereign> <public>`). Signers/caps/keyset are
+ * the same as Standard (per the on-chain contract).
  *
  * Patronless function — no Patron zone.
  *
  * Zones:
  *   0 — Function Info  → FunctionInfoZone (direct INFO call, no receiver resolution)
  *   1 — Function Inputs:
- *         INPUT I   <account:string>  → StringEntryInput autonomous ALWAYS
- *         INPUT II  <guard:guard>     → GuardEntryInput autonomous (auto ON) / GuardEntryInput free (auto OFF)
- *         INPUT III <kadena:string>   → StringEntryInput autonomous (auto ON) / StringEntryInput free (auto OFF)
- *         INPUT IV  <public:string>   → StringEntryInput autonomous ALWAYS
+ *         INPUT I   <account:string>   → StringEntryInput autonomous ALWAYS
+ *         INPUT II  <guard:guard>      → GuardEntryInput autonomous (auto ON) / free (auto OFF)
+ *         INPUT III <kadena:string>    → StringEntryInput autonomous (auto ON) / free (auto OFF)
+ *         INPUT IV  <sovereign:string> → StringEntryInput autonomous (auto ON: first Ѻ. account) / free (auto OFF)
+ *         INPUT V   <public:string>    → StringEntryInput autonomous ALWAYS
  *   2 — Signing        → inline (CodexPrime Key #0 dual role)
  *   3 — Actions        → Activate
  *
@@ -22,7 +30,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { ZbomModalFrame } from "../ui/ZbomModalFrame.js";
 import { InfoTooltip } from "../ui/InfoTooltip.js";
-import { Switch } from "../ui/Switch.js";
 import { IOuroAccount, IKadenaSeed, IKadenaWallet } from "../../types/entities.js";
 import { useUiSetting } from "../cfm/seam.js";
 import { StoaChainBrand } from "../ui/StoaChainBrand.js";
@@ -30,8 +37,8 @@ import { toast } from "sonner";
 import { txPending } from "../toast/toastManager.js";
 import { ZbomLayout } from "../cfm/ZbomLayout.js";
 import {
-  getDeployStandardAccountInfoOnly,
-  getDeployStandardAccountInfo,
+  getDeploySmartAccountInfoOnly,
+  getDeploySmartAccountInfo,
 } from "@stoachain/ouronet-core/interactions/activateFunctions";
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Key, Loader2, Zap,
@@ -43,7 +50,7 @@ import { StringEntryInput, GuardEntryInput, type GuardChangeValue } from "../cfm
 import { publicKeyFromPrivateKey, publicKeyFromExtendedKey } from "@stoachain/stoa-core/signing";
 import { useSignTransaction } from "../../hooks/useSignTransaction.js";
 import { useEnsureCodexUnlocked } from "../hooks/useEnsureCodexUnlocked.js";
-import { buildDeployStandardAccountPactCode } from "@stoachain/ouronet-core/pact";
+import { buildDeploySmartAccountPactCode } from "@stoachain/ouronet-core/pact";
 import { safeCreationTime } from "@stoachain/stoa-core/pact";
 import { Pact } from "@stoachain/kadena-stoic-legacy/client";
 import {
@@ -168,7 +175,7 @@ type SigningTab = "signing" | "caps";
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function ActivateStandardAccountModal({
+export default function ActivateSmartAccountModal({
   open, onClose, ouroAccount, accounts, kadenaSeeds, kadenaAccounts,
 }: Props) {
   // CodexSigningStrategy — patronless flow. Gas-payer key carries
@@ -183,16 +190,19 @@ export default function ActivateStandardAccountModal({
   const [zone3Open, setZone3Open] = useState(zone3DefaultOpen);
   useEffect(() => { setZone3Open(zone3DefaultOpen); }, [zone3DefaultOpen]);
 
-  // ── State ──
-  const [autoMode,     setAutoMode]     = useState(true);
+  // ── State ── (Smart activation is MANUAL-only — no Auto mode.)
   const [signingTab,   setSigningTab]   = useState<SigningTab>("signing");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Manual guard (auto OFF INPUT II)
+  // INPUT II — guard keyset (manual entry)
   const [guardValue,   setGuardValue]   = useState<GuardChangeValue>(null);
 
-  // Manual kadena address (auto OFF INPUT III)
+  // INPUT III — kadena payment address (manual entry)
   const [manualKadena, setManualKadena] = useState("");
+
+  // INPUT IV — sovereign address (manual entry) — must be an existing
+  // Standard (Ѻ.) Ouronet account.
+  const [manualSovereign, setManualSovereign] = useState("");
 
   // Info for receivers + cost checks
   const [fullInfo,    setFullInfo]    = useState<any>(null);
@@ -202,27 +212,22 @@ export default function ActivateStandardAccountModal({
   const [manualKeys,         setManualKeys]         = useState<Record<string, string>>({});
   const [resolvedManualKeys, setResolvedManualKeys] = useState<Record<string, string>>({});
 
-  // ── CodexPrime keys ──
-  const primeKey0      = useMemo(() => kadenaSeeds[0]?.accounts?.[0]?.publicKey ?? "", [kadenaSeeds]);
-  const primeKey1      = useMemo(() => kadenaSeeds[0]?.accounts?.[1]?.publicKey ?? "", [kadenaSeeds]);
-  const autoKadenaAddr = useMemo(() => primeKey0 ? `k:${primeKey0}` : "", [primeKey0]);
-  const autoKadenaAcc  = useMemo(() => kadenaAccounts.find(a => a.address === autoKadenaAddr) ?? null, [kadenaAccounts, autoKadenaAddr]);
+  // ── CodexPrime key (gas-payer only) ──
+  const primeKey0 = useMemo(() => kadenaSeeds[0]?.accounts?.[0]?.publicKey ?? "", [kadenaSeeds]);
 
-  // ── Effective values ──
-  const effectiveGuardKeys  = autoMode
-    ? (primeKey1 ? [primeKey1] : [])
-    : (guardValue?.mode === "define" ? guardValue.keys : guardValue?.mode === "existing" ? guardValue.resolvedKeys : []);
-  const effectiveGuardPred  = autoMode
-    ? "keys-all"
-    : (guardValue?.mode === "define" ? guardValue.pred : guardValue?.mode === "existing" ? guardValue.resolvedPred : "keys-all");
-  const effectiveKadenaAddr = autoMode ? autoKadenaAddr : manualKadena.trim();
-  const effectiveKadena     = autoMode ? autoKadenaAcc : kadenaAccounts.find(a => a.address === effectiveKadenaAddr) ?? null;
+  // ── Effective values (all manual) ──
+  const effectiveGuardKeys  = guardValue?.mode === "define" ? guardValue.keys : guardValue?.mode === "existing" ? guardValue.resolvedKeys : [];
+  const effectiveGuardPred  = guardValue?.mode === "define" ? guardValue.pred : guardValue?.mode === "existing" ? guardValue.resolvedPred : "keys-all";
+  const effectiveKadenaAddr = manualKadena.trim();
+  const effectiveKadena     = kadenaAccounts.find(a => a.address === effectiveKadenaAddr) ?? null;
+  const effectiveSovereign  = manualSovereign.trim();
+  const sovereignIsSmart    = effectiveSovereign.startsWith("Σ.");
 
   // ── Info fetch (full — for execute) ──
   useEffect(() => {
     if (!open || !ouroAccount?.address) return;
     setFullInfo(null); setLoadingInfo(true);
-    getDeployStandardAccountInfo(ouroAccount.address)
+    getDeploySmartAccountInfo(ouroAccount.address)
       .then(r => { setFullInfo(r); setLoadingInfo(false); });
   }, [open, ouroAccount?.address]);
 
@@ -264,17 +269,20 @@ export default function ActivateStandardAccountModal({
     if (isProcessing || loadingInfo) return false;
     if (!effectiveKadenaAddr) return false;
     if (kadenaNeed > 0 && !hasEnoughStoa) return false;
-    if (!autoMode && !guardValue) return false;
+    if (!guardValue) return false;
     if (effectiveGuardKeys.length === 0) return false;
+    // Smart-specific: a sovereign is required and must be a Standard (Ѻ.)
+    // account — the chain rejects Σ.→Σ.
+    if (!effectiveSovereign || sovereignIsSmart) return false;
     return true;
   }, [isProcessing, loadingInfo, effectiveKadenaAddr, kadenaNeed, hasEnoughStoa,
-      autoMode, guardValue, effectiveGuardKeys.length]);
+      guardValue, effectiveGuardKeys.length, effectiveSovereign, sovereignIsSmart]);
 
   // ── Reset ──
   useEffect(() => {
     if (open) {
-      setAutoMode(true); setSigningTab("signing");
-      setGuardValue(null); setManualKadena("");
+      setSigningTab("signing");
+      setGuardValue(null); setManualKadena(""); setManualSovereign("");
       setManualKeys({}); setResolvedManualKeys({}); setIsProcessing(false);
     }
   }, [open]);
@@ -294,8 +302,8 @@ export default function ActivateStandardAccountModal({
   }, []);
 
   // ── Execute — CodexSigningStrategy with N coin.TRANSFER caps on payer ─────
-  // Pact: (ouronet-ns.TS01-C1.DALOS|C_DeployStandardAccount
-  //         <account> (read-keyset "ks") <kadena> <public>)
+  // Pact: (ouronet-ns.TS01-C1.DALOS|C_DeploySmartAccount
+  //         <account> (read-keyset "ks") <kadena> <sovereign> <public>)
   // Signers:
   //   1. Payer key (CodexPrime Key #0) — GAS_PAYER + N coin.TRANSFER (one
   //      per kadena-split receiver). Driven via paymentKey: primeKey0.
@@ -303,25 +311,29 @@ export default function ActivateStandardAccountModal({
   //      new account's guard. Strategy resolves the codex keys + uses
   //      `resolvedManualKeys` for any foreign ones.
   // Pact-side keyset binding: addData("ks", { keys, pred }) feeds the
-  // (read-keyset "ks") site in the pact code.
+  // (read-keyset "ks") site in the pact code. Sovereign is a plain string arg.
   const handleExecute = useCallback(async () => {
     if (!canExecute) return;
     if (!primeKey0) { toast.error("[A] CodexPrime Key #0 not found."); return; }
     setIsProcessing(true);
-    const _tx = txPending("Activate Account");
+    const _tx = txPending("Activate Smart Account");
     try {
-      // Prompt for the codex password if locked; abort on cancel. Without this
-      // the resolver throws CodexLockedError mid-sign.
+      // Prompt for the codex password if locked (shows <PasswordModal>); abort
+      // if the user cancels. Without this the resolver throws CodexLockedError
+      // mid-sign ("Codex is locked, operation getKeyPairByPublicKey requires…").
       if (!(await ensureCodexUnlocked())) { _tx.fail("Authentication required"); return; }
 
-      // Preserve the guard TYPE: "Use Existing Keyset" (a keyset-ref) binds
-      // on-chain as (keyset-ref-guard "<ref>"), not an expanded literal keyset.
-      // (Auto mode + "Define Keyset" stay on (read-keyset "ks").)
+      // Preserve the guard TYPE: when the user picked "Use Existing Keyset"
+      // (a keyset-ref), bind it on-chain as (keyset-ref-guard "<ref>") instead
+      // of expanding it into a literal keyset via (read-keyset "ks"). The
+      // resolved keys still drive signing (the deployer must satisfy the ref);
+      // the unused "ks" data below is harmless in existing mode.
       const guardMode = guardValue?.mode === "existing" ? "existing" : "define";
       const guardRef  = guardValue?.mode === "existing" ? guardValue.keysetRef : undefined;
-      const pactCode = buildDeployStandardAccountPactCode({
+      const pactCode = buildDeploySmartAccountPactCode({
         account:       ouroAccount.address,
         kadenaAddress: effectiveKadenaAddr,
+        sovereign:     effectiveSovereign,
         publicKey:     ouroAccount.publicKey,
         mode:          guardMode,
         keysetRef:     guardRef,
@@ -366,7 +378,7 @@ export default function ActivateStandardAccountModal({
       _tx.fail((err as any)?.message ?? "Failed");
     } finally { setIsProcessing(false); }
   }, [canExecute, primeKey0, guardValue, effectiveGuardKeys, effectiveGuardPred, effectiveKadenaAddr,
-      ouroAccount, receivers, amounts, resolvedManualKeys,
+      effectiveSovereign, ouroAccount, receivers, amounts, resolvedManualKeys,
       execute, ensureCodexUnlocked, onClose]);
 
   if (!open) return null;
@@ -377,20 +389,14 @@ export default function ActivateStandardAccountModal({
         header={<>
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 flex-shrink-0" style={{ color: "#ceac5f" }} />
-            <h2 className="text-lg font-bold" style={{ color: "#d2d3d4" }}>Activate Standard Ouronet Account</h2>
-            <InfoTooltip content={<span>Activates this Standard Ouronet Account on the <StoaChainBrand /></span>} />
+            <h2 className="text-lg font-bold" style={{ color: "#d2d3d4" }}>Activate Smart Ouronet Account</h2>
+            <InfoTooltip content={<span>Activates this Smart Ouronet Account on the <StoaChainBrand /></span>} />
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-xs" style={{ color: "#888" }}>Account:</span>
             <span className="text-xs font-mono font-bold" style={{ color: "#ceac5f" }}>
               {accounts.indexOf(ouroAccount as any) === 0 ? "CodexPrime" : ouroAccount.name || ouroAccount.address?.slice(0, 20) + "…"}
             </span>
-          </div>
-          <div className="inline-flex items-center gap-2 mt-2 px-2 py-1 rounded-lg border"
-            style={{ backgroundColor: "#0a0a0a", borderColor: autoMode ? "#ceac5f40" : "#262626" }}>
-            <Switch checked={autoMode} onCheckedChange={setAutoMode} />
-            <span className="text-xs font-semibold" style={{ color: autoMode ? "#ceac5f" : "#555" }}>Auto</span>
-            <InfoTooltip content="Autonomous mode — uses CodexPrime keys for guard and payment account." />
           </div>
         </>}
         executeButton={{
@@ -407,24 +413,24 @@ export default function ActivateStandardAccountModal({
         {/* ── Zone 0 — Function Info ── */}
         <FunctionInfoZone
           key={ouroAccount.address}
-          readId="INFO_DeployStandardAccount"
-          label="DALOS-INFO|URC_DeployStandardAccount"
-          pactCall={`(ouronet-ns.INFO-ZERO.DALOS-INFO|URC_DeployStandardAccount "${ouroAccount.address.slice(0, 20)}…")`}
-          fetcher={() => getDeployStandardAccountInfoOnly(ouroAccount.address)}
+          readId="INFO_DeploySmartAccount"
+          label="DALOS-INFO|URC_DeploySmartAccount"
+          pactCall={`(ouronet-ns.INFO-ZERO.DALOS-INFO|URC_DeploySmartAccount "${ouroAccount.address.slice(0, 20)}…")`}
+          fetcher={() => getDeploySmartAccountInfoOnly(ouroAccount.address)}
         />
 
         {/* ── Zone 1 — Function Inputs ── */}
         <Zone2Wrapper
-          functionName="ouronet-ns.TS01-C1.DALOS|C_DeployStandardAccount"
+          functionName="ouronet-ns.TS01-C1.DALOS|C_DeploySmartAccount"
           functionMeta={{
             locations:      ["Settings -> Ouronet Account -> Activate"],
-            name:           "Activate Standard Ouronet Account",
-            description:    "Deploys and activates a Standard Ouronet account on the Stoa Chain, assigning its guard, payment key, and public key. Supports Auto mode (CodexPrime keys) and full manual override.",
+            name:           "Activate Smart Ouronet Account",
+            description:    "Deploys and activates a Smart Ouronet account on the Stoa Chain, assigning its guard, payment key, public key, and a sovereign (an existing Standard Ouronet account that holds the new Smart account's sovereignty). Manual entry of guard, payment key, and sovereign.",
             icon:           "zap",
-            addedInVersion: "0.3.21",
-            addedDate:      "2026-03-05",
+            addedInVersion: "0.5.4",
+            addedDate:      "2026-06-10",
           }}
-          collapsedContent={!autoMode ? (
+          collapsedContent={(
             <>
               {/* INPUT III — kadena:string (free, visible when collapsed) */}
               <div>
@@ -443,6 +449,15 @@ export default function ActivateStandardAccountModal({
                   </p>
                 )}
               </div>
+              {/* INPUT IV — sovereign:string (free, visible when collapsed) */}
+              <StringEntryInput
+                labelIndex={4}
+                varName="sovereign"
+                value={manualSovereign}
+                onChange={setManualSovereign}
+                variant="free"
+                placeholder="(an existing Standard Ouronet account — Ѻ.…)"
+              />
               {/* INPUT II — guard:guard (free, visible when collapsed) */}
               <GuardEntryInput
                 labelIndex={2}
@@ -451,7 +466,7 @@ export default function ActivateStandardAccountModal({
                 onChange={setGuardValue}
               />
             </>
-          ) : undefined}
+          )}
         >
           {/* INPUT I — account:string (autonomous ALWAYS) */}
           <div data-autonomous="true">
@@ -463,56 +478,33 @@ export default function ActivateStandardAccountModal({
             />
           </div>
 
-          {/* INPUT II — guard:guard */}
-          {autoMode ? (
-            <div data-autonomous="true">
-              <GuardEntryInput
-                labelIndex={2}
-                varName="guard"
-                variant="autonomous"
-                autonomousKeys={primeKey1 ? [primeKey1] : []}
-                autonomousPred="keys-all"
-              />
-            </div>
-          ) : (
-            <div data-autonomous="false">
-              <GuardEntryInput
-                labelIndex={2}
-                varName="guard"
-                variant="free"
-                onChange={setGuardValue}
-              />
-            </div>
-          )}
+          {/* INPUT II — guard:guard (manual) */}
+          <div data-autonomous="false">
+            <GuardEntryInput
+              labelIndex={2}
+              varName="guard"
+              variant="free"
+              onChange={setGuardValue}
+            />
+          </div>
 
-          {/* INPUT III — kadena:string */}
-          {autoMode ? (
-            <div data-autonomous="true">
-              <StringEntryInput
-                labelIndex={3}
-                varName="kadena"
-                value={autoKadenaAddr}
-                variant="autonomous"
-              />
-            </div>
-          ) : (
-            <div data-autonomous="false">
-              <StringEntryInput
-                labelIndex={3}
-                varName="kadena"
-                value={manualKadena}
-                onChange={setManualKadena}
-                variant="free"
-                placeholder="(k:, c:, u:, w:, or custom account)"
-                addressBookType="stoa"
-              />
-              {effectiveKadena && (
-                <p className="text-[10px] mt-1" style={{ color: hasEnoughStoa ? "#4ade80" : "#c0392b" }}>
-                  Balance: {effectiveKadena.balance} STOA{!hasEnoughStoa && ` (need ≥ ${kadenaNeed})`}
-                </p>
-              )}
-            </div>
-          )}
+          {/* INPUT III — kadena:string (manual) */}
+          <div data-autonomous="false">
+            <StringEntryInput
+              labelIndex={3}
+              varName="kadena"
+              value={manualKadena}
+              onChange={setManualKadena}
+              variant="free"
+              placeholder="(k:, c:, u:, w:, or custom account)"
+              addressBookType="stoa"
+            />
+            {effectiveKadena && (
+              <p className="text-[10px] mt-1" style={{ color: hasEnoughStoa ? "#4ade80" : "#c0392b" }}>
+                Balance: {effectiveKadena.balance} STOA{!hasEnoughStoa && ` (need ≥ ${kadenaNeed})`}
+              </p>
+            )}
+          </div>
 
           {showStoaWarn && (
             <div className="flex items-start gap-1.5 rounded-lg border p-2"
@@ -524,10 +516,32 @@ export default function ActivateStandardAccountModal({
             </div>
           )}
 
-          {/* INPUT IV — public:string (autonomous ALWAYS) */}
-          <div data-autonomous="true">
+          {/* INPUT IV — sovereign:string (Smart-only, manual). Must be an
+              existing Standard (Ѻ.) account — the chain rejects Σ.→Σ. */}
+          <div data-autonomous="false">
             <StringEntryInput
               labelIndex={4}
+              varName="sovereign"
+              value={manualSovereign}
+              onChange={setManualSovereign}
+              variant="free"
+              placeholder="(an existing Standard Ouronet account — Ѻ.…)"
+            />
+          </div>
+          {effectiveSovereign && sovereignIsSmart && (
+            <div className="flex items-start gap-1.5 rounded-lg border p-2"
+              style={{ backgroundColor: "#8b1a1a10", borderColor: "#8b1a1a30" }}>
+              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: "#c0392b" }} />
+              <p className="text-xs" style={{ color: "#c0392b" }}>
+                The sovereign must be a <strong>Standard</strong> (Ѻ.) account — a Smart (Σ.) account can't be a sovereign.
+              </p>
+            </div>
+          )}
+
+          {/* INPUT V — public:string (autonomous ALWAYS) */}
+          <div data-autonomous="true">
+            <StringEntryInput
+              labelIndex={5}
               varName="public"
               value={ouroAccount.publicKey}
               variant="autonomous"

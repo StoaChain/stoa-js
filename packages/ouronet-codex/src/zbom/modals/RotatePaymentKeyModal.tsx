@@ -14,6 +14,7 @@ import { ZbomModalFrame } from "../ui/ZbomModalFrame.js";
 import { InfoTooltip } from "../ui/InfoTooltip.js";
 import { IOuroAccount, IKadenaSeed, IKadenaWallet } from "../../types/entities.js";
 import { useGetKeypair } from "../../hooks/useGetKeypair.js";
+import { useEnsureCodexUnlocked } from "../hooks/useEnsureCodexUnlocked.js";
 import { usePatronSelectionDefaults } from "../patron/usePatronSelectionDefaults.js";
 import { toast } from "sonner";
 import { txPending } from "../toast/toastManager.js";
@@ -62,6 +63,7 @@ export default function RotatePaymentKeyModal({
   open, onClose, account, accounts, kadenaSeeds, kadenaAccounts,
 }: Props) {
   const getKadenaKeyPairsByPublicKey = useGetKeypair();
+  const ensureCodexUnlocked = useEnsureCodexUnlocked();
 
   // ── Patron selection mode (canonical wiring via usePatronSelectionDefaults) ──
   const { initialPatronMode, autoSelectBestPatron } = usePatronSelectionDefaults();
@@ -178,6 +180,9 @@ export default function RotatePaymentKeyModal({
     setIsProcessing(true);
     const _tx = txPending("Rotate Payment Key");
     try {
+      // Prompt for the codex password if locked; abort on cancel.
+      if (!(await ensureCodexUnlocked())) { _tx.fail("Authentication required"); return; }
+
       const collectKeys = async (analysis: ReturnType<typeof analyzeGuard>) => {
         const keys: { publicKey: string; privateKey: string }[] = [];
         const candidates = [...analysis.codexKeys, ...analysis.resolvedForeignKeys];

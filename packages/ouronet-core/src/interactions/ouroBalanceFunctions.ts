@@ -24,7 +24,11 @@ export const IGNIS_TOKEN_ID = TOKEN_ID_IGNIS;
 export async function getIgnisBalance(account: string): Promise<string | null> {
   try {
     const pactCode = `(${KADENA_NAMESPACE}.DPTF.UR_AccountSupply "${IGNIS_TOKEN_ID}" "${account}")`;
-    const response = await pactRead(pactCode, { tier: "T5" });
+    // T1, not T5 — this is a BALANCE read (the canonical tier mapping puts
+    // balance reads at T1: high churn, very short TTL). At T5 the patron IGNIS
+    // balance stayed stale right after a transfer, falsely blocking spends with
+    // "Insufficient IGNIS" until a hard refresh.
+    const response = await pactRead(pactCode, { tier: "T1" });
 
     if (response?.result?.status === "success") {
       return String(mayComeWithDeimal((response.result as any).data));

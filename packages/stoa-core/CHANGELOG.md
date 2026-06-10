@@ -4,6 +4,10 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.3.5 — 2026-06-10
+
+Atomic-triplet lockstep bump — `4.3.4 → 4.3.5` alongside `@stoachain/ouronet-core` (which carries the Smart Account deploy builder + keyset-ref-aware activation + T1 IGNIS-balance fix) and `@stoachain/kadena-stoic-legacy`, per the cross-package version-pin invariant. This package is functionally identical to its 4.3.4 release.
+
 ## 4.3.4 — 2026-06-08
 
 Atomic-triplet lockstep bump — `4.3.3 → 4.3.4` alongside `@stoachain/ouronet-core` (which carries the UrStoa Collect-button hover fix) and `@stoachain/kadena-stoic-legacy`, per the cross-package version-pin invariant. This package is functionally identical to its 4.3.3 release.

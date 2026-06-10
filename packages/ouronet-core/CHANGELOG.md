@@ -4,6 +4,17 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.3.5 — 2026-06-10
+
+**Additive — Smart Ouronet Account deploy + keyset-ref-aware activation + fresh IGNIS balance.** Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped 4.3.4 → 4.3.5 in lockstep per the cross-package version-pin invariant; those two are functionally identical to their 4.3.4 release (only ouronet-core changed).
+
+- **`buildDeploySmartAccountPactCode({ account, kadenaAddress, sovereign, publicKey, mode?, keysetRef? })`** — emits `C_DeploySmartAccount <account> <guard> <kadena> <sovereign> <public>`, the Smart (Σ.) account deploy. Same shape as the Standard deploy plus the extra `sovereign` arg (an existing Standard Ѻ. account).
+- **`getDeploySmartAccountInfo` / `getDeploySmartAccountInfoOnly`** — `URC_DeploySmartAccount` readers (mirror the Standard pair).
+- **Keyset-ref-aware activation:** `buildDeployStandardAccountPactCode` + `buildDeploySmartAccountPactCode` gained `mode: "define" | "existing"` + `keysetRef`. In `"existing"` mode they emit `(keyset-ref-guard "<ref>")` instead of `(read-keyset "ks")`, so a "Use Existing Keyset" activation preserves the keyset-ref guard type instead of expanding it to a literal keyset. Default `"define"` is backward-compatible.
+- **`getIgnisBalance` now reads at tier T1, not T5** — it's a balance read (T1 = high-churn/short-TTL per the canonical tier mapping). At T5 the patron IGNIS balance stayed stale right after a transfer, falsely blocking spends with "Insufficient IGNIS" until a hard refresh.
+
+Pure additive to existing exports (the deploy builders gained optional params with backward-compatible defaults). Consumes downstream into `@stoachain/ouronet-codex@0.5.4`.
+
 ## 4.3.4 — 2026-06-08
 
 **Bugfix — UrStoa vault earnings hover.** `ouroPrimordialsFunctions.parseResponse` routed the `urstoa-vault-earning-hover` field through `String(...)` before formatting. The chain returns that field as a `{ decimal: "…" }` object (like the supply hover), so `String({decimal})` produced `"[object Object]"`, which parsed back to `0` and wrongly disabled the Dashboard UrStoa **Collect** button (showing an `[object Object]` tooltip). It is now routed through `supplyHoverVal` (→ `mayComeWithDeimal`), matching the supply row, so the hover unwraps correctly and Collect re-enables when earnings are available.

@@ -2,6 +2,15 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.4 — 2026-06-10
+
+**Feature + fixes — Smart Ouronet Account activation, and hardening across all operation modals.** Requires `@stoachain/ouronet-core` >= 4.3.5 (new `buildDeploySmartAccountPactCode` + `getDeploySmartAccountInfo`).
+
+- **Activate Smart Ouronet Account (new):** `ActivateSmartAccountModal` deploys a Smart (Σ.) account via `C_DeploySmartAccount`. It clones the Standard activation flow plus a **sovereign** input (an existing Standard Ѻ. account; a Σ. sovereign is rejected). `OuronetAccountsTab` now dispatches on `account.isSmart` — Σ. accounts open the Smart modal, Ѻ. accounts the Standard one (previously Smart accounts wrongly opened the Standard modal). Smart activation is **manual-only** (no Auto toggle).
+- **Keyset-ref guards preserved on activation:** both activation modals now pass the guard `mode`/`keysetRef` to the builder, so "Use Existing Keyset" binds `(keyset-ref-guard "<ref>")` on-chain instead of expanding the keyset into a literal inline keyset. (Fixes accounts created with a `keyset` guard when a `keyset-ref` was intended.)
+- **Password prompt on every transaction:** the two Activate modals and the three Rotate modals (Payment Key / Guard / Sovereign), in both `zbom/modals/*` and the exported `components/*`, now call `ensureCodexUnlocked()` before signing. Previously they submitted with a locked codex and failed with "Codex is locked, operation getKeyPairByPublicKey…" instead of prompting. All 11 transaction-submitting modals are now gated.
+- (Via ouronet-core 4.3.5) the patron IGNIS balance now reads fresh (tier T1), so it no longer shows a stale "Insufficient IGNIS" right after a transfer.
+
 ## 0.5.3 — 2026-06-10
 
 **Patch — fixes missing transaction-status cards for the ZBOM operation modals.** The ported operation modals (Activate Standard Account, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) push their tx progress cards to the package's global `toastStore` via `txPending()`. But the host that renders that store — `MultiStepToastContainer` — was never exported and never mounted anywhere, so a transaction would **submit to chain yet render no feedback at all** ("nothing happened" / no status card). `CodexProvider` now mounts `MultiStepToastContainer` once (browser-only; it self-portals to the bottom-right and renders nothing when the store is empty), so every consumer gets the tx cards for free with no extra wiring. No API changes; purely additive.

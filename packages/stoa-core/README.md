@@ -6,6 +6,8 @@ This package was born from the v4.0.0 split of `@stoachain/ouronet-core` v3.3.8 
 
 ## Status
 
+**`4.3.5` on public npmjs** — **PATCH (atomic-triplet alignment with `@stoachain/kadena-stoic-legacy@4.3.5` + `@stoachain/ouronet-core@4.3.5`).** Released 2026-06-10. NO code changes in this package; version bumped solely to maintain the atomic-triplet invariant. The v4.3.5 release surface (Smart Account deploy builder + keyset-ref-aware activation + T1 IGNIS-balance fix) lives entirely in `@stoachain/ouronet-core`. Functionally identical to `4.3.4`. **653 specs pass.**
+
 **`4.3.4` on public npmjs** — **PATCH (atomic-triplet alignment with `@stoachain/kadena-stoic-legacy@4.3.4` + `@stoachain/ouronet-core@4.3.4`).** Released 2026-06-08. NO code changes in this package; version bumped solely to maintain the atomic-triplet invariant. The v4.3.4 release surface (the UrStoa Collect-button hover fix) lives entirely in `@stoachain/ouronet-core`. Functionally identical to `4.3.3`. **653 specs pass.**
 
 **`4.3.3` on public npmjs** — **PATCH (atomic-triplet alignment with `@stoachain/kadena-stoic-legacy@4.3.3` + `@stoachain/ouronet-core@4.3.3`).** Released 2026-05-30. NO code changes in this package; version bumped solely to maintain the atomic-triplet invariant (`tests/v4-1-1-cross-package-version-pin.test.ts`); peer-dep on `@stoachain/kadena-stoic-legacy` bumped 4.3.1 → 4.3.3 in lockstep. The v4.3.3 surface lives entirely in `@stoachain/ouronet-core` (additive StoicTag + governor-rotation builders/readers). Functionally identical to `4.3.1`. **653 specs pass.**

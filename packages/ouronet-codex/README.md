@@ -4,6 +4,8 @@
 
 ## Status
 
+**`0.5.4` on public npmjs** — Released 2026-06-10. **Feature + fixes — Smart Account activation + operation-modal hardening.** Adds `ActivateSmartAccountModal` (`C_DeploySmartAccount`, with a sovereign input; manual-only) and dispatches Activate on `account.isSmart` (Σ. accounts previously wrongly opened the Standard modal). Both activation modals now preserve **keyset-ref guards** ("Use Existing Keyset" → `(keyset-ref-guard "<ref>")` instead of an expanded literal keyset). All 11 transaction modals (the two Activate + three Rotate, in `zbom/modals/*` and `components/*`) now **prompt for the codex password** (`ensureCodexUnlocked`) before signing instead of failing on a locked codex. Requires `@stoachain/ouronet-core` >= 4.3.5. See CHANGELOG.
+
 **`0.5.3` on public npmjs** — Released 2026-06-10. **Patch — fixes missing transaction-status cards for the ZBOM operation modals.** The operation modals (Activate Standard Account, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) push tx progress cards to the package's global `toastStore` via `txPending()`, but the renderer (`MultiStepToastContainer`) was never mounted — so a transaction would submit to chain yet show no feedback. `CodexProvider` now mounts it once (browser-only, self-portals bottom-right, renders nothing when empty). No API changes.
 
 **`0.5.2` on public npmjs** — Released 2026-06-10. **Patch — fixes Chainweaver (BIP32-Ed25519) private-key handling and makes imported extended keys signable.** The seed-key reveal previously dumped the raw 128-byte key buffer with its scalar still XOR-scrambled against the codex password, producing a wrong 256-hex value; it now re-derives Chainweaver / Ecko keys with an empty wallet password and returns the canonical 128-hex `kL‖kR` matching Chainweaver / kadenakeys.io exports (Koala 64-hex unchanged). the Pure Keys Import form (`PureKeypairsTab`, and the headless `AddPureKeypairForm`) now accepts 64 **or** 128 hex (was 64-only, validated via `tryDerivePublicKey`), and `InternalCodexResolver` routes an imported 128-hex extended key through the WASM extended-key signer (`universalSignTransaction`'s Chainweaver path) — no custom BIP32 math, signature byte-identical to the seed-derived path. No API changes.
@@ -95,6 +97,8 @@ function YourComponent() {
 Full API + integration patterns: see [the spec doc](https://github.com/StoaChain/stoa-js/blob/main/.bee/specs/2026-05-24-ouronet-codex-modular-package/spec.md) until a real `INTEGRATION-GUIDE.md` lands (planned for v0.2.x).
 
 ## Version history
+
+**v0.5.4** — Feature + fixes. Smart Ouronet Account activation (`ActivateSmartAccountModal` → `C_DeploySmartAccount`, sovereign input, manual-only); Activate now dispatches on `account.isSmart`. Both activation modals preserve keyset-ref guards ("Use Existing Keyset" → `(keyset-ref-guard …)`). All 11 transaction modals (2 Activate + 3 Rotate, in `zbom/modals/*` and `components/*`) prompt for the codex password before signing. Requires ouronet-core >= 4.3.5.
 
 **v0.5.3** — Patch. Fixes missing tx-status cards for the ZBOM operation modals: the modals push to the package's global `toastStore` via `txPending()`, but the renderer `MultiStepToastContainer` was never mounted — so a tx submitted to chain with no visible feedback. `CodexProvider` now mounts it once (browser-only, bottom-right portal). No API changes.
 

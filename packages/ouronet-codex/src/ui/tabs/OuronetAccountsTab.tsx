@@ -55,6 +55,7 @@ import RegisterStoicTagModal from "../../zbom/modals/RegisterStoicTagModal.js";
 import RotateSovereignModal from "../../zbom/modals/RotateSovereignModal.js";
 import RotateGovernorModal from "../../zbom/modals/RotateGovernorModal.js";
 import ActivateStandardAccountModal from "../../zbom/modals/ActivateStandardAccountModal.js";
+import ActivateSmartAccountModal from "../../zbom/modals/ActivateSmartAccountModal.js";
 import { flattenKadenaAccounts } from "../../zbom/cfm/seam.js";
 import { IconCopyBtn, IconDeleteBtn, IconDeleteBtnDisabled, IconRenameBtnRect } from "../internal/IconButtons.js";
 import { OuronetAddressHighlight } from "../internal/OuronetAddressHighlight.js";
@@ -430,7 +431,7 @@ function AccountRow({
               <IconRenameBtnRect onClick={() => { setDraftName(displayName); setRenaming(true); }} />
             ))}
             {!account.isActive && !isApollo && (
-              <button type="button" onClick={() => setActiveOpId("activate-standard")} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 6, backgroundColor: "#ceac5f", color: "#0a0a0a", border: "1px solid transparent", cursor: "pointer" }}>
+              <button type="button" onClick={() => setActiveOpId(account.isSmart ? "activate-smart" : "activate-standard")} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 6, backgroundColor: "#ceac5f", color: "#0a0a0a", border: "1px solid transparent", cursor: "pointer" }}>
                 <Zap style={{ width: 14, height: 14 }} /> Activate
               </button>
             )}
@@ -470,6 +471,9 @@ function AccountRow({
       )}
       {activeOpId === "activate-standard" && (
         <ActivateStandardAccountModal open onClose={() => setActiveOpId(null)} ouroAccount={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
+      )}
+      {activeOpId === "activate-smart" && (
+        <ActivateSmartAccountModal open onClose={() => setActiveOpId(null)} ouroAccount={account} accounts={accounts} kadenaSeeds={seeds} kadenaAccounts={kadenaAccounts} />
       )}
       <ViewSeedModal isOpen={viewSeedOpen} onClose={() => setViewSeedOpen(false)} account={account} name={displayName} />
       {void updateAccount /* reserved for optimistic post-rotate mirror */}

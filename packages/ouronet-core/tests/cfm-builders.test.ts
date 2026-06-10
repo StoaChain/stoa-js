@@ -52,6 +52,7 @@ import {
   buildNativeUrTransferAnewPactCode,
   buildNativeUrTransmitAnewPactCode,
   buildDeployStandardAccountPactCode,
+  buildDeploySmartAccountPactCode,
   buildAddLiquidityPactCode,
   buildRemoveLiquidityPactCode,
   buildSingleSwapWithSlippagePactCode,
@@ -621,6 +622,78 @@ describe("buildDeployStandardAccountPactCode", () => {
     expect(code.indexOf(`"a"`)).toBeLessThan(code.indexOf(`(read-keyset "ks")`));
     expect(code.indexOf(`(read-keyset "ks")`)).toBeLessThan(code.indexOf(`"k"`));
     expect(code.indexOf(`"k"`)).toBeLessThan(code.indexOf(`"p"`));
+  });
+});
+
+describe("buildDeploySmartAccountPactCode", () => {
+  it("emits the canonical 5-arg C_DeploySmartAccount shape with sovereign before public", () => {
+    expect(
+      buildDeploySmartAccountPactCode({
+        account:       "Σ.NEW-SMART",
+        kadenaAddress: "k:abc123",
+        sovereign:     "Ѻ.SOVEREIGN-ACCT",
+        publicKey:     "deadbeef",
+      }),
+    ).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_DeploySmartAccount "Σ.NEW-SMART" (read-keyset "ks") "k:abc123" "Ѻ.SOVEREIGN-ACCT" "deadbeef")`,
+    );
+  });
+
+  it("uses the DALOS module + TS01-C1 namespace + C_DeploySmartAccount function", () => {
+    const code = buildDeploySmartAccountPactCode({
+      account: "a", kadenaAddress: "k", sovereign: "s", publicKey: "p",
+    });
+    expect(code).toContain(".TS01-C1.DALOS|C_DeploySmartAccount ");
+  });
+
+  it("orders args account → (read-keyset 'ks') → kadena → sovereign → public", () => {
+    const code = buildDeploySmartAccountPactCode({
+      account: "a", kadenaAddress: "k", sovereign: "s", publicKey: "p",
+    });
+    expect(code.indexOf(`"a"`)).toBeLessThan(code.indexOf(`(read-keyset "ks")`));
+    expect(code.indexOf(`(read-keyset "ks")`)).toBeLessThan(code.indexOf(`"k"`));
+    expect(code.indexOf(`"k"`)).toBeLessThan(code.indexOf(`"s"`));
+    expect(code.indexOf(`"s"`)).toBeLessThan(code.indexOf(`"p"`));
+  });
+
+  it("differs from Standard only by the C_DeploySmart fn name + the extra sovereign arg", () => {
+    const smart = buildDeploySmartAccountPactCode({
+      account: "X", kadenaAddress: "k:K", sovereign: "Ѻ.S", publicKey: "P",
+    });
+    expect(smart).toContain("C_DeploySmartAccount");
+    expect(smart).not.toContain("C_DeployStandardAccount");
+    expect(smart).toContain(`"Ѻ.S"`); // sovereign present
+  });
+});
+
+describe("deploy builders — keyset-ref vs direct keyset guard", () => {
+  it("Standard 'existing' mode emits a keyset-ref-guard, NOT (read-keyset ks)", () => {
+    const code = buildDeployStandardAccountPactCode({
+      account: "Ѻ.A", kadenaAddress: "k:K", publicKey: "P",
+      mode: "existing", keysetRef: "ouronet-ns.dh_sc_aqp-keyset",
+    });
+    expect(code).toContain(`(keyset-ref-guard "ouronet-ns.dh_sc_aqp-keyset")`);
+    expect(code).not.toContain(`(read-keyset "ks")`);
+  });
+
+  it("Smart 'existing' mode emits a keyset-ref-guard before the kadena arg", () => {
+    const code = buildDeploySmartAccountPactCode({
+      account: "Σ.A", kadenaAddress: "k:K", sovereign: "Ѻ.S", publicKey: "P",
+      mode: "existing", keysetRef: "ouronet-ns.dh_sc_aqp-keyset",
+    });
+    expect(code).toBe(
+      `(ouronet-ns.TS01-C1.DALOS|C_DeploySmartAccount "Σ.A" (keyset-ref-guard "ouronet-ns.dh_sc_aqp-keyset") "k:K" "Ѻ.S" "P")`,
+    );
+  });
+
+  it("'define' mode (and the default) still emits (read-keyset ks)", () => {
+    expect(buildDeployStandardAccountPactCode({
+      account: "a", kadenaAddress: "k", publicKey: "p", mode: "define",
+    })).toContain(`(read-keyset "ks")`);
+    // default (no mode) is backward-compatible:
+    expect(buildDeploySmartAccountPactCode({
+      account: "a", kadenaAddress: "k", sovereign: "s", publicKey: "p",
+    })).toContain(`(read-keyset "ks")`);
   });
 });
 

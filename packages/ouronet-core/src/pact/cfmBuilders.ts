@@ -1083,6 +1083,60 @@ export function buildDeployStandardAccountPactCode(p: {
   account:       string;
   kadenaAddress: string;
   publicKey:     string;
+  /** Guard binding (default "define"). Mirrors buildRotateGuardPactCode:
+   *   - "define"   → `(read-keyset "ks")` — consumer MUST `.addData("ks", …)`.
+   *   - "existing" → `(keyset-ref-guard "<ref>")` — references an on-chain
+   *                  named keyset; NO ks payload needed. Preserves the
+   *                  keyset-ref guard type instead of expanding it to a
+   *                  literal keyset. */
+  mode?:      "define" | "existing";
+  /** Required when `mode === "existing"`. */
+  keysetRef?: string;
 }): string {
-  return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_DeployStandardAccount "${p.account}" (read-keyset "ks") "${p.kadenaAddress}" "${p.publicKey}")`;
+  const guardExpr =
+    p.mode === "existing"
+      ? `(keyset-ref-guard "${p.keysetRef ?? ""}")`
+      : `(read-keyset "ks")`;
+  return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_DeployStandardAccount "${p.account}" ${guardExpr} "${p.kadenaAddress}" "${p.publicKey}")`;
+}
+
+/**
+ * Build the Pact code for C_DeploySmartAccount — Activate a Smart (Σ.) Ouronet
+ * Account.
+ *
+ * On-chain signature (positional):
+ *   (ouronet-ns.TS01-C1.DALOS|C_DeploySmartAccount
+ *     <account> <guard:guard> <kadena> <sovereign> <public>)
+ *
+ * Identical to the Standard deploy except for ONE extra positional arg —
+ * `sovereign` — inserted between `kadena` and `public`. The `guard` arg is the
+ * account keyset, passed the same way as Standard via `(read-keyset "ks")`
+ * (the consumer attaches the keyset with `addData("ks", { keys, pred })`).
+ *
+ * `sovereign` is an EXISTING Standard (Ѻ.) Ouronet account that holds the new
+ * Smart account's sovereignty — the chain rejects Σ.→Σ. (a smart account can't
+ * be its own sovereign).
+ *
+ * Signers/caps are identical to the Standard deploy: the gas-payer (CodexPrime
+ * Key #0) carries DALOS.GAS_PAYER + N coin.TRANSFER (one per `kadena-split`
+ * receiver from the INFO call), and the account keyset signs pure. None of that
+ * is in the Pact code — it's attached at signer level, exactly as Standard.
+ */
+export function buildDeploySmartAccountPactCode(p: {
+  account:       string;
+  kadenaAddress: string;
+  sovereign:     string;
+  publicKey:     string;
+  /** Guard binding (default "define") — see buildDeployStandardAccountPactCode.
+   *   - "define"   → `(read-keyset "ks")` (consumer adds the ks payload).
+   *   - "existing" → `(keyset-ref-guard "<ref>")` (named on-chain keyset). */
+  mode?:      "define" | "existing";
+  /** Required when `mode === "existing"`. */
+  keysetRef?: string;
+}): string {
+  const guardExpr =
+    p.mode === "existing"
+      ? `(keyset-ref-guard "${p.keysetRef ?? ""}")`
+      : `(read-keyset "ks")`;
+  return `(${KADENA_NAMESPACE}.TS01-C1.DALOS|C_DeploySmartAccount "${p.account}" ${guardExpr} "${p.kadenaAddress}" "${p.sovereign}" "${p.publicKey}")`;
 }

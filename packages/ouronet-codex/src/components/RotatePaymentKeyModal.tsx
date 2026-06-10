@@ -30,6 +30,7 @@ import {
 import { buildRotateKadenaPactCode } from "@stoachain/ouronet-core/pact";
 
 import { useSignTransaction } from "../hooks/useSignTransaction.js";
+import { useEnsureCodexUnlocked } from "../zbom/hooks/useEnsureCodexUnlocked.js";
 import { useActiveWallet } from "../hooks/useActiveWallet.js";
 import type { IOuroAccount } from "../types/entities.js";
 
@@ -76,6 +77,7 @@ export function RotatePaymentKeyModal({
 }: RotatePaymentKeyModalProps): React.JSX.Element | null {
   const { activeOuroAccount } = useActiveWallet();
   const { execute } = useSignTransaction();
+  const ensureCodexUnlocked = useEnsureCodexUnlocked();
 
   const account = accountProp ?? activeOuroAccount;
   const patron = patronProp ?? account;
@@ -111,6 +113,9 @@ export function RotatePaymentKeyModal({
     setSubmitting(true);
     setLastError(null);
     try {
+      // Prompt for the codex password if locked; abort on cancel.
+      if (!(await ensureCodexUnlocked())) { setLastError("Authentication required"); return; }
+
       const pactCode = buildRotateKadenaPactCode({
         patron: patron.address,
         account: account.address,
@@ -174,7 +179,7 @@ export function RotatePaymentKeyModal({
     } finally {
       setSubmitting(false);
     }
-  }, [canSubmit, account, patron, newPaymentKey, execute, onSuccess, onClose]);
+  }, [canSubmit, account, patron, newPaymentKey, execute, ensureCodexUnlocked, onSuccess, onClose]);
 
   if (!isOpen || !account || !patron) return null;
 

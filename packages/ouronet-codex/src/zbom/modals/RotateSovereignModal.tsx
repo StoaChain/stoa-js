@@ -57,6 +57,7 @@ import { SigningZone } from "../cfm/SigningZone.js";
 import { StringEntryInput } from "../cfm/inputs.js";
 import { AuthPathZone, type AuthPathSelection } from "../cfm/AuthPathZone.js";
 import { useSignTransaction } from "../../hooks/useSignTransaction.js";
+import { useEnsureCodexUnlocked } from "../hooks/useEnsureCodexUnlocked.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -165,6 +166,7 @@ export default function RotateSovereignModal({
   kadenaAccounts: _kadenaAccounts,
 }: Props) {
   const { execute } = useSignTransaction();
+  const ensureCodexUnlocked = useEnsureCodexUnlocked();
 
   // ── Patron selection mode (canonical wiring via usePatronSelectionDefaults) ──
   const { initialPatronMode, autoSelectBestPatron } = usePatronSelectionDefaults();
@@ -358,6 +360,9 @@ export default function RotateSovereignModal({
     setIsProcessing(true);
     const _tx = txPending("Rotate Sovereign");
     try {
+      // Prompt for the codex password if locked; abort on cancel.
+      if (!(await ensureCodexUnlocked())) { _tx.fail("Authentication required"); return; }
+
       const pactCode = buildRotateSovereignPactCode({
         patron:       patronAccount.address,
         account:      account.address,

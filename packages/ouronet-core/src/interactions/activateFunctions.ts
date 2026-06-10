@@ -90,6 +90,57 @@ export async function getDeployStandardAccountInfo(
   }
 }
 
+// ─── Smart account info ─────────────────────────────────────────────────────
+// C_DeploySmartAccount is identical to the Standard deploy except for one extra
+// `sovereign` arg in the execute, and a different INFO function name. The INFO
+// response shape is the same (ignis + kadena cost + receivers), so we reuse the
+// Standard info types.
+
+export type DeploySmartAccountInfo = DeployStandardAccountInfo;
+export type DeploySmartAccountFullInfo = DeployStandardAccountFullInfo;
+
+/** Fetches ONLY the INFO response for C_DeploySmartAccount (no receiver
+ *  resolution). Mirror of {@link getDeployStandardAccountInfoOnly}. */
+export async function getDeploySmartAccountInfoOnly(
+  account: string,
+): Promise<any | null> {
+  try {
+    const pactCode = `(${KADENA_NAMESPACE}.INFO-ZERO.DALOS-INFO|URC_DeploySmartAccount "${account}")`;
+    const response = await pactRead(pactCode, { tier: "T5" });
+    if (response?.result?.status === "success") return (response.result as any).data;
+    return null;
+  } catch (error) {
+    getLogger().error("Error in getDeploySmartAccountInfoOnly:", error);
+    return null;
+  }
+}
+
+/** Fetches INFO + resolves the receiver addresses for C_DeploySmartAccount.
+ *  Mirror of {@link getDeployStandardAccountInfo}. */
+export async function getDeploySmartAccountInfo(
+  account: string,
+): Promise<DeploySmartAccountFullInfo | null> {
+  try {
+    const pactCode =
+      `(let*` +
+      `  ((info (${KADENA_NAMESPACE}.INFO-ZERO.DALOS-INFO|URC_DeploySmartAccount "${account}"))` +
+      `   (receivers (map (${KADENA_NAMESPACE}.DALOS.UR_AccountKadena) (at "kadena-targets" (at "kadena" info))))` +
+      `)` +
+      `{ "info": info, "receivers": receivers })`;
+
+    const response = await pactRead(pactCode, { tier: "T5" });
+
+    if (response?.result?.status === "success") {
+      const data = (response.result as any).data;
+      return { info: data.info, receivers: data.receivers };
+    }
+    return null;
+  } catch (error) {
+    getLogger().error("Error fetching DeploySmartAccount info:", error);
+    return null;
+  }
+}
+
 // ─── Execute ──────────────────────────────────────────────────────────────────
 
 export interface DeployStandardAccountParams {

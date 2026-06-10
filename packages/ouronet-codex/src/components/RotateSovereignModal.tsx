@@ -31,6 +31,7 @@ import {
 import { buildRotateSovereignPactCode } from "@stoachain/ouronet-core/pact";
 
 import { useSignTransaction } from "../hooks/useSignTransaction.js";
+import { useEnsureCodexUnlocked } from "../zbom/hooks/useEnsureCodexUnlocked.js";
 import { useActiveWallet } from "../hooks/useActiveWallet.js";
 import { useOuroAccounts } from "../hooks/useOuroAccounts.js";
 import type { IOuroAccount } from "../types/entities.js";
@@ -92,6 +93,7 @@ export function RotateSovereignModal({
   const { activeOuroAccount } = useActiveWallet();
   const { updateAccount } = useOuroAccounts();
   const { execute } = useSignTransaction();
+  const ensureCodexUnlocked = useEnsureCodexUnlocked();
 
   const account = accountProp ?? activeOuroAccount;
   const patron = patronProp ?? account;
@@ -122,6 +124,9 @@ export function RotateSovereignModal({
     setSubmitting(true);
     setLastError(null);
     try {
+      // Prompt for the codex password if locked; abort on cancel.
+      if (!(await ensureCodexUnlocked())) { setLastError("Authentication required"); return; }
+
       const pactCode = buildRotateSovereignPactCode({
         patron: patron.address,
         account: account.address,
@@ -179,6 +184,7 @@ export function RotateSovereignModal({
     }
   }, [
     canSubmit,
+    ensureCodexUnlocked,
     account,
     patron,
     newSovereign,

@@ -1,6 +1,6 @@
 {
   "name": "@stoachain/ouronet-codex",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Modular React Codex for the Ouronet ecosystem. Drop-in <CodexProvider> + hooks + headless components giving any React consumer (OuronetUI, AncientHoldings hub, future apps) full 1:1 Codex functionality — onboarding flows, CodexPrime account, account/key management, address book, encrypted backup/restore, Google Drive sync, per-account on-chain operations (rotate guard/payment/sovereign/governor). Peer-deps the @stoachain v4.2 atomic triplet (kadena-stoic-legacy + stoa-core + ouronet-core) for chain logic; owns its own internal state (Zustand) so consumers don't need Redux.",
   "type": "module",
   "main": "./dist/index.js",
