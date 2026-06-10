@@ -50,6 +50,7 @@ import type {
   DeviceVariant,
   UiSettings,
 } from "../types/entities.js";
+import { MultiStepToastContainer } from "../zbom/toast/MultiStepToastContainer.js";
 
 export interface CodexProviderProps {
   /** Storage backend for the codex. Required. Pass `new LocalStorageCodexAdapter()`
@@ -240,6 +241,14 @@ export function CodexProvider({
     <CodexStoreContext.Provider value={storeValue}>
       <SigningClientContext.Provider value={clientValue}>
         {children}
+        {/* Transaction status cards ("cardboard") for the ZBOM operation
+            modals. The modals push to the package's global toastStore via
+            txPending(); without this host mounted, a tx would submit to chain
+            but render no feedback. Mounted once here so every consumer gets it
+            for free; self-portals to document.body (bottom-right), renders
+            nothing when the store is empty. Browser-only — the provider is
+            SSR-safe and createPortal needs document. */}
+        {isBrowser && <MultiStepToastContainer />}
       </SigningClientContext.Provider>
     </CodexStoreContext.Provider>
   );

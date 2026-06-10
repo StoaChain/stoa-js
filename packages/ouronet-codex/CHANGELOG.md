@@ -2,6 +2,10 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.3 — 2026-06-10
+
+**Patch — fixes missing transaction-status cards for the ZBOM operation modals.** The ported operation modals (Activate Standard Account, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) push their tx progress cards to the package's global `toastStore` via `txPending()`. But the host that renders that store — `MultiStepToastContainer` — was never exported and never mounted anywhere, so a transaction would **submit to chain yet render no feedback at all** ("nothing happened" / no status card). `CodexProvider` now mounts `MultiStepToastContainer` once (browser-only; it self-portals to the bottom-right and renders nothing when the store is empty), so every consumer gets the tx cards for free with no extra wiring. No API changes; purely additive.
+
 ## 0.5.2 — 2026-06-10
 
 **Patch — fixes Chainweaver (BIP32-Ed25519) private-key handling in two places, and makes imported extended keys signable.**

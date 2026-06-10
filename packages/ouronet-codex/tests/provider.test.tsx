@@ -7,7 +7,7 @@
 
 import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, waitFor, act, render } from "@testing-library/react";
+import { renderHook, waitFor, act, render, screen } from "@testing-library/react";
 import {
   CodexProvider,
   useCodexStore,
@@ -16,6 +16,9 @@ import {
 import { MemoryCodexAdapter } from "@stoachain/ouronet-codex/adapters";
 import { useCodex, useKadenaSeeds } from "@stoachain/ouronet-codex/hooks";
 import type { PactClient } from "@stoachain/stoa-core/signing";
+// Relative import (no subpath alias for the toast module) — resolves to the
+// SAME src module the provider's mounted MultiStepToastContainer subscribes to.
+import { txPending, toastStore } from "../src/zbom/toast/toastManager";
 
 describe("CodexProvider stub (Phase 5)", () => {
   it("provides a store to children via context", async () => {
@@ -347,5 +350,40 @@ describe("CodexProvider — SSR-safe shell (Phase 7)", () => {
       </CodexProvider>
     );
     expect(container.querySelector("[data-testid='ssr-shell-child']")).toBeTruthy();
+  });
+});
+
+describe("CodexProvider mounts the transaction toast host", () => {
+  // Regression: the ZBOM operation modals (Activate / Rotate* / *StoicTag)
+  // push tx status cards to the package's global toastStore via txPending().
+  // Without the MultiStepToastContainer mounted somewhere in the provider
+  // tree, a transaction would submit to chain but render NO feedback card
+  // ("nothing happened" / "didn't see any cardboard"). The provider now
+  // mounts it once so every consumer gets it for free.
+  it("renders a tx status card pushed via txPending (the 'cardboard')", async () => {
+    // Clear any leftover toasts from earlier in the run.
+    toastStore.getAll().forEach((t) => toastStore.remove(t.id));
+
+    const adapter = new MemoryCodexAdapter("dev");
+    render(
+      <CodexProvider adapter={adapter}>
+        <div>codex app</div>
+      </CodexProvider>
+    );
+
+    // Nothing before a tx fires.
+    expect(screen.queryByText("Activate Account")).toBeNull();
+
+    // Simulate a ZBOM modal pushing a pending tx card.
+    act(() => {
+      txPending("Activate Account").start();
+    });
+
+    // The host must render the card. (Pre-fix: this stayed null forever.)
+    await waitFor(() => {
+      expect(screen.getByText("Activate Account")).toBeTruthy();
+    });
+
+    toastStore.getAll().forEach((t) => toastStore.remove(t.id));
   });
 });

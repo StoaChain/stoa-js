@@ -4,6 +4,8 @@
 
 ## Status
 
+**`0.5.3` on public npmjs** — Released 2026-06-10. **Patch — fixes missing transaction-status cards for the ZBOM operation modals.** The operation modals (Activate Standard Account, Rotate Payment Key / Guard / Sovereign / Governor, Register / Release StoicTag) push tx progress cards to the package's global `toastStore` via `txPending()`, but the renderer (`MultiStepToastContainer`) was never mounted — so a transaction would submit to chain yet show no feedback. `CodexProvider` now mounts it once (browser-only, self-portals bottom-right, renders nothing when empty). No API changes.
+
 **`0.5.2` on public npmjs** — Released 2026-06-10. **Patch — fixes Chainweaver (BIP32-Ed25519) private-key handling and makes imported extended keys signable.** The seed-key reveal previously dumped the raw 128-byte key buffer with its scalar still XOR-scrambled against the codex password, producing a wrong 256-hex value; it now re-derives Chainweaver / Ecko keys with an empty wallet password and returns the canonical 128-hex `kL‖kR` matching Chainweaver / kadenakeys.io exports (Koala 64-hex unchanged). the Pure Keys Import form (`PureKeypairsTab`, and the headless `AddPureKeypairForm`) now accepts 64 **or** 128 hex (was 64-only, validated via `tryDerivePublicKey`), and `InternalCodexResolver` routes an imported 128-hex extended key through the WASM extended-key signer (`universalSignTransaction`'s Chainweaver path) — no custom BIP32 math, signature byte-identical to the seed-derived path. No API changes.
 
 **`0.5.1` on public npmjs** — Released 2026-06-08. **Patch — fixes a crash when expanding an Ouronet Account whose payment key holds a balance.** Pact returns decimals as `{ decimal: "…" }` objects; `OuronetAccountsTab` rendered the on-chain `payment-key-balance` raw, which throws React error #31 ("Objects are not valid as a React child") and blanks the page. It is now coerced through a `decimalToDisplay` helper before render. No API changes.
@@ -93,6 +95,8 @@ function YourComponent() {
 Full API + integration patterns: see [the spec doc](https://github.com/StoaChain/stoa-js/blob/main/.bee/specs/2026-05-24-ouronet-codex-modular-package/spec.md) until a real `INTEGRATION-GUIDE.md` lands (planned for v0.2.x).
 
 ## Version history
+
+**v0.5.3** — Patch. Fixes missing tx-status cards for the ZBOM operation modals: the modals push to the package's global `toastStore` via `txPending()`, but the renderer `MultiStepToastContainer` was never mounted — so a tx submitted to chain with no visible feedback. `CodexProvider` now mounts it once (browser-only, bottom-right portal). No API changes.
 
 **v0.5.2** — Patch. Fixes Chainweaver (BIP32-Ed25519) private-key handling: the seed-key reveal returned the raw 128-byte buffer with a password-scrambled scalar (wrong 256-hex value) and now returns the canonical 128-hex `kL‖kR` export (empty-password re-derivation; Koala 64-hex unchanged). `AddPureKeypairForm` accepts 64 or 128 hex, and `InternalCodexResolver` routes imported 128-hex extended keys through the WASM extended-key signer so they can sign (no custom BIP32 math; signature identical to the seed path). No API changes.
 
