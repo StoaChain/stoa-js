@@ -34,6 +34,10 @@ import type { IKadenaSeed, IPureKeypair } from "@stoachain/ouronet-codex/types";
 
 import { smartEncrypt } from "@stoachain/stoa-core/crypto";
 import { KadenaWalletBuilder } from "@stoachain/stoa-core/wallet";
+import { universalSignTransaction } from "@stoachain/stoa-core/signing";
+import { kadenaDecrypt } from "@stoachain/kadena-stoic-legacy/hd-wallet";
+import { binToHex } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
+import { ed25519 } from "@noble/curves/ed25519";
 
 const PASSWORD = "hunter2-test-password";
 
@@ -94,6 +98,50 @@ async function makeKoalaSeed(): Promise<{
     },
     derivedPub: publicKey,
   };
+}
+
+/** Build a real CHAINWEAVER pure keypair the way a user would after pasting a
+ *  128-hex KadenaKeys / Chainweaver export into AddPureKeypairForm: generate a
+ *  12-word mnemonic, derive the canonical extended key (empty wallet password →
+ *  plaintext scalar, first 64 bytes = kL‖kR) + its public key, then store the
+ *  128-hex private key encrypted at the codex PASSWORD. */
+async function makeChainweaverPureKeypair(): Promise<{
+  pureKeypair: IPureKeypair;
+  publicKey: string;
+  canonicalPriv: string;
+}> {
+  const mnemonic = await KadenaWalletBuilder.generateMnemonic(12);
+  // Canonical derivation — identical to SeedWordsTab.revealPrivateKey.
+  const { publicKey, secretKey } =
+    await KadenaWalletBuilder.createWalletPairFromMnemonic(
+      "",
+      mnemonic,
+      0,
+      "chainweaver"
+    );
+  const raw = await kadenaDecrypt("", secretKey);
+  const canonicalPriv = binToHex(raw).slice(0, 128); // 64 bytes kL‖kR
+  const encrypted = await smartEncrypt(canonicalPriv, PASSWORD, "1.0");
+  return {
+    pureKeypair: {
+      id: "pure-cw-1",
+      label: "Imported Chainweaver",
+      publicKey,
+      encryptedPrivateKey: encrypted,
+      createdAt: "2026-06-10T10:00:00.000Z",
+    },
+    publicKey,
+    canonicalPriv,
+  };
+}
+
+/** Minimal unsigned Pact command whose single signer is `pubKey`. The `hash`
+ *  is the message the WASM signer signs; 32 random-ish bytes base64url-encoded
+ *  is sufficient (the chainweaver branch signs the decoded hash bytes). */
+function makeUnsignedCommandFor(pubKey: string, hashBytes: Uint8Array) {
+  const cmd = JSON.stringify({ signers: [{ pubKey }] });
+  const hash = Buffer.from(hashBytes).toString("base64url");
+  return { cmd, hash, sigs: [undefined] } as any;
 }
 
 // --------------------------------------------------------------------
@@ -183,6 +231,54 @@ describe("InternalCodexResolver", () => {
       expect(result.encryptedSecretKey).toBeDefined();
       expect(result.password).toBe(PASSWORD);
     }, 10000);
+
+    it("routes a 128-hex Chainweaver pure keypair through the WASM extended-key signer", async () => {
+      const { pureKeypair, publicKey, canonicalPriv } =
+        await makeChainweaverPureKeypair();
+      await store.getState().actions.addPureKeypair(pureKeypair);
+      store.getState().actions.authenticate(PASSWORD, 60);
+
+      const result = await resolver.getKeyPairByPublicKey(publicKey);
+      // Extended foreign keys must NOT take the nacl ("foreign") path.
+      expect(result.seedType).toBe("chainweaver");
+      expect(result.privateKey).toBe(canonicalPriv);
+      expect(result.privateKey).toHaveLength(128);
+      expect(result.encryptedSecretKey).toBeDefined();
+      expect(result.password).toBeTruthy();
+    }, 15000);
+
+    it("produces a VALID Ed25519 signature for an imported Chainweaver key (end-to-end)", async () => {
+      const { pureKeypair, publicKey } = await makeChainweaverPureKeypair();
+      await store.getState().actions.addPureKeypair(pureKeypair);
+      store.getState().actions.authenticate(PASSWORD, 60);
+
+      const keypair = await resolver.getKeyPairByPublicKey(publicKey);
+
+      const hashBytes = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) hashBytes[i] = (i * 37 + 11) & 0xff;
+      const tx = makeUnsignedCommandFor(publicKey, hashBytes);
+
+      const signed: any = await universalSignTransaction(tx, [
+        {
+          publicKey: keypair.publicKey,
+          secretKey: keypair.privateKey,
+          seedType: keypair.seedType,
+          encryptedSecretKey: keypair.encryptedSecretKey,
+          password: keypair.password,
+        },
+      ]);
+
+      const sigHex: string = signed.sigs?.[0]?.sig;
+      expect(sigHex, "a signature should be attached").toBeTruthy();
+      const ok = ed25519.verify(
+        Uint8Array.from(Buffer.from(sigHex, "hex")),
+        hashBytes,
+        Uint8Array.from(Buffer.from(publicKey, "hex"))
+      );
+      expect(ok, "signature must verify against the imported key's pubkey").toBe(
+        true
+      );
+    }, 15000);
 
     it("emits CodexKeyMissingError with structured counts", async () => {
       // 1 pure keypair + 1 derived account → counts reach the error.

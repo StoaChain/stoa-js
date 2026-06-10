@@ -2,6 +2,16 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.2 — 2026-06-10
+
+**Patch — fixes Chainweaver (BIP32-Ed25519) private-key handling in two places, and makes imported extended keys signable.**
+
+- **Seed-key reveal showed the wrong private key.** `SeedWordsTab.revealPrivateKey` dumped the library's raw 128-byte key buffer (`[scalar | publicKey | chainCode]`) hex-encoded, with the scalar still **XOR-scrambled against the codex password** (Cardano `cardanoMemoryCombine`, an in-memory safety layer). The result was a 256-hex value whose key bytes were wrong — e.g. `k:d8d5628…` revealed `403ff6…‖d8d5628…(pubkey)‖0500adde…(chainCode)` instead of the canonical `88aa38f…`. The exported key is **password-agnostic**, so the reveal now re-derives Chainweaver / Ecko keys with an **empty** wallet password (plaintext scalar) and returns the first 64 bytes (`kL‖kR`, 128 hex) — byte-for-byte matching Chainweaver / kadenakeys.io exports. Koala (plain Ed25519, 64 hex) is unchanged.
+- **Pure Keys rejected the Chainweaver format.** The Import form (`PureKeypairsTab` → Import subtab; also the headless `AddPureKeypairForm`) hardcoded a 64-hex-only check and re-derived via the plain-Ed25519 `publicKeyFromPrivateKey`, so a pasted 128-hex extended key was rejected. Both now accept **64 or 128 hex** and validate via `tryDerivePublicKey` (64 → plain Ed25519, 128 → BIP32-Ed25519 `kL·B`), so an extended key whose public half matches passes the paste-both-halves check.
+- **Imported 128-hex keys can now SIGN.** `InternalCodexResolver` detects an extended (128-hex) pure key and repackages it into the encrypted-blob + password shape the WASM extended-key signer consumes — reconstructing `[kL‖kR | pubKey | 0…]` and re-scrambling via the library's own `kadenaChangePassword` — so it routes through the **same** `universalSignTransaction` Chainweaver path that seed-derived accounts use. No custom BIP32 math (the hd-wallet library owns the extended-key format); the produced signature is byte-identical to the genuine seed-derived signature. nacl/`"foreign"` continues to handle 64-hex plain keys.
+
+No API changes; all additive at the package level. New tests cover the extended-key reveal format, 128-hex form acceptance, and an end-to-end Ed25519 verify of a signature produced from an imported Chainweaver key.
+
 ## 0.5.1 — 2026-06-08
 
 **Patch — fixes a crash when expanding an Ouronet Account whose payment key holds a balance.** `OuronetAccountsTab` rendered the on-chain `payment-key-balance` directly, but Pact returns decimals as `{ decimal: "…" }` objects — rendering one as a React child throws *"Objects are not valid as a React child"* (#31) and blanks the whole CodexUI page. The value is now coerced through a `decimalToDisplay` helper (inner string for `{ decimal }`, passthrough for number/string, `null` → hidden) before render. No API changes. (The Stoa Accounts tab already coerced balances; this was the one unguarded render.)

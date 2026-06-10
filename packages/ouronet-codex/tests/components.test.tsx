@@ -381,6 +381,38 @@ describe("<AddPureKeypairForm>", () => {
     expect(captured.args?.derivedPublicKey).toBeTruthy();
     expect(captured.args?.derivedPublicKey).toHaveLength(64);
   });
+
+  it("accepts a 128-hex Chainweaver extended key and derives its pubkey", async () => {
+    const adapter = new MemoryCodexAdapter("dev");
+    type Args = {
+      derivedPublicKey: string | null;
+      validationMessage: string | null;
+      [k: string]: unknown;
+    };
+    const captured: { args: Args | null } = { args: null };
+    render(
+      <CodexProvider adapter={adapter}>
+        <AddPureKeypairForm
+          render={(args) => {
+            captured.args = args as unknown as Args;
+            return (
+              <input
+                data-testid="custom-input"
+                value={args.privateKey}
+                onChange={(e) => args.onPrivateKeyChange(e.target.value)}
+              />
+            );
+          }}
+        />
+      </CodexProvider>
+    );
+    const input = screen.getByTestId("custom-input");
+    // 128 hex = BIP32-Ed25519 extended key [kL‖kR] (KadenaKeys export format).
+    fireEvent.change(input, { target: { value: "a".repeat(128) } });
+    expect(captured.args?.validationMessage).toBeNull();
+    expect(captured.args?.derivedPublicKey).toBeTruthy();
+    expect(captured.args?.derivedPublicKey).toHaveLength(64);
+  });
 });
 
 // --------------------------------------------------------------------

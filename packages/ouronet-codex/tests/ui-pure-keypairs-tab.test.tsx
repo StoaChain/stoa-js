@@ -82,6 +82,28 @@ describe("<PureKeypairsTab>", () => {
     expect(screen.getByPlaceholderText(/public key/i)).toBeTruthy();
   });
 
+  it("accepts a 128-hex Chainweaver extended key in the Import subtab and validates the match", async () => {
+    // Real vector: this 128-hex BIP32-Ed25519 key (kL‖kR) derives this pubkey.
+    const PUB = "d8d5628bf6e932ac4601a038d361000246faf20a4e90d6f23998cbb834ef5f49";
+    const PRIV =
+      "88aa38fba13aa1ab76b3265be5f88cc6635a79b7dbe00652a2e628b3aa1b6440" +
+      "4066f4b2a77f41ade24c80649797f05fbc3d9fa960bce7ff4c9c2e841430d6f3";
+    await renderTab([]);
+    fireEvent.click(screen.getByRole("button", { name: /^import$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/public key/i), {
+      target: { value: PUB },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/private \(secret\) key/i), {
+      target: { value: PRIV },
+    });
+    // No "must be 64 hex" rejection; the extended key validates as a match.
+    expect(await screen.findByText(/Keys match/i)).toBeTruthy();
+    const addBtn = screen.getByRole("button", {
+      name: /add to codex/i,
+    }) as HTMLButtonElement;
+    expect(addBtn.disabled).toBe(false);
+  });
+
   it("mints a keypair under the Generate subtab", async () => {
     await renderTab([]);
     fireEvent.click(screen.getByRole("button", { name: /^generate$/i }));

@@ -243,16 +243,37 @@ function SeedRow({
   };
 
   /** Re-derive a key's RAW private key on demand — never stored; derived from
-   *  the seed mnemonic at the key's index (unlock-gated). `secretKey` from the
-   *  wallet builder is the @kadena/hd-wallet AES-encrypted blob, so decrypt it
-   *  back to the raw 64-hex key (matches Koala/Chainweaver wallet exports). */
+   *  the seed mnemonic at the key's index (unlock-gated). Returns the CANONICAL
+   *  export-format private key, matching Chainweaver / kadenakeys.io exports.
+   *
+   *  Crucial subtlety for the two seed families:
+   *    - Chainweaver / Ecko are BIP32-Ed25519. The library's 128-byte key
+   *      buffer is `[scalar kL‖kR (64) | publicKey (32) | chainCode (32)]`, and
+   *      the first 64 bytes are XOR-scrambled against the *wallet password*
+   *      (Cardano `cardanoMemoryCombine`) purely as an in-memory safety layer.
+   *      The canonical exported key is password-AGNOSTIC. So we re-derive with
+   *      an EMPTY wallet password (no scramble → plaintext scalar) and take the
+   *      first 64 bytes (`kL‖kR` → 128 hex). The trailing pubkey + chainCode in
+   *      the raw buffer are NOT part of the exported key.
+   *      (The previous code dumped the whole 128-byte buffer with the scrambled
+   *       scalar still in place — yielding a 256-hex value whose key bytes were
+   *       wrong, e.g. `<scrambled>‖<pubkey>‖<chainCode>`.)
+   *    - Koala is plain Ed25519; its 32-byte (64-hex) key is already correct and
+   *      equally password-agnostic, so it is left on the codex password path
+   *      unchanged. */
   const revealPrivateKey = (account: WalletAccount) => async (): Promise<string> => {
     if (!(await ensureUnlocked())) throw new Error("locked");
     const password = getCurrentPassword();
     const mnemonic = await smartDecrypt(seed.secret, password);
-    const { secretKey } = await KadenaWalletBuilder.createWalletPairFromMnemonic(password, mnemonic, account.index, seed.seedType);
-    const rawBytes = await KadenaWalletBuilder.decrypt(password, secretKey);
-    return binToHex(rawBytes);
+    const isExtended = seed.seedType === "chainweaver" || seed.seedType === "eckowallet";
+    // Empty wallet password for extended keys → plaintext scalar. Koala keeps
+    // the codex password (no behavioral change; its key is password-agnostic).
+    const walletPw = isExtended ? "" : password;
+    const { secretKey } = await KadenaWalletBuilder.createWalletPairFromMnemonic(walletPw, mnemonic, account.index, seed.seedType);
+    const rawBytes = await KadenaWalletBuilder.decrypt(walletPw, secretKey);
+    const hex = binToHex(rawBytes);
+    // Extended: first 64 bytes (kL‖kR) = the 128-hex KadenaKeys export format.
+    return isExtended ? hex.slice(0, 128) : hex;
   };
 
   /** Derive + add a key at `index`, surfacing staged progress. The stage label

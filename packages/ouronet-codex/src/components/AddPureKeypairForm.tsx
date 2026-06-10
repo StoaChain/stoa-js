@@ -59,22 +59,28 @@ export function AddPureKeypairForm({
   const [submitting, setSubmitting] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
 
-  // Derive pubkey for live preview.
-  const derivedPublicKey =
-    privateKey.length === 64 ? tryDerivePublicKey(privateKey) : null;
+  // Derive pubkey for live preview. Two accepted formats:
+  //   - 64 hex  → plain Ed25519 seed (Pact -g / Koala / raw foreign key).
+  //   - 128 hex → BIP32-Ed25519 extended key [kL‖kR] in Chainweaver /
+  //               kadenakeys.io export format. tryDerivePublicKey routes this
+  //               through publicKeyFromExtendedKey (kL·B). Signing with such a
+  //               key is handled by InternalCodexResolver, which repackages it
+  //               for the WASM extended-key signer.
+  const isAcceptedLen = privateKey.length === 64 || privateKey.length === 128;
+  const derivedPublicKey = isAcceptedLen ? tryDerivePublicKey(privateKey) : null;
 
   const validationMessage = (() => {
     if (!privateKey) return null;
-    if (privateKey.length !== 64)
-      return "Private key must be exactly 64 hex characters.";
-    if (!/^[0-9a-fA-F]{64}$/.test(privateKey))
+    if (!isAcceptedLen)
+      return "Private key must be 64 hex characters (Ed25519) or 128 (Chainweaver extended key).";
+    if (!/^[0-9a-fA-F]+$/.test(privateKey))
       return "Private key must be valid hex (0-9, a-f).";
     if (!derivedPublicKey)
       return "Could not derive a public key from this input.";
     return null;
   })();
 
-  const isValid = !validationMessage && privateKey.length === 64;
+  const isValid = !validationMessage && isAcceptedLen && !!derivedPublicKey;
 
   const handleSubmit = useCallback(async () => {
     if (!isValid || !derivedPublicKey) return;
@@ -140,12 +146,12 @@ export function AddPureKeypairForm({
       }}
     >
       <label>
-        Private key (64 hex chars)
+        Private key (64 or 128 hex chars)
         <input
           type="text"
           value={privateKey}
           onChange={(e) => setPrivateKey(e.target.value.trim())}
-          maxLength={64}
+          maxLength={128}
           autoComplete="off"
           aria-invalid={validationMessage ? "true" : undefined}
           aria-describedby={

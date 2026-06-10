@@ -9,8 +9,11 @@
  *   • Generate  — mint a fresh ed25519 keypair (`genKeyPair`), show both halves
  *                 with a save-warning, then encrypt + store on confirm.
  *   • Import    — paste a known public + private key; validated by re-deriving
- *                 the public key from the private (`publicKeyFromPrivateKey`) and
- *                 rejecting mismatches before it can be stored.
+ *                 the public key from the private (`tryDerivePublicKey`, which
+ *                 accepts both 64-hex plain Ed25519 and 128-hex BIP32-Ed25519
+ *                 extended keys) and rejecting mismatches before storing.
+ *                 Imported 128-hex extended keys are made signable by
+ *                 InternalCodexResolver via the WASM extended-key signer.
  *
  * Private keys are stored only as `encryptedPrivateKey` (encrypted at the codex
  * password). All mutations go through `usePureKeypairs` so the signing resolver
@@ -23,7 +26,7 @@ import {
   KeyRound, Plus, Sparkles, Download, Copy, Check, AlertTriangle, Lock, RefreshCw, ShieldCheck, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { smartDecrypt, encryptStringV2 } from "@stoachain/stoa-core/crypto";
-import { publicKeyFromPrivateKey } from "@stoachain/stoa-core/signing";
+import { tryDerivePublicKey } from "@stoachain/stoa-core/guard";
 import { genKeyPair } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
 import { usePureKeypairs } from "../../hooks/usePureKeypairs.js";
 import { useCodexAuth } from "../../hooks/useCodexAuth.js";
@@ -36,6 +39,9 @@ import type { IPureKeypair } from "../../types/entities.js";
 
 const MONO = "var(--codex-font-mono, 'JetBrains Mono', ui-monospace, monospace)";
 const isHex64 = (s: string) => /^[0-9a-fA-F]{64}$/.test(s.trim());
+/** A pasteable private key: 64 hex (plain Ed25519) OR 128 hex (BIP32-Ed25519
+ *  extended key `kL‖kR`, the Chainweaver / kadenakeys.io export format). */
+const isHexPriv = (s: string) => /^([0-9a-fA-F]{64}|[0-9a-fA-F]{128})$/.test(s.trim());
 const isProtected = (k: IPureKeypair) => k.isCodexGuard === true || k.wasCodexGuard === true || k.isDuoPurePrime === true;
 
 type Sub = "list" | "generate" | "import";
@@ -231,11 +237,16 @@ function ImportSubtab({ onAdded }: { onAdded: () => void }) {
   // Live validation: re-derive the public key from the private and compare.
   const validation = useMemo<{ state: "idle" | "ok" | "err"; msg: string }>(() => {
     if (!pub && !sec) return { state: "idle", msg: "" };
-    if (sec && !isHex64(secT)) return { state: "err", msg: "Private key must be 64 hex characters." };
+    if (sec && !isHexPriv(secT)) return { state: "err", msg: "Private key must be 64 hex (Ed25519) or 128 (Chainweaver extended key)." };
     if (pub && !isHex64(pubT)) return { state: "err", msg: "Public key must be 64 hex characters." };
-    if (!isHex64(pubT) || !isHex64(secT)) return { state: "idle", msg: "Enter both 64-hex keys to validate." };
+    if (!isHex64(pubT) || !isHexPriv(secT)) return { state: "idle", msg: "Enter both keys to validate." };
     try {
-      const derived = publicKeyFromPrivateKey(secT).toLowerCase();
+      // tryDerivePublicKey handles BOTH formats: 64 hex → plain Ed25519,
+      // 128 hex → BIP32-Ed25519 extended key (kL·B). A 128-hex key whose
+      // pubkey matches is stored and made signable by InternalCodexResolver,
+      // which routes it through the WASM extended-key signer.
+      const derived = (tryDerivePublicKey(secT) ?? "").toLowerCase();
+      if (!derived) return { state: "err", msg: "Could not derive a public key from this private key." };
       return derived === pubT
         ? { state: "ok", msg: "Keys match — the public key derives from this private key. ✓" }
         : { state: "err", msg: `Mismatch — this private key derives a different public key (${derived.slice(0, 16)}…).` };
@@ -280,7 +291,7 @@ function ImportSubtab({ onAdded }: { onAdded: () => void }) {
         <input type="text" value={pub} onChange={(e) => setPub(e.target.value)} placeholder="public key…" style={fieldInput(true)} spellCheck={false} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ ...fieldLabel, color: "#c0392b" }}>Private Key (64 hex)</label>
+        <label style={{ ...fieldLabel, color: "#c0392b" }}>Private Key (64 or 128 hex)</label>
         <input type="text" value={sec} onChange={(e) => setSec(e.target.value)} placeholder="private (secret) key…" style={fieldInput(true)} spellCheck={false} />
       </div>
 

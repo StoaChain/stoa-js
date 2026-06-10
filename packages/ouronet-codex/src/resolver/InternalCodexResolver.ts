@@ -38,12 +38,59 @@ import { toHexString } from "@stoachain/stoa-core/signing";
 import { buildCodexPubSet } from "@stoachain/stoa-core/guard";
 import { smartDecrypt } from "@stoachain/stoa-core/crypto";
 import { KadenaWalletBuilder } from "@stoachain/stoa-core/wallet";
-import { kadenaDecrypt } from "@stoachain/kadena-stoic-legacy/hd-wallet";
+import { kadenaDecrypt, kadenaEncrypt } from "@stoachain/kadena-stoic-legacy/hd-wallet";
+import { legacyKadenaChangePassword } from "@stoachain/kadena-stoic-legacy/hd-wallet/chainweaver";
+import { hexToBin } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
 
 import type { CodexStoreState } from "../state/store.js";
 import { CodexKeyMissingError, CodexLockedError } from "../errors/types.js";
 
 type CodexStore = UseBoundStore<StoreApi<CodexStoreState>>;
+
+/** Non-empty transient password used to re-scramble a reconstructed extended
+ *  key before handing it to the WASM signer. The value is arbitrary — it only
+ *  has to be (a) non-empty, because `universalSignTransaction` gates the
+ *  Chainweaver path on a truthy `password`, and (b) identical between the
+ *  re-scramble and the eventual `kadenaSign` call (it is, because we return it
+ *  as the keypair's `password`). It never persists and never affects the key. */
+const EXTENDED_FOREIGN_SCRAMBLE_PW = "codex-extended-foreign";
+
+/**
+ * Repackage a bare 128-hex BIP32-Ed25519 extended private key (`kL‖kR`, the
+ * Chainweaver / kadenakeys.io export format) into the encrypted-blob + password
+ * shape the WASM extended-key signer consumes — WITHOUT rolling any custom
+ * BIP32 math (the hd-wallet library owns the extended-key format).
+ *
+ * The library's signer takes a 128-byte buffer `[kL‖kR | pubKey | chainCode]`
+ * whose first 64 bytes are XOR-scrambled against a wallet password, plus that
+ * same password. So we:
+ *   1. Lay out a plaintext buffer `[kL‖kR | pubKey | 0…0]`. The chainCode is
+ *      unused for signing (it only matters for *child* derivation) → zero-fill.
+ *      Plaintext == "scrambled against the empty password".
+ *   2. Re-scramble bytes 0‥64 from the empty password to a non-empty one via
+ *      `kadenaChangePassword` (the library's own re-key primitive).
+ *   3. AES-wrap the result with the same non-empty password.
+ * `universalSignTransaction` then decrypts with that password and the WASM
+ * un-scrambles the scalar back to plaintext before signing — producing a
+ * signature byte-identical to the genuine seed-derived path.
+ */
+async function buildExtendedForeignSigningKey(
+  extendedPrivHex: string,
+  publicKeyHex: string,
+): Promise<{ encryptedSecretKey: string; password: string }> {
+  const xprv = new Uint8Array(128);
+  xprv.set(hexToBin(extendedPrivHex), 0); // kL‖kR (64 bytes, plaintext)
+  xprv.set(hexToBin(publicKeyHex), 64); //    pubKey (32 bytes)
+  // bytes 96‥128 (chainCode) intentionally left zero — unused for signing.
+  const scrambled = new Uint8Array(
+    await legacyKadenaChangePassword(xprv, "", EXTENDED_FOREIGN_SCRAMBLE_PW),
+  );
+  const encryptedSecretKey = await kadenaEncrypt(
+    EXTENDED_FOREIGN_SCRAMBLE_PW,
+    scrambled,
+  );
+  return { encryptedSecretKey, password: EXTENDED_FOREIGN_SCRAMBLE_PW };
+}
 
 export interface InternalCodexResolverOptions {
   /**
@@ -91,6 +138,21 @@ export class InternalCodexResolver implements KeyResolver {
         purePair.encryptedPrivateKey,
         password
       );
+      // 128-hex = BIP32-Ed25519 extended key (Chainweaver / kadenakeys.io
+      // format). nacl cannot sign these (different scheme), so route them
+      // through the WASM extended-key signer — the same path seed-derived
+      // chainweaver accounts use — by repackaging into its expected shape.
+      if (privateKey.length === 128) {
+        const { encryptedSecretKey, password: walletPw } =
+          await buildExtendedForeignSigningKey(privateKey, publicKey);
+        return {
+          publicKey,
+          privateKey,
+          seedType: "chainweaver" as const,
+          encryptedSecretKey,
+          password: walletPw,
+        };
+      }
       return {
         publicKey,
         privateKey,
