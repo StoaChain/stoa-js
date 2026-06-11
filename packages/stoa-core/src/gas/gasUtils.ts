@@ -116,18 +116,48 @@ export function formatMaxFee(
 // --- Auto Gas Limit ---
 
 /**
+ * Absolute floor for a calibrated gas limit. A dirty-read SIGNIFICANTLY
+ * under-reports the real on-chain cost of a signed tx (capabilities, gas-payer
+ * coin.TRANSFER, keyset reads, etc. are not all charged in a local read). A
+ * trivial contract call can dirty-read at ~8 gas yet need 100+ on-chain — so a
+ * pure multiplier on the tiny estimate (8 → 16, or even 8 → 80) still starves
+ * the tx ("Gas limit exceeded"). The floor guarantees every auto-calibrated tx
+ * gets a workable limit. Since gas LIMIT is a ceiling (the fee is charged on gas
+ * USED, not the limit), a generous floor costs nothing.
+ */
+export const MIN_AUTO_GAS_LIMIT = 1_000;
+
+/**
  * Calculate a calibrated gas limit from a simulated gas value.
- * Uses proportional % buffer + flat buffer to cover unexpected spikes.
- * Single source of truth — used by console executor and all transaction functions.
+ *
+ * Graduated proportional buffer + flat buffer to cover the gap between a
+ * dirty-read estimate and real on-chain consumption, then clamped to
+ * [MIN_AUTO_GAS_LIMIT, node gas limit]. The low end uses LARGE multipliers
+ * (tiny txs are the least predictable) but the multiplier alone is not enough
+ * when the estimate is near-zero — the MIN_AUTO_GAS_LIMIT floor is the real
+ * safety net there. `simulatedGas <= 0` returns 0 (the "no sim data" sentinel —
+ * callers decide what to do without a measurement).
+ *
+ * Single source of truth — used by the console executor and all transaction
+ * functions (OuronetUI + the AncientHoldings HUB).
  */
 export function calculateAutoGasLimit(simulatedGas: number): number {
+  if (!Number.isFinite(simulatedGas) || simulatedGas <= 0) return 0;
   let multiplier: number;
   let flat: number;
-  if (simulatedGas < 1_000)        { multiplier = 2.0;  flat = 0; }
+  if (simulatedGas < 100)          { multiplier = 10.0; flat = 0; }
+  else if (simulatedGas < 200)     { multiplier = 5.0;  flat = 0; }
+  else if (simulatedGas < 400)     { multiplier = 2.5;  flat = 0; }
+  else if (simulatedGas < 500)     { multiplier = 2.0;  flat = 0; }
+  else if (simulatedGas < 1_000)   { multiplier = 1.5;  flat = 0; }
   else if (simulatedGas < 20_000)  { multiplier = 1.15; flat = 0; }
   else if (simulatedGas < 100_000) { multiplier = 1.10; flat = 5_000; }
   else if (simulatedGas < 500_000) { multiplier = 1.10; flat = 10_000; }
   else                              { multiplier = 1.05; flat = 20_000; }
   const nodeLimit = getActiveGasLimit();
-  return Math.min(Math.ceil(simulatedGas * multiplier) + flat, nodeLimit);
+  const buffered = Math.max(
+    Math.ceil(simulatedGas * multiplier) + flat,
+    MIN_AUTO_GAS_LIMIT,
+  );
+  return Math.min(buffered, nodeLimit);
 }

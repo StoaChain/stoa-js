@@ -140,23 +140,36 @@ describe("formatMaxFee", () => {
 
 // ══ calculateAutoGasLimit — the buffer + cap logic ════════════════════════════
 describe("calculateAutoGasLimit — buffering simulated gas", () => {
-  // Buckets (from source):
-  //   sim <    1_000 → ×2.0  + 0
+  // Buckets (from source) — low end is graduated AND floored:
+  //   sim <      100 → ×10                ┐
+  //   sim <      200 → ×5                 │ result then clamped UP to the
+  //   sim <      400 → ×2.5               │ MIN_AUTO_GAS_LIMIT (1_000) floor:
+  //   sim <      500 → ×2                 │ a dirty-read under-reports real
+  //   sim <    1_000 → ×1.5               ┘ on-chain cost, so tiny sims floor.
   //   sim <   20_000 → ×1.15 + 0
   //   sim <  100_000 → ×1.10 + 5_000
   //   sim <  500_000 → ×1.10 + 10_000
   //   sim ≥  500_000 → ×1.05 + 20_000
-  // Always capped at node gas limit (node2 = 2_000_000).
+  // Always clamped to [MIN_AUTO_GAS_LIMIT, node gas limit] (node2 = 2_000_000).
 
-  describe("bucket 1: sim < 1,000 → 2x (generous for trivial txs)", () => {
-    it("sim=0 → 0", () => {
+  describe("low end: graduated multipliers, floored to 1,000", () => {
+    it("sim=0 → 0 (no-sim-data sentinel; not floored)", () => {
       expect(calculateAutoGasLimit(0)).toBe(0);
     });
-    it("sim=500 → 1000", () => {
-      expect(calculateAutoGasLimit(500)).toBe(1000);  // 500 * 2.0 = 1000
+    it("sim=8 → 1000 (×10=80 < floor — the empty-mint regression)", () => {
+      expect(calculateAutoGasLimit(8)).toBe(1000);
     });
-    it("sim=999 → 1998", () => {
-      expect(calculateAutoGasLimit(999)).toBe(1998);
+    it("sim=99 → 1000 (×10=990 < floor)", () => {
+      expect(calculateAutoGasLimit(99)).toBe(1000);
+    });
+    it("sim=500 → 1000 (×1.5=750 < floor)", () => {
+      expect(calculateAutoGasLimit(500)).toBe(1000);
+    });
+    it("sim=700 → 1050 (×1.5=1050 > floor)", () => {
+      expect(calculateAutoGasLimit(700)).toBe(1050);
+    });
+    it("sim=999 → 1499 (ceil(999 × 1.5))", () => {
+      expect(calculateAutoGasLimit(999)).toBe(1499);
     });
   });
 
