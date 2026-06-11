@@ -4,6 +4,10 @@ All notable changes to `@stoachain/kadena-stoic-legacy`.
 
 This package was born at v4.1.0 as a sovereign supply-chain replacement for the upstream `@kadena/*` npm packages following Kadena LLC's dissolution. Released atomically alongside `@stoachain/stoa-core@4.1.0` + `@stoachain/ouronet-core@4.1.0` out of the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo — a single `vX.Y.Z` git tag publishes all three packages.
 
+## 4.3.6 — 2026-06-11
+
+Atomic-triplet lockstep bump — `4.3.5 → 4.3.6` alongside `@stoachain/stoa-core` (which carries an auto-gas-limit floor fix in `calculateAutoGasLimit`) and `@stoachain/ouronet-core`, per the cross-package version-pin invariant. This package is functionally identical to its 4.3.5 release.
+
 ## 4.3.5 — 2026-06-10
 
 Atomic-triplet lockstep bump — `4.3.4 → 4.3.5` alongside `@stoachain/stoa-core` and `@stoachain/ouronet-core` (which carries the Smart Account deploy builder + keyset-ref-aware activation + T1 IGNIS-balance fix), per the cross-package version-pin invariant. This package is functionally identical to its 4.3.4 release.

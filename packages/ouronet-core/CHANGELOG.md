@@ -4,6 +4,10 @@ All notable changes to `@stoachain/ouronet-core`.
 
 This package is the historical continuation of `@stoachain/ouronet-core` v0.x–v3.3.8. v4.0.0 split it into a two-package npm workspace under `StoaChain/stoa-js` — chain-generic infrastructure moved out into [`@stoachain/stoa-core`](https://www.npmjs.com/package/@stoachain/stoa-core), this package retained the Ouronet-specific business logic. The `4.0.0` heading below is the first release after the split.
 
+## 4.3.6 — 2026-06-11
+
+Atomic-triplet lockstep bump — `4.3.5 → 4.3.6` alongside `@stoachain/stoa-core` (which carries an auto-gas-limit floor fix in `calculateAutoGasLimit` — a dirty-read under-reports a signed tx's real cost, so tiny estimates were starving txs) and `@stoachain/kadena-stoic-legacy`, per the cross-package version-pin invariant. This package is functionally identical to its 4.3.5 release.
+
 ## 4.3.5 — 2026-06-10
 
 **Additive — Smart Ouronet Account deploy + keyset-ref-aware activation + fresh IGNIS balance.** Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/stoa-core` bumped 4.3.4 → 4.3.5 in lockstep per the cross-package version-pin invariant; those two are functionally identical to their 4.3.4 release (only ouronet-core changed).

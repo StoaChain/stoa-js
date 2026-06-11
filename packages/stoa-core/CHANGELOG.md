@@ -4,6 +4,14 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.3.6 — 2026-06-11
+
+**Fix — auto gas limit floor (`gas/gasUtils.ts`).** `calculateAutoGasLimit` now floors its result at the new exported `MIN_AUTO_GAS_LIMIT` (1,000) and uses graduated low-end multipliers (`<100 ×10`, `<200 ×5`, `<400 ×2.5`, `<500 ×2`, `<1000 ×1.5`); mid/high buckets unchanged.
+
+A dirty-read (`/local`) under-reports the real on-chain cost of a *signed* tx — gas buy/redeem, signature verification, and the GAS_PAYER capability aren't all charged in a local read. A trivial contract call dirty-read at **8** gas but needed **105+** on-chain, so the old `calc(8) = 8×2.0 = 16` starved it (`Gas limit "16" exceeded: 105`). A multiplier on a near-zero estimate can't reach the real cost — the **floor is the load-bearing fix**. Gas *limit* is a ceiling (the fee is charged on gas *used*), so a generous floor costs nothing. The `0 → 0` "no sim data" sentinel is preserved.
+
+Atomic-triplet bump — `@stoachain/kadena-stoic-legacy` + `@stoachain/ouronet-core` bumped 4.3.5 → 4.3.6 in lockstep per the cross-package version-pin invariant; those two are functionally identical to their 4.3.5 release (only stoa-core changed). **653 specs pass.**
+
 ## 4.3.5 — 2026-06-10
 
 Atomic-triplet lockstep bump — `4.3.4 → 4.3.5` alongside `@stoachain/ouronet-core` (which carries the Smart Account deploy builder + keyset-ref-aware activation + T1 IGNIS-balance fix) and `@stoachain/kadena-stoic-legacy`, per the cross-package version-pin invariant. This package is functionally identical to its 4.3.4 release.
