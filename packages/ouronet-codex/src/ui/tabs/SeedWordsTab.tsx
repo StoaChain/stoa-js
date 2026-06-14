@@ -26,7 +26,7 @@ import { binToHex } from "@stoachain/kadena-stoic-legacy/cryptography-utils";
 import { useKadenaSeeds } from "../../hooks/useKadenaSeeds.js";
 import { useCodexAuth } from "../../hooks/useCodexAuth.js";
 import { useEnsureCodexUnlocked } from "../../zbom/hooks/useEnsureCodexUnlocked.js";
-import { IconCopyBtn, IconDeleteBtn, IconDeleteBtnDisabled } from "../internal/IconButtons.js";
+import { IconCopyBtn, IconDeleteBtn, IconDeleteBtnDisabled, IconHideBtn } from "../internal/IconButtons.js";
 import { KeyFieldsHalves } from "../internal/KeyFieldsHalves.js";
 import { CreateKadenaSeedModal } from "../internal/CreateKadenaSeedModal.js";
 import type { IKadenaSeed, SeedType, WalletAccount } from "../../types/entities.js";
@@ -227,6 +227,12 @@ function SeedRow({
   const handleView = async () => {
     setRowError(null);
     if (phrase) { setPhrase(null); return; }
+    // Prompt for the codex password if locked. Without this, getCurrentPassword()
+    // throws CodexLockedError → the catch sets rowError, but rowError only renders
+    // inside the {expanded} block, so on a collapsed row the click does nothing
+    // visible. The sibling reveal paths (revealPrivateKey / handleAddKey) gate the
+    // same way.
+    if (!(await ensureUnlocked())) { setRowError("Unlock the codex to view this seed phrase."); return; }
     try {
       const plain = await smartDecrypt(seed.secret, getCurrentPassword());
       setPhrase(plain);
@@ -347,8 +353,13 @@ function SeedRow({
         <div style={{ margin: "0 16px 12px", backgroundColor: "#080808", border: "1px dashed #2a2a2a", borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 13, color: "#d2d3d4", wordBreak: "break-word", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ flex: 1 }}>{phrase}</span>
           <IconCopyBtn text={phrase} size={28} />
+          <IconHideBtn onClick={() => setPhrase(null)} size={28} />
         </div>
       )}
+
+      {/* Row error (view / add-key) — rendered outside the {expanded} block so a
+          "View Seed Words" failure on a collapsed row is actually visible. */}
+      {rowError && <p role="alert" style={{ fontSize: 12, color: "#c0392b", margin: "0 16px 12px" }}>{rowError}</p>}
 
       {/* Expanded content */}
       {expanded && (
@@ -428,8 +439,6 @@ function SeedRow({
               )}
             </>
           )}
-
-          {rowError && <p role="alert" style={{ fontSize: 12, color: "#c0392b", margin: "4px 0 0" }}>{rowError}</p>}
         </div>
       )}
     </div>

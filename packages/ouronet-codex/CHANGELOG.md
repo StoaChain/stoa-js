@@ -2,6 +2,10 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.5 — 2026-06-11
+
+**Patch — "View Seed Words" now prompts to unlock + the revealed phrase can be hidden.** In `SeedWordsTab`, the per-seed **View Seed Words** action (`handleView`) called `getCurrentPassword()` directly with no unlock prompt — on a locked codex that throws `CodexLockedError`, and the resulting error rendered only *inside* the expandable section, so on a collapsed row the click did nothing visible. It now gates on `ensureCodexUnlocked()` (matching the per-key reveal + Add-Key paths), and the row-level error renders outside the expanded block so it's always visible. Also adds an `IconHideBtn` (eye-off) beside the Copy button so a revealed seed phrase can be hidden again without re-opening the ⋮ menu. No API changes.
+
 ## 0.5.4 — 2026-06-10
 
 **Feature + fixes — Smart Ouronet Account activation, and hardening across all operation modals.** Requires `@stoachain/ouronet-core` >= 4.3.5 (new `buildDeploySmartAccountPactCode` + `getDeploySmartAccountInfo`).

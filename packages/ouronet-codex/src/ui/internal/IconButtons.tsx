@@ -5,7 +5,7 @@
  * this is a near-verbatim port (clipboard copy, hex palette, sizes unchanged).
  */
 
-import { Copy, Check, ExternalLink, Trash2, Pencil } from "lucide-react";
+import { Copy, Check, ExternalLink, Trash2, Pencil, EyeOff } from "lucide-react";
 import { useState } from "react";
 
 const ICON_SIZE = 13;
@@ -58,6 +58,34 @@ export function IconCopyBtn({ text, size = BTN_SIZE }: IconCopyBtnProps) {
       ) : (
         <Copy size={ICON_SIZE} strokeWidth={2} />
       )}
+    </button>
+  );
+}
+
+interface IconHideBtnProps {
+  onClick: (e: React.MouseEvent) => void;
+  size?: number;
+}
+
+/** Neutral icon button that hides a revealed secret (EyeOff). Same resting
+ *  palette as IconCopyBtn so the two sit together cleanly in a reveal row. */
+export function IconHideBtn({ onClick, size = BTN_SIZE }: IconHideBtnProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Hide"
+      aria-label="Hide seed phrase"
+      style={{
+        ...BASE_STYLE,
+        width: size,
+        height: size,
+        backgroundColor: "#141414",
+        color: "#777",
+        border: "2px solid #252525",
+      }}
+    >
+      <EyeOff size={ICON_SIZE} strokeWidth={2} />
     </button>
   );
 }
