@@ -2,6 +2,16 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.6 — 2026-06-18
+
+**Patch — Register / Release StoicTag now authorise Smart Ouronet Accounts (Σ.) correctly.** Both modals passed the account's raw stored `guard` straight to `execute` as the ownership proof. For a Standard (Ѻ.) account that is correct, but a Smart account authorises via an `enforce-one` over three branches (account guard / sovereign guard / governor) — signing against the bare account guard produced *"Ownership could not be verified!"* on chain. Both modals now mirror the Rotate Sovereign / Rotate Governor flow for `account.isSmart`:
+
+- Resolve the stored `account.guard` (an unresolved keyset-ref object) to a plain keyset via `getKadenaAccountGuard(account.address)`, and fetch the sovereign guard, so the **AuthPathZone** can classify each branch as key-based.
+- Render `AuthPathZone` and require the user to pick a satisfiable **key-based** branch (account-guard or sovereign keyset-ref) before the button enables; the governor branch is non-key-based and unusable from this key-driven UI.
+- Pass the chosen branch keyset (`authSelection.chosenKeyset`) as the account's auth guard to `execute` instead of the raw `account.guard`. Standard accounts are unchanged — they keep passing their single keyset directly.
+
+No API changes; additive UI wiring only.
+
 ## 0.5.5 — 2026-06-11
 
 **Patch — "View Seed Words" now prompts to unlock + the revealed phrase can be hidden.** In `SeedWordsTab`, the per-seed **View Seed Words** action (`handleView`) called `getCurrentPassword()` directly with no unlock prompt — on a locked codex that throws `CodexLockedError`, and the resulting error rendered only *inside* the expandable section, so on a collapsed row the click did nothing visible. It now gates on `ensureCodexUnlocked()` (matching the per-key reveal + Add-Key paths), and the row-level error renders outside the expanded block so it's always visible. Also adds an `IconHideBtn` (eye-off) beside the Copy button so a revealed seed phrase can be hidden again without re-opening the ⋮ menu. No API changes.

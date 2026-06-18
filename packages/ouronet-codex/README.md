@@ -4,6 +4,8 @@
 
 ## Status
 
+**`0.5.6` on public npmjs** — Released 2026-06-18. **Patch — Register / Release StoicTag now authorise Smart Ouronet Accounts (Σ.) correctly.** Both modals signed against the account's raw stored `guard`, which on a Smart account (whose on-chain auth is an `enforce-one` over account-guard / sovereign / governor) produced *"Ownership could not be verified!"*. They now mirror Rotate Sovereign / Governor: resolve the account guard (keyset-ref → plain keyset) + fetch the sovereign guard, render **AuthPathZone** to pick a satisfiable key-based branch, and pass the chosen branch keyset to `execute`. Standard (Ѻ.) accounts unchanged. No API changes.
+
 **`0.5.5` on public npmjs** — Released 2026-06-11. **Patch — "View Seed Words" now prompts to unlock, and the revealed phrase can be hidden.** `SeedWordsTab`'s **View Seed Words** action no longer fails silently on a locked codex — it gates on `ensureCodexUnlocked()` (its error also renders outside the collapsed row's expanded block, so failures are visible), and a Hide (eye-off) button beside Copy collapses a revealed phrase. No API changes.
 
 **`0.5.4` on public npmjs** — Released 2026-06-10. **Feature + fixes — Smart Account activation + operation-modal hardening.** Adds `ActivateSmartAccountModal` (`C_DeploySmartAccount`, with a sovereign input; manual-only) and dispatches Activate on `account.isSmart` (Σ. accounts previously wrongly opened the Standard modal). Both activation modals now preserve **keyset-ref guards** ("Use Existing Keyset" → `(keyset-ref-guard "<ref>")` instead of an expanded literal keyset). All 11 transaction modals (the two Activate + three Rotate, in `zbom/modals/*` and `components/*`) now **prompt for the codex password** (`ensureCodexUnlocked`) before signing instead of failing on a locked codex. Requires `@stoachain/ouronet-core` >= 4.3.5. See CHANGELOG.
@@ -99,6 +101,8 @@ function YourComponent() {
 Full API + integration patterns: see [the spec doc](https://github.com/StoaChain/stoa-js/blob/main/.bee/specs/2026-05-24-ouronet-codex-modular-package/spec.md) until a real `INTEGRATION-GUIDE.md` lands (planned for v0.2.x).
 
 ## Version history
+
+**v0.5.6** — Patch. Register / Release StoicTag now authorise **Smart Ouronet Accounts (Σ.)** correctly. Both modals signed against the account's raw stored `guard`, producing *"Ownership could not be verified!"* on a Smart account (whose on-chain auth is an `enforce-one` over account-guard / sovereign / governor). They now mirror Rotate Sovereign / Governor: resolve the account guard (keyset-ref → plain keyset) + fetch the sovereign guard, render **AuthPathZone** to pick a satisfiable key-based branch, and pass the chosen branch keyset to `execute`. Standard (Ѻ.) accounts unchanged. No API changes.
 
 **v0.5.5** — Patch. `SeedWordsTab` **View Seed Words** now prompts for the codex password when locked (was a silent no-op on a collapsed row — `handleView` skipped the unlock gate, and its error rendered only inside the expanded block) and gained a Hide (eye-off) button beside Copy for the revealed phrase. No API changes.
 
