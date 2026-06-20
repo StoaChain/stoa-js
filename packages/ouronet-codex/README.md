@@ -4,6 +4,8 @@
 
 ## Status
 
+**`0.5.7` on public npmjs** — Released 2026-06-20. **Patch — the codex unlock window is now absolute, not sliding.** `useEnsureCodexUnlocked` re-authenticated on every call (including cache hits where the codex was already unlocked), so each operation silently reset the TTL and the "re-authenticate in X" countdown never elapsed while active. The gate now only (re)starts the window on a fresh locked → unlocked authentication; a routine cache hit leaves the countdown counting straight down from the original unlock. No API changes.
+
 **`0.5.6` on public npmjs** — Released 2026-06-18. **Patch — Register / Release StoicTag now authorise Smart Ouronet Accounts (Σ.) correctly.** Both modals signed against the account's raw stored `guard`, which on a Smart account (whose on-chain auth is an `enforce-one` over account-guard / sovereign / governor) produced *"Ownership could not be verified!"*. They now mirror Rotate Sovereign / Governor: resolve the account guard (keyset-ref → plain keyset) + fetch the sovereign guard, render **AuthPathZone** to pick a satisfiable key-based branch, and pass the chosen branch keyset to `execute`. Standard (Ѻ.) accounts unchanged. No API changes.
 
 **`0.5.5` on public npmjs** — Released 2026-06-11. **Patch — "View Seed Words" now prompts to unlock, and the revealed phrase can be hidden.** `SeedWordsTab`'s **View Seed Words** action no longer fails silently on a locked codex — it gates on `ensureCodexUnlocked()` (its error also renders outside the collapsed row's expanded block, so failures are visible), and a Hide (eye-off) button beside Copy collapses a revealed phrase. No API changes.
@@ -101,6 +103,8 @@ function YourComponent() {
 Full API + integration patterns: see [the spec doc](https://github.com/StoaChain/stoa-js/blob/main/.bee/specs/2026-05-24-ouronet-codex-modular-package/spec.md) until a real `INTEGRATION-GUIDE.md` lands (planned for v0.2.x).
 
 ## Version history
+
+**v0.5.7** — Patch. The codex unlock window is now absolute, not sliding. `useEnsureCodexUnlocked` re-authenticated on every call (including cache hits), silently resetting the TTL each operation so the "re-authenticate in X" countdown never elapsed while active. It now only (re)starts the window on a fresh locked → unlocked authentication; a cache hit leaves the countdown counting down from the original unlock. No API changes; new regression test.
 
 **v0.5.6** — Patch. Register / Release StoicTag now authorise **Smart Ouronet Accounts (Σ.)** correctly. Both modals signed against the account's raw stored `guard`, producing *"Ownership could not be verified!"* on a Smart account (whose on-chain auth is an `enforce-one` over account-guard / sovereign / governor). They now mirror Rotate Sovereign / Governor: resolve the account guard (keyset-ref → plain keyset) + fetch the sovereign guard, render **AuthPathZone** to pick a satisfiable key-based branch, and pass the chosen branch keyset to `execute`. Standard (Ѻ.) accounts unchanged. No API changes.
 

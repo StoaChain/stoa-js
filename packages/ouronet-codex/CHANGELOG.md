@@ -2,6 +2,10 @@
 
 All notable changes to `@stoachain/ouronet-codex`.
 
+## 0.5.7 — 2026-06-20
+
+**Patch — the codex unlock window is now absolute, not sliding.** `useEnsureCodexUnlocked` (the gate every codex operation calls before signing/decrypting) called `authenticate()` on *every* invocation — including the cache-hit path where the codex was already unlocked and no password was entered. Each operation therefore silently reset the TTL to the full window, so the "re-authenticate in X" countdown never actually elapsed while the user was active, and an unlock could be extended indefinitely. The gate now snapshots the lock state before prompting and only (re)starts the window on a **fresh** authentication (locked → unlocked); a routine cache hit leaves the countdown untouched, so it counts straight down from the original unlock. The locked path is unchanged (`submitPasswordRequest()` still starts the window). No API changes. New regression test (`tests/ensure-codex-unlocked.test.tsx`) asserts a cache hit does not extend the TTL.
+
 ## 0.5.6 — 2026-06-18
 
 **Patch — Register / Release StoicTag now authorise Smart Ouronet Accounts (Σ.) correctly.** Both modals passed the account's raw stored `guard` straight to `execute` as the ownership proof. For a Standard (Ѻ.) account that is correct, but a Smart account authorises via an `enforce-one` over three branches (account guard / sovereign guard / governor) — signing against the bare account guard produced *"Ownership could not be verified!"* on chain. Both modals now mirror the Rotate Sovereign / Rotate Governor flow for `account.isSmart`:
