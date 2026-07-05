@@ -1,9 +1,11 @@
 /**
  * Codex codec round-trip + format-integrity tests.
  *
- * The format version string `"1.2"` is stable public contract — every
- * user with an `OuronetCodex_*.json` file on disk must be able to
- * import it after any core update. These tests lock the shape.
+ * The writer now stamps `"1.3"`; the reader accepts BOTH `"1.2"` and
+ * `"1.3"`. Every user with an `OuronetCodex_*.json` file on disk (still
+ * "1.2") must be able to import it after any core update, and every fresh
+ * "1.3" export must round-trip through the same reader. These tests lock
+ * both halves of that contract.
  *
  * Part of Tier 1 (see OuronetUI/docs/TESTING_STRATEGY.md). Pure unit
  * tests — no WebCrypto, no fs, no network.
@@ -51,10 +53,10 @@ function makeFixtureCodex(): PlaintextCodex {
 // ─── buildCodexExport ─────────────────────────────────────────────────────────
 
 describe("buildCodexExport", () => {
-  it("produces a v1.2 export object", () => {
+  it("produces a v1.3 export object (writer now stamps the widened version)", () => {
     const codex = makeFixtureCodex();
     const exp = buildCodexExport(codex);
-    expect(exp.version).toBe("1.2");
+    expect(exp.version).toBe("1.3");
   });
 
   it("stamps exportedAt with an ISO timestamp", () => {
@@ -108,18 +110,18 @@ describe("serializeCodex", () => {
     const codex = makeFixtureCodex();
     const json = serializeCodex(codex);
     const parsed = JSON.parse(json);
-    expect(parsed.version).toBe("1.2");
+    expect(parsed.version).toBe("1.3");
   });
 });
 
 // ─── deserializeCodex ─────────────────────────────────────────────────────────
 
 describe("deserializeCodex", () => {
-  it("parses a valid v1.2 export", () => {
+  it("parses a freshly written v1.3 export (writer output round-trips)", () => {
     const codex = makeFixtureCodex();
     const json = serializeCodex(codex);
     const parsed = deserializeCodex(json);
-    expect(parsed.version).toBe("1.2");
+    expect(parsed.version).toBe("1.3");
     expect(parsed.kadenaWallets).toEqual(codex.kadenaWallets);
     expect(parsed.ouronetWallets).toEqual(codex.ouronetWallets);
   });
