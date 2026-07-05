@@ -133,7 +133,7 @@ describe("deserializeCodex", () => {
     expect(() => deserializeCodex(badJson)).toThrow(/unsupported version/i);
   });
 
-  it("throws on version mismatch (future v1.3 or v2.0)", () => {
+  it("throws on version mismatch (future v2.0)", () => {
     const badJson = JSON.stringify({ version: "2.0", exportedAt: "x", kadenaWallets: [], ouronetWallets: [], addressBook: [], uiSettings: {} });
     expect(() => deserializeCodex(badJson)).toThrow(/unsupported version/i);
   });

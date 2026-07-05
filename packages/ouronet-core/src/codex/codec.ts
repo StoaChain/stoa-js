@@ -91,13 +91,18 @@ export function deserializeCodex<
   if (!parsed || typeof parsed !== "object") {
     throw new Error("deserializeCodex: not an object");
   }
-  if (parsed.version !== "1.2") {
+  // Strict-equality membership only. No trim/normalize/prefix matching: a
+  // version string that merely LOOKS like an accepted one (" 1.3 ", "1.3.0",
+  // "1.3\n") must fail closed, so the reader never silently mis-decodes a
+  // format it doesn't actually understand.
+  const ACCEPTED_VERSIONS = new Set(["1.2", "1.3"]);
+  if (!ACCEPTED_VERSIONS.has(parsed.version)) {
     throw new Error(
-      `deserializeCodex: unsupported version ${String(parsed.version)} — expected "1.2"`,
+      `deserializeCodex: unsupported version ${String(parsed.version)} — expected "1.2" or "1.3"`,
     );
   }
   const KNOWN_TOP_LEVEL_FIELDS = new Set([
-    "version", "exportedAt", "kadenaWallets", "ouronetWallets", "addressBook", "uiSettings",
+    "version", "exportedAt", "kadenaWallets", "ouronetWallets", "addressBook", "uiSettings", "foreignKeys",
   ]);
   const unknownFields = Object.keys(parsed).filter(k => !KNOWN_TOP_LEVEL_FIELDS.has(k));
   if (unknownFields.length > 0) {
