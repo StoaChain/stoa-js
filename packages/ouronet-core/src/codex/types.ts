@@ -71,3 +71,52 @@ export interface CodexExportV1_2<
   readonly addressBook: AddressBookEntry[];
   readonly uiSettings: UiSettings;
 }
+
+/**
+ * A single foreign (cross-chain) key entry inside a `foreignKeys` block. The
+ * `encryptedKeyfile` is already-encrypted at rest — this envelope only carries
+ * the ciphertext, never a plaintext key.
+ *
+ * This mirrors the codex-core (`@ancientpantheon`) V1_3 foreign-key shape by
+ * VALUE, not by import: the two orgs share no dependency edge, so the shape is
+ * an intentionally-duplicated peer kept structurally identical by hand.
+ */
+export interface CodexForeignKeyV1_3 {
+  readonly id: string;
+  readonly label?: string;
+  readonly chainId: string;
+  readonly encryptedKeyfile: string;
+}
+
+/** The optional `foreignKeys` block on a 1.3 envelope. */
+export interface CodexForeignKeysBlockV1_3 {
+  readonly schemaVersion: 1;
+  readonly keys: readonly CodexForeignKeyV1_3[];
+}
+
+/**
+ * The exported-backup JSON shape at `version: "1.3"`. Structurally identical to
+ * `CodexExportV1_2` except for the version literal and an OPTIONAL `foreignKeys`
+ * block. The bump was made under reader-before-writer discipline: the reader
+ * (`deserializeCodex`) was widened to accept "1.3" and to allow-list the
+ * `foreignKeys` field BEFORE the writer began stamping "1.3".
+ *
+ * ouronet's `PlaintextCodex` has no foreign-key source field, so the live
+ * writer emits `foreignKeys`-ABSENT (a bare 1.3 envelope). The block is typed
+ * as optional so the writer can emit it if a source is ever wired up, without a
+ * mandatory empty-block lie on every export.
+ */
+export interface CodexExportV1_3<
+  KadenaSeed       = unknown,
+  OuroAccount      = unknown,
+  AddressBookEntry = unknown,
+  UiSettings       = unknown,
+> {
+  readonly version: "1.3";
+  readonly exportedAt: string;
+  readonly kadenaWallets: KadenaSeed[];
+  readonly ouronetWallets: OuroAccount[];
+  readonly addressBook: AddressBookEntry[];
+  readonly uiSettings: UiSettings;
+  readonly foreignKeys?: CodexForeignKeysBlockV1_3;
+}

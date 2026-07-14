@@ -7,9 +7,10 @@
  *
  *   - `PlaintextCodex<...>` — generic in-memory shape. Consumer plugs
  *     its own wallet/account/keypair types via the type params.
- *   - `CodexExportV1_2` + `serializeCodex` / `deserializeCodex` /
- *     `buildCodexExport` — the backup-JSON codec. Format version is
- *     literally the string `"1.2"`; don't bump (see codec.ts JSDoc).
+ *   - `CodexExportV1_2` / `CodexExportV1_3` + `serializeCodex` /
+ *     `deserializeCodex` / `buildCodexExport` — the backup-JSON codec.
+ *     The writer now stamps `"1.3"`; the reader accepts both `"1.2"` and
+ *     `"1.3"` (reader-before-writer discipline — see codec.ts JSDoc).
  *   - `SeedType` + `migrateSeedType` — the legacy↔canonical name
  *     mapping, idempotent. Was inlined in OuronetUI's WalletStorage
  *     before; lives here now so HUB doesn't have to rediscover it.
@@ -20,7 +21,13 @@
  * `@stoachain/ouronet-core/crypto`.
  */
 
-export type { PlaintextCodex, CodexExportV1_2 } from "./types.js";
+export type {
+  PlaintextCodex,
+  CodexExportV1_2,
+  CodexExportV1_3,
+  CodexForeignKeyV1_3,
+  CodexForeignKeysBlockV1_3,
+} from "./types.js";
 export {
   buildCodexExport,
   serializeCodex,
