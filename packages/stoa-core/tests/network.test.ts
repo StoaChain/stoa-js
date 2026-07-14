@@ -45,11 +45,16 @@ describe("setNodeConfig / getNodeConfig", () => {
     expect(cfg.fallback).toBe(NODE2);
   });
 
-  it("custom URL: primary=custom, fallback=node2", () => {
+  it("custom URL: primary=custom, fallback=custom (its OWN fallback — never node2)", () => {
+    // PRIVACY (StoaWallet RR#5): a custom node is frequently chosen for privacy /
+    // censorship resistance / self-hosting. Failing over to node2.stoachain.com on a
+    // transient error would leak the exact queries (addresses, balances, broadcasts)
+    // to the default node the user deliberately avoided. So a custom node is its own
+    // fallback. StoaWallet locks this same guarantee with "no-leak regression" tests.
     setNodeConfig("custom", "https://my-node.example.com");
     const cfg = getNodeConfig();
     expect(cfg.primary).toBe("https://my-node.example.com");
-    expect(cfg.fallback).toBe(NODE2);
+    expect(cfg.fallback).toBe("https://my-node.example.com");
   });
 
   it("custom without URL throws TypeError (post-v3.2.3 contract — closes F-SEC-002)", () => {

@@ -209,7 +209,16 @@ export function setNodeConfig(
     // origin-only — discards pathname/query/fragment so getActiveBaseUrl's
     // suffix concatenation doesn't produce a malformed URL.
     PRIMARY_HOST = parsed.origin;
-    FALLBACK_HOST = NODE2_HOST;
+    // PRIVACY (StoaWallet RR#5): a user-chosen custom node is its OWN fallback —
+    // NOT node2. A custom node is frequently chosen for privacy / censorship
+    // resistance / self-hosting; silently failing over to node2.stoachain.com on
+    // any transient error would leak the exact queries (k: addresses, balance
+    // lookups, broadcast txs) to the default node the user deliberately avoided.
+    // With FALLBACK_HOST === PRIMARY_HOST, switchToFallback() is an idempotent
+    // no-op (it early-returns when currentHost === FALLBACK_HOST) and withFailover
+    // retries the SAME custom host once — never node2. Reverting to a preset
+    // ("node1"/"node2") restores the normal cross-node failover pair.
+    FALLBACK_HOST = parsed.origin;
   } else {
     // node2 (default)
     PRIMARY_HOST = NODE2_HOST;
