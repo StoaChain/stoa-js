@@ -132,7 +132,7 @@ describe("createOuronetAccount — end-to-end account lifecycle", () => {
 // F-TEST-004 (zero coverage of the v3.1.0 schnorr re-exports) and
 // F-BUG-005 (typed dalos error classes never exercised through this
 // subpath). These tests pin the re-export plumbing so a future delete or
-// rename of any symbol in `@stoachain/dalos-crypto/gen1` fails locally
+// rename of any symbol in `@ouronet/dalos-crypto/gen1` fails locally
 // instead of silently breaking consumers at their first import.
 describe("dalos subpath — Schnorr signature surface (v3.1.0+)", () => {
   it("schnorrSign + schnorrVerify round-trip on a Genesis keypair", () => {

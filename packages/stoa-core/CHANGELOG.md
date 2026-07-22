@@ -4,6 +4,18 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.3.7 — 2026-07-22
+
+**PATCH — dependency rename, no functional change.** Atomic pair with `@stoachain/kadena-stoic-legacy@4.3.7`.
+
+The DALOS cryptography dependency moved scope: `@stoachain/dalos-crypto@4.0.3` → **`@ouronet/dalos-crypto@4.0.4`**. Same code — 4.0.4 is 4.0.3 republished under the owning organisation's scope, with the Genesis 105-vector corpus byte-identical. The `./dalos` subpath re-exports exactly what it did before, so no import in this package's public surface changes shape.
+
+This release exists so consumers stop pulling the deprecated `@stoachain/dalos-crypto` transitively. A published tarball's dependencies cannot be edited, so 4.3.6 would have kept resolving the old name forever — anyone on `@stoachain/stoa-core` should move to 4.3.7 before the old DALOS package is deprecated.
+
+Part of the Phase-4 reorganisation, which also moved the Ouronet-level packages out to [`OuroborosNetwork/ouronet-libs`](https://github.com/OuroborosNetwork/ouronet-libs) as `@ouronet/ouronet-core` and `@ouronet/ouronet-codex`. This package and `@stoachain/kadena-stoic-legacy` remain the chain-level half and keep releasing from `StoaChain/stoa-js`.
+
+**737 specs pass** (plus 18 skipped that are covered in ouronet-libs).
+
 ## 4.3.6 — 2026-06-11
 
 **Fix — auto gas limit floor (`gas/gasUtils.ts`).** `calculateAutoGasLimit` now floors its result at the new exported `MIN_AUTO_GAS_LIMIT` (1,000) and uses graduated low-end multipliers (`<100 ×10`, `<200 ×5`, `<400 ×2.5`, `<500 ×2`, `<1000 ×1.5`); mid/high buckets unchanged.

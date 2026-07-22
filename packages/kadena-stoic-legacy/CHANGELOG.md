@@ -4,6 +4,14 @@ All notable changes to `@stoachain/kadena-stoic-legacy`.
 
 This package was born at v4.1.0 as a sovereign supply-chain replacement for the upstream `@kadena/*` npm packages following Kadena LLC's dissolution. Released atomically alongside `@stoachain/stoa-core@4.1.0` + `@stoachain/ouronet-core@4.1.0` out of the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo — a single `vX.Y.Z` git tag publishes all three packages.
 
+## 4.3.7 — 2026-07-22
+
+**PATCH (atomic-pair alignment with `@stoachain/stoa-core@4.3.7`).** Released 2026-07-22. NO code changes in this package; the version is bumped solely to hold the atomic-pair invariant. The 4.3.7 change — repointing the DALOS dependency from `@stoachain/dalos-crypto@4.0.3` to `@ouronet/dalos-crypto@4.0.4` — lives entirely in `@stoachain/stoa-core`. Vendor source remains byte-identical to upstream `@kadena/{client,cryptography-utils,types,hd-wallet}` at 1.18.3 / 0.4.4 / 0.7.0 / 0.6.2. Functionally identical to 4.3.6; consumers may pin to either interchangeably.
+
+Note the invariant is now a PAIR, not a triplet: `ouronet-core` left for [`OuroborosNetwork/ouronet-libs`](https://github.com/OuroborosNetwork/ouronet-libs) in the Phase-4 reorganisation and carries an independent version line as `@ouronet/ouronet-core`.
+
+**55 specs pass** (unchanged from 4.3.6).
+
 ## 4.3.6 — 2026-06-11
 
 Atomic-triplet lockstep bump — `4.3.5 → 4.3.6` alongside `@stoachain/stoa-core` (which carries an auto-gas-limit floor fix in `calculateAutoGasLimit`) and `@stoachain/ouronet-core`, per the cross-package version-pin invariant. This package is functionally identical to its 4.3.5 release.

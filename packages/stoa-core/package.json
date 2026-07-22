@@ -1,6 +1,6 @@
 {
   "name": "@stoachain/stoa-core",
-  "version": "4.3.6",
+  "version": "4.3.7",
   "description": "Chain-generic StoaChain TypeScript foundation: signing, wallet, crypto codex encryption, network failover, gas calibration, guard analysis, DALOS integration. Consumed by @ouronet/ouronet-core and any other StoaChain consumer (CLI tools, validators, third-party integrations).",
   "type": "module",
   "main": "./dist/index.js",
@@ -76,10 +76,10 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@stoachain/dalos-crypto": "4.0.3"
+    "@ouronet/dalos-crypto": "4.0.4"
   },
   "peerDependencies": {
-    "@stoachain/kadena-stoic-legacy": "4.3.6",
+    "@stoachain/kadena-stoic-legacy": "4.3.7",
     "@noble/curves": "1.9.7",
     "@scure/bip39": "1.2.1"
   },
