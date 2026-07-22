@@ -11,7 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Treat this as a library repo, not an app: no UI, no server, no runtime entry point. Every change ripples to consumers via npm publish.
 
-**The Ouronet-level half moved out** in the Phase-4 reorg. `@stoachain/ouronet-core` → `@ouronet/ouronet-core` and `@stoachain/ouronet-codex` → `@ouronet/ouronet-codex` now live in [`OuroborosNetwork/ouronet-libs`](https://github.com/OuroborosNetwork/ouronet-libs), which consumes this repo's packages from npm. The dependency direction is one-way: **ouronet-libs → stoa-js**, never the reverse. Never add an `@ouronet/*` dependency here.
+**The Ouronet-level half moved out** in the Phase-4 reorg. `@stoachain/ouronet-core` → `@ouronet/ouronet-core` and `@stoachain/ouronet-codex` → `@ouronet/ouronet-codex` now live in [`OuroborosNetwork/ouronet-libs`](https://github.com/OuroborosNetwork/ouronet-libs), which consumes this repo's packages from npm. The dependency direction is one-way: **ouronet-libs → stoa-js**, never the reverse — never add a dependency on `@ouronet/ouronet-core` or `@ouronet/ouronet-codex` here.
+
+That rule is about those two packages, not the `@ouronet` scope as a whole. `stoa-core` depends on **`@ouronet/dalos-crypto`**, a foundational cryptography library that sits *below* it; the scope a package is published under says who owns it, not which layer it occupies. `tests/v4-1-1-cross-package-version-pin.test.ts` locks the distinction.
 
 ## Common commands
 
