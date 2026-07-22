@@ -30,8 +30,17 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      - name: Run tests
-        run: npm test
-
+      # ORDER: typecheck → build → test. Build MUST precede test, matching
+      # publish.yml. kadena-stoic-legacy's tests and stoa-core's tests resolve
+      # `@stoachain/kadena-stoic-legacy/*` through Node's standard module
+      # resolution (no vitest resolve.alias for it — the vendored CJS source
+      # layout is incompatible with vitest's transform layer; see
+      # packages/stoa-core/vitest.config.ts). Resolution flows through that
+      # package's `exports` map into `dist/`, so on a fresh CI checkout, where
+      # `dist/` does not exist, running tests first fails with
+      # ERR_MODULE_NOT_FOUND / ENOENT rather than a real assertion failure.
       - name: Build
         run: npm run build
+
+      - name: Run tests
+        run: npm test
