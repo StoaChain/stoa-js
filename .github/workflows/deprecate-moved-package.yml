@@ -1,0 +1,125 @@
+name: Deprecate a moved package
+
+# Manual, one package per run. Marks a package that moved out of the
+# @stoachain scope in the Phase-4 reorganisation as deprecated on npm, with a
+# message pointing at its new name.
+#
+# What deprecation does and does NOT do:
+#   - DOES: print a warning on `npm install` and show a banner on npmjs.com.
+#   - Does NOT remove anything. Every published version stays installable
+#     forever. Existing lockfiles keep resolving exactly as before.
+#
+# It applies to ALL versions of the package (no version range is passed), which
+# is what we want: the name is frozen, not just one release of it.
+#
+# Deprecation is reversible — `npm deprecate <pkg> ""` clears the message — but
+# it is outward-facing and visible to every consumer, so this workflow defaults
+# to a dry run and requires typing the package name to confirm a real one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Which moved package to deprecate"
+        required: true
+        type: choice
+        options:
+          - "@stoachain/ouronet-core"
+          - "@stoachain/ouronet-codex"
+          - "@stoachain/dalos-crypto"
+      confirm:
+        description: "Type the package name exactly to run for real. Leave blank for a dry run."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deprecate:
+    name: Deprecate ${{ inputs.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Resolve the replacement name and message
+        id: plan
+        run: |
+          case "${{ inputs.package }}" in
+            "@stoachain/ouronet-core")  NEW="@ouronet/ouronet-core" ;;
+            "@stoachain/ouronet-codex") NEW="@ouronet/ouronet-codex" ;;
+            "@stoachain/dalos-crypto")  NEW="@ouronet/dalos-crypto" ;;
+            *) echo "::error::Unknown package ${{ inputs.package }}"; exit 1 ;;
+          esac
+          MSG="Renamed to ${NEW}. This name is frozen and receives no further releases — the same code continues there under the @ouronet scope. Please install ${NEW} instead."
+          echo "new=$NEW"   >> "$GITHUB_OUTPUT"
+          echo "msg=$MSG"   >> "$GITHUB_OUTPUT"
+          echo "── Plan ──"
+          echo "  deprecate: ${{ inputs.package }} (all versions)"
+          echo "  message:   $MSG"
+
+      # Guard against a mis-click on a choice list: a real run requires the
+      # package name typed back exactly.
+      - name: Decide dry run vs real
+        id: gate
+        run: |
+          if [ "${{ inputs.confirm }}" = "${{ inputs.package }}" ]; then
+            echo "real=true" >> "$GITHUB_OUTPUT"
+            echo "Confirmation matched — this run WILL deprecate on npm."
+          else
+            echo "real=false" >> "$GITHUB_OUTPUT"
+            if [ -n "${{ inputs.confirm }}" ]; then
+              echo "::warning::confirm ('${{ inputs.confirm }}') does not match package ('${{ inputs.package }}') — running as a DRY RUN."
+            else
+              echo "No confirmation given — DRY RUN. Nothing will be sent to npm."
+            fi
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Write .npmrc with auth token
+        run: |
+          cat > .npmrc <<EOF
+          //registry.npmjs.org/:_authToken=${{ secrets.NPM_PUBLISHER }}
+          @stoachain:registry=https://registry.npmjs.org
+          EOF
+          echo "--- .npmrc structure (token redacted) ---"
+          sed 's|=.*|=***|' .npmrc
+
+      - name: Show current state
+        run: |
+          echo "latest: $(npm view ${{ inputs.package }} dist-tags.latest 2>&1 || echo '?')"
+          echo "replacement exists: $(npm view ${{ steps.plan.outputs.new }} version 2>&1 || echo 'NOT PUBLISHED')"
+
+      # Refuse to deprecate a package whose replacement is not actually on npm.
+      # Pointing consumers at a name that does not resolve is worse than saying
+      # nothing at all.
+      - name: Verify the replacement is published before pointing at it
+        run: |
+          if ! npm view ${{ steps.plan.outputs.new }} version >/dev/null 2>&1; then
+            echo "::error::${{ steps.plan.outputs.new }} is not on npm. Publish it before deprecating ${{ inputs.package }}."
+            exit 1
+          fi
+          echo "✓ ${{ steps.plan.outputs.new }} resolves"
+
+      - name: Deprecate
+        if: steps.gate.outputs.real == 'true'
+        run: |
+          npm deprecate "${{ inputs.package }}" "${{ steps.plan.outputs.msg }}"
+          echo "Deprecated ${{ inputs.package }}."
+
+      - name: Confirm
+        if: steps.gate.outputs.real == 'true'
+        run: |
+          sleep 15
+          echo "deprecated field on latest:"
+          npm view ${{ inputs.package }} deprecated 2>&1 || echo "(registry may need a minute to reflect it)"
+
+      - name: Dry-run summary
+        if: steps.gate.outputs.real != 'true'
+        run: |
+          echo "DRY RUN — nothing was sent to npm."
+          echo "To run for real, dispatch again with confirm = ${{ inputs.package }}"
