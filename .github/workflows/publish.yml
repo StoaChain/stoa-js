@@ -250,12 +250,16 @@ jobs:
       # `packages/{pkg}/CHANGELOG.md` and on npmjs.com.
       - name: Create GitHub Release for the pushed tag
         env:
-          # Prefer a user-supplied PAT (RELEASE_TOKEN) when present —
-          # bypasses any org-level "Workflow permissions" lockdown that
-          # caps the auto-provided GITHUB_TOKEN at read-only. Falls back
-          # to GITHUB_TOKEN when the org policy allows write or when
-          # the secret is unset.
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          # Uses the auto-provided GITHUB_TOKEN, which the job-level
+          # `permissions: contents: write` above is sufficient for.
+          #
+          # This deliberately does NOT fall back through a RELEASE_TOKEN PAT.
+          # That pattern reads as a safety net but inverts on expiry: a stale
+          # PAT still "exists", so `secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN`
+          # keeps selecting the dead credential over the live one. That is what
+          # failed the v4.3.7 release with "401 Bad credentials" AFTER both
+          # packages had already published — a red run on a good release.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           # Skip if Release already exists (idempotent — supports manual re-runs).
@@ -280,7 +284,7 @@ jobs:
       # already; this list is finalised history.
       - name: Backfill GitHub Releases for prior tags (idempotent)
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for PRIOR_TAG in v1.7.0 v2.0.0 v2.0.1 v2.0.2 v2.0.3; do
             if gh release view "$PRIOR_TAG" >/dev/null 2>&1; then
