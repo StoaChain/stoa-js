@@ -1,5 +1,5 @@
 /**
- * @stoachain/ouronet-core/crypto — codex encryption.
+ * @stoachain/stoa-core/crypto — codex encryption.
  *
  * Two formats ship side-by-side. V1 (legacy) stays around to decrypt codex
  * blobs written before the V2 upgrade; V2 is what every new write produces.

@@ -32,7 +32,7 @@ import { publicKeyFromPrivateKey } from "./primitives.js";
  *   - encryptedSecretKey + password + seedType "chainweaver"/"eckowallet" → WASM
  *
  * `password` and `encryptedSecretKey` are ONLY used for the chainweaver/eckowallet
- * path; they must survive the `@stoachain/ouronet-core` boundary for that path
+ * path; they must survive the `@stoachain/stoa-core` boundary for that path
  * to work.
  */
 export interface UniversalKeypair {

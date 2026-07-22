@@ -4,73 +4,70 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository purpose
 
-`@stoachain/ouronet-core` is a published TypeScript library on the public npm registry (scope `@stoachain`). It is the **shared core** for the OuroNet ecosystem — Pact builders, Codex signing, guard analysis, encryption, gas calibration, DALOS key-gen — consumed by two downstream apps:
+`stoa-js` is the **chain-level** half of the StoaChain TypeScript stack — a two-package npm workspace publishing to the public `@stoachain` scope:
 
-- **OuronetUI** — browser SPA
-- **AncientHolder HUB** — Node.js server
+- **`@stoachain/kadena-stoic-legacy`** — sovereign vendoring of `@kadena/{client,cryptography-utils,types,hd-wallet}`, byte-identical to upstream. BSD-3-Clause. Zero `@stoachain/*` peer-deps.
+- **`@stoachain/stoa-core`** — chain-generic foundation: signing, wallet, crypto envelope, network failover, gas calibration, guard analysis, DALOS key-gen, observability seam, error taxonomy, on-chain reads, Pact-code format helpers. Peer-deps on `kadena-stoic-legacy`.
 
-This repo holds *only* the shared logic. Treat it as a library, not an app: there is no UI, no server, no runtime entry point. Every change ripples to consumers via npm publish (see "Publishing").
+Treat this as a library repo, not an app: no UI, no server, no runtime entry point. Every change ripples to consumers via npm publish.
+
+**The Ouronet-level half moved out** in the Phase-4 reorg. `@stoachain/ouronet-core` → `@ouronet/ouronet-core` and `@stoachain/ouronet-codex` → `@ouronet/ouronet-codex` now live in [`OuroborosNetwork/ouronet-libs`](https://github.com/OuroborosNetwork/ouronet-libs), which consumes this repo's packages from npm. The dependency direction is one-way: **ouronet-libs → stoa-js**, never the reverse. Never add an `@ouronet/*` dependency here.
 
 ## Common commands
 
 ```bash
 npm install
-npm run build      # tsc -p tsconfig.build.json → dist/   (only thing publish ships)
-npm run typecheck  # tsc --noEmit                         (uses tsconfig.json)
-npm test           # vitest run --passWithNoTests         (~310 tests)
-npm run test:watch # vitest in watch mode
-npm run clean      # rimraf dist
+npm run typecheck  # tsc --noEmit across both packages
+npm run build      # kadena-stoic-legacy → stoa-core (order is significant)
+npm test           # vitest across both packages
+npm run clean      # rimraf dist/
 ```
 
-Run a single test file: `npx vitest run tests/cfm-builders.test.ts`
-Run a single test by name: `npx vitest run -t "name fragment"`
+Per-package: `npm run <script> --workspace=@stoachain/stoa-core`.
+Single test: `npx vitest run tests/strategy.test.ts --root packages/stoa-core`, or `-t "name fragment"`.
 
-CI (`.github/workflows/ci.yml`) runs typecheck → test → build on every PR/push. Publish (`.github/workflows/publish.yml`) runs the same plus `npm publish` on any `v*` tag.
+CI (`.github/workflows/ci.yml`) runs typecheck → build → test on every PR/push. Publish (`.github/workflows/publish.yml`) runs the same plus per-package version-parity gates and `npm publish` on any `v*` tag.
 
 ## Module layout — subpath exports
 
-Every directory under `src/` corresponds to a subpath export declared in `package.json` (`./guard`, `./signing`, etc.). Consumers are explicitly steered toward subpath imports for tree-shaking — `src/index.ts` is intentionally near-empty (`export {}`):
+Every directory under `packages/stoa-core/src/` corresponds to a subpath export declared in its `package.json`. Consumers are explicitly steered toward subpath imports for tree-shaking — the root barrel is intentionally near-empty:
 
 ```ts
-import { analyzeGuard } from "@stoachain/ouronet-core/guard";        // good
-import { analyzeGuard } from "@stoachain/ouronet-core";              // not supported
+import { CodexSigningStrategy } from "@stoachain/stoa-core/signing";   // good
+import { CodexSigningStrategy } from "@stoachain/stoa-core";           // not supported
 ```
-
-`./interactions` is special: the directory contains 13 files with overlapping symbol names, so the barrel re-exports only `ouroFunctions` (the canonical type source). Consumers reach the others via `./interactions/*` glob exports — e.g. `@stoachain/ouronet-core/interactions/wrapFunctions`.
 
 ## Architectural patterns to preserve
 
 **Pluggable seams, not DI.** Three narrow injection points let core stay environment-agnostic without a framework:
 
-1. `setPactReader(fn)` in `src/reads/pactReader.ts` — consumers call once at boot. Browser plugs in its cache-aware reader; server leaves the default uncached `rawCalibratedDirtyRead`. Interaction code calls `pactRead(...)`, never the raw reader directly.
-2. `KeyResolver` + `PactClient` interfaces in `src/signing/types.ts` — consumed by `CodexSigningStrategy`. OuronetUI implements `ReduxCodexResolver`, HUB will implement `FileCodexResolver`. Never import a concrete resolver into core.
-3. `BalanceResolver` type in `src/wallet/types.ts` — instance-level analogue of `setPactReader`'s function-shaped seam (function alias, NOT an interface), applied to `KadenaWallet.getBalance()`. Default throws clearly-worded error if not configured; `getBalance()` propagates resolver errors. Cuts the previous `wallet -> interactions` import edge so the wallet subpath no longer transitively pulls in `@kadena/client`.
+1. `setPactReader(fn)` in `src/reads/pactReader.ts` — consumers call once at boot. Browser plugs in its cache-aware reader; server leaves the default uncached `rawCalibratedDirtyRead`. Calling code uses `pactRead(...)`, never the raw reader.
+2. `KeyResolver` + `PactClient` interfaces in `src/signing/types.ts` — consumed by `CodexSigningStrategy`. OuronetUI implements `ReduxCodexResolver`, HUB a `FileCodexResolver`. Never import a concrete resolver into core.
+3. `BalanceResolver` in `src/wallet/types.ts` — instance-level analogue of `setPactReader`'s seam (a function alias, NOT an interface), applied to `KadenaWallet.getBalance()`. Default throws a clearly-worded error if unconfigured. This cuts the `wallet → interactions` import edge so the wallet subpath doesn't transitively pull in `@kadena/client`.
 
-**Node failover is global state.** `src/network/nodeFailover.ts` switches the active Stoa node on health-check failure. Anything making an HTTP call must route through this — historically `interactions/*` had `createClient(PACT_URL)` calls pinned to node2; the v1.6.1 fix (most recent commit) removed those and they should not come back.
+**Node failover is global state.** `src/network/nodeFailover.ts` switches the active Stoa node on health-check failure. Anything making an HTTP call must route through it — never `createClient(PACT_URL)` pinned to a single node.
 
-**Backwards-compat type duplication is intentional in places.** `IKadenaKeypair` is canonically defined in `src/signing/types.ts` but a structurally identical type still exists in `interactions/ouroFunctions` for Phase 2b imports. Don't "consolidate" without checking the comment trail.
+**`createDefaultRegistry()` registers DALOS Genesis only.** `Leto`/`Artemis`/`Apollo` and `createGen1Primitive` are re-exported from `./dalos` but deliberately NOT in the default registry; consumers opt in via `registry.register(...)`.
 
-**The codex backup format is frozen at `"1.2"`.** `src/codex/codec.ts` — do not bump the version string. Read its JSDoc before touching the codec.
-
-**`createDefaultRegistry()` registers DALOS Genesis only.** `Leto`/`Artemis`/`Apollo` and `createGen1Primitive` are re-exported from the `./dalos` subpath but deliberately NOT in the default registry. Ouronet itself is Genesis-only by design; consumers who want historical curves opt in via `registry.register(...)`.
-
-**Smart Ouronet Account auth (Σ. prefix) uses three branches.** `src/guard/smartAccountAuth.ts` resolves the `enforce-one` over (account guard / sovereign guard / governor). The signing strategy itself still takes a single AND-of-keysets array — UI/consumer is responsible for picking the chosen branch before calling `execute`. Standard accounts (Ѻ. prefix) still use a single keyset.
+**The vendored packages are frozen.** `kadena-stoic-legacy` mirrors upstream byte-identically. Do not "improve" vendored source — a divergence defeats the point of the vendoring.
 
 ## Test layout
 
-Tests live in `tests/` (top-level), not co-located. Vitest config (`vitest.config.ts`) picks up both `tests/**/*.test.ts` and `src/**/*.test.ts`. The `tsconfig.build.json` excludes test files from the published `dist/`. Test files cover the major surfaces: cfm-builders, smart-account-auth, codex-codec, crypto (encryption + upgrade), gas, guard, network, pact-format, signing, strategy, dalos-integration.
+Tests live in each package's `tests/` directory (not co-located). Vitest picks up both `tests/**/*.test.ts` and `src/**/*.test.ts`; `tsconfig.build.json` excludes test files from the published `dist/`.
+
+`packages/stoa-core/vitest.config.ts` deliberately has **no** `resolve.alias` for `kadena-stoic-legacy` — its vendored CJS source layout is incompatible with vitest's transform layer, so those imports resolve through the built `dist/` via the package's `exports` map. That is why **build must precede test** in CI: on a fresh checkout `dist/` doesn't exist and Node throws `ERR_MODULE_NOT_FOUND`.
 
 ## Publishing flow
 
-1. Bump `package.json` version + add `CHANGELOG.md` entry.
-2. Commit, then `git tag vX.Y.Z -m "..."` and `git push origin vX.Y.Z`.
-3. `publish.yml` runs typecheck + build + test + version-parity check (tag vs `package.json`) + `npm publish --access public`. Within ~2 minutes consumers can `npm install`.
+1. Bump the shipping package's `package.json` version + add its `CHANGELOG.md` entry + update its `README.md` Status block and version history.
+2. Commit, then `git tag vX.Y.Z -m "..."` (annotated — the message becomes the GitHub Release body) and push both.
+3. `publish.yml` typechecks, builds, tests, gates on version-parity, and publishes with `--provenance`. Publishing uses the `NPM_PUBLISHER` secret.
 
-The version-parity check is load-bearing — never push a tag whose number disagrees with `package.json`.
+The version-parity gates are load-bearing — never push a tag whose number disagrees with `package.json`.
 
 ## Versioning discipline
 
-Strict semver. Breaking changes → major bump → consumers upgrade deliberately. Never silently change the shape of a public type or barrel export — this library exists to keep OuronetUI and HUB from forking logic, and a stable surface is the whole point. The `CHANGELOG.md` is the source of truth for what changed across versions.
+Strict semver. The two packages here release at the same version; the peer-dep is pinned exactly (`"4.3.6"`, not `"^4.3.6"`), so range tolerance buys nothing and risks cross-version mismatch in consumer trees. Breaking changes → major bump → consumers upgrade deliberately. Never silently change the shape of a public type or barrel export — a stable surface is the whole point of this library. Each `CHANGELOG.md` is the source of truth for that package.
 
 # BeeDev
 Stack: typescript-library

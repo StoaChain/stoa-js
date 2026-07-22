@@ -1,4 +1,4 @@
-// @stoachain/ouronet-core/guard
+// @stoachain/stoa-core/guard
 
 // v2.3.0 — new public surface: `UnknownPredicateError` (typed Error
 // class) is re-exported from this barrel via the `export * from

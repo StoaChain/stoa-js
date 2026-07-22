@@ -38,7 +38,7 @@ export type SeedType = "koala" | "chainweaver" | "eckowallet";
  *
  * This is the consumer-side resolver that replaces the previous
  * `wallet → interactions` import edge: `KadenaWallet` no longer reaches into
- * `@stoachain/ouronet-core/interactions/*` to fetch balances; instead the
+ * `@ouronet/ouronet-core/interactions/*` to fetch balances; instead the
  * consumer wires whichever reader fits its environment (browser cache-aware
  * read, server raw read, in-memory mock for tests) by assigning a
  * `BalanceResolver`. Same narrow-seam approach used by `PactReader`

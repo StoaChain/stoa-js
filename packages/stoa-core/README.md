@@ -1,8 +1,10 @@
 # @stoachain/stoa-core
 
-Chain-generic StoaChain TypeScript foundation — signing, wallet, crypto envelope, network failover, gas calibration, guard analysis, DALOS key-gen, observability seam, error taxonomy, on-chain read primitives, Pact-code format helpers. The shared infrastructure consumed by **`@stoachain/ouronet-core`** (Ouronet protocol business logic) and any other StoaChain consumer (CLI tools, validators, third-party integrations).
+Chain-generic StoaChain TypeScript foundation — signing, wallet, crypto envelope, network failover, gas calibration, guard analysis, DALOS key-gen, observability seam, error taxonomy, on-chain read primitives, Pact-code format helpers. The shared infrastructure consumed by **[`@ouronet/ouronet-core`](https://www.npmjs.com/package/@ouronet/ouronet-core)** (Ouronet protocol business logic) and any other StoaChain consumer (CLI tools, validators, third-party integrations).
 
-This package was born from the v4.0.0 split of `@stoachain/ouronet-core` v3.3.8 — the chain-generic surfaces moved out into this package, leaving Ouronet-specific code (codex, interactions, the `ouronet-ns` namespace) in [`@stoachain/ouronet-core`](https://www.npmjs.com/package/@stoachain/ouronet-core). The two packages live in the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo and release atomically at the same version.
+This package was born from the v4.0.0 split of the then-`@stoachain/ouronet-core` v3.3.8 — the chain-generic surfaces moved out into this package, leaving Ouronet-specific code (codex, interactions, the `ouronet-ns` namespace) in the sibling package. That sibling has since been **renamed to [`@ouronet/ouronet-core`](https://www.npmjs.com/package/@ouronet/ouronet-core)** and moved to [`OuroborosNetwork/ouronet-libs`](https://github.com/OuroborosNetwork/ouronet-libs), where it consumes this package from npm. This package continues to release from [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) alongside `@stoachain/kadena-stoic-legacy`.
+
+> Version-history entries below name packages as they were called at the time of that release — `@stoachain/ouronet-core` and `@stoachain/ouronet-codex` are the former names of the `@ouronet/*` packages.
 
 ## Status
 

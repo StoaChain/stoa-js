@@ -1,5 +1,5 @@
 /**
- * @stoachain/ouronet-core/dalos — thin integration surface over
+ * @stoachain/stoa-core/dalos — thin integration surface over
  * `@stoachain/dalos-crypto`.
  *
  * This subpath exists so OuronetCore consumers have a single, stable
@@ -36,7 +36,7 @@
  * import {
  *   createDefaultRegistry,
  *   createOuronetAccount,
- * } from "@stoachain/ouronet-core/dalos";
+ * } from "@stoachain/stoa-core/dalos";
  *
  * const registry = createDefaultRegistry();
  * const account = createOuronetAccount(registry, {
@@ -50,13 +50,13 @@
  *   - The resulting `keyPair` (priv in base-49, publ in prefixed base-49)
  *     can be stored via the codex subsystem
  *   - The secret fields (priv, bitString, int10, int49) should be
- *     encrypted via `@stoachain/ouronet-core/crypto`'s `smartEncrypt`
+ *     encrypted via `@stoachain/stoa-core/crypto`'s `smartEncrypt`
  *     before codex storage
  *   - Signing is available via `primitive.sign(keyPair, message)`
  */
 
 // Re-export the full DALOS registry surface so consumers can use either
-// `@stoachain/dalos-crypto/registry` or `@stoachain/ouronet-core/dalos`
+// `@ouronet/dalos-crypto/registry` or `@stoachain/stoa-core/dalos`
 // interchangeably.
 export type {
   KeyPair,

@@ -1,7 +1,7 @@
 /**
  * Pluggable Pact reader — pactRead + setPactReader.
  *
- * Problem it solves: `@stoachain/ouronet-core/interactions/*` contains many
+ * Problem it solves: `@ouronet/ouronet-core/interactions/*` contains many
  * read functions (getPoolTotalFee, getSwpairs, getSWPairGeneralInfo, etc.)
  * that originally went through OuronetUI's cache-aware `calibratedDirtyRead`.
  * When those interactions moved to core in Phase 2b they switched to the

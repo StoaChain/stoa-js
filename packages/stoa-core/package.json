@@ -1,7 +1,7 @@
 {
   "name": "@stoachain/stoa-core",
   "version": "4.3.6",
-  "description": "Chain-generic StoaChain TypeScript foundation: signing, wallet, crypto codex encryption, network failover, gas calibration, guard analysis, DALOS integration. Consumed by @stoachain/ouronet-core and any other StoaChain consumer (CLI tools, validators, third-party integrations).",
+  "description": "Chain-generic StoaChain TypeScript foundation: signing, wallet, crypto codex encryption, network failover, gas calibration, guard analysis, DALOS integration. Consumed by @ouronet/ouronet-core and any other StoaChain consumer (CLI tools, validators, third-party integrations).",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

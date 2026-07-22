@@ -1,7 +1,7 @@
 /**
  * Pact-format helpers + code-template snapshot tests.
  *
- * Moved from OuronetUI to @stoachain/ouronet-core in Phase 2a along with
+ * Moved from OuronetUI to @ouronet/ouronet-core in Phase 2a along with
  * their subjects: formatDecimalForPact, mayComeWithDeimal, filterFreePositionData.
  *
  * Pact-code-template snapshots lock in the exact templates used by the
@@ -20,7 +20,7 @@ import {
 } from "../src/pact";
 
 // At v4.0.0 the Ouronet-specific KADENA_NAMESPACE constant moved to
-// `@stoachain/ouronet-core/constants` (chain-generic stoa-core no longer
+// `@ouronet/ouronet-core/constants` (chain-generic stoa-core no longer
 // owns Ouronet's protocol-namespace label). The snapshot tests below
 // still exercise the pact-format helpers' output against templates that
 // happen to use the Ouronet namespace, so we inline the literal here

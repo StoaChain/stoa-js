@@ -1,4 +1,4 @@
-// @stoachain/ouronet-core/observability
+// @stoachain/stoa-core/observability
 //
 // Central logger seam. One surface:
 //

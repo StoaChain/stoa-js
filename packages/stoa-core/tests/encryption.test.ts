@@ -3,7 +3,7 @@
  *
  * Originally lived in OuronetUI as `src/lib/__tests__/encryption.test.ts`.
  * Moved here in Phase 4 when the primitives moved to
- * `@stoachain/ouronet-core/crypto` — this is now where the tests belong.
+ * `@ouronet/ouronet-core/crypto` — this is now where the tests belong.
  *
  * V1 parameters:  PBKDF2-SHA256 / 10,000 iterations / AES-GCM-256
  * V2 parameters:  PBKDF2-SHA512 / 600,000 iterations / AES-GCM-256

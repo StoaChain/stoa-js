@@ -7,14 +7,14 @@
  * could be reused by a non-Ouronet StoaChain consumer (CLI tools,
  * validator helpers, third-party integrations) belongs here.
  *
- * **What does NOT live here** (lives in `@stoachain/ouronet-core/constants`):
+ * **What does NOT live here** (lives in `@ouronet/ouronet-core/constants`):
  *   - `KADENA_NAMESPACE = "ouronet-ns"` — the Ouronet Pact namespace string.
  *   - `STOA_AUTONOMIC_*` — Ouronet protocol accounts.
  *   - `MAIN_TOKENS`, `TOKEN_ID_*` — Ouronet's specific DPTF tokens.
  *
  * v4.0.0 removed the deprecated `GAS_STATION`/`NATIVE_TOKEN_VAULT`/
  * `KADENA_BASE_URL`/`PACT_URL` aliases that previously lived in
- * `@stoachain/ouronet-core/constants`. Consumers should now use the
+ * `@ouronet/ouronet-core/constants`. Consumers should now use the
  * canonical `STOA_AUTONOMIC_*` names + the failover-aware
  * `getPactUrl(chainId)` / `getSpvUrl(chainId)` accessors below.
  */

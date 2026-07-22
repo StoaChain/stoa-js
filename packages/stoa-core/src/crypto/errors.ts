@@ -1,5 +1,5 @@
 /**
- * @stoachain/ouronet-core/crypto — typed error taxonomy.
+ * @stoachain/stoa-core/crypto — typed error taxonomy.
  *
  * Three error classes raised by the crypto subpath so consumers can branch
  * on intent rather than parsing message strings:

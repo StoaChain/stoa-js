@@ -4,6 +4,8 @@ Vendored source of `@kadena/{client,cryptography-utils,types,hd-wallet}` under S
 
 Post-Kadena-LLC, the StoaChain ecosystem can no longer accept supply-chain risk on unmaintained upstream npm packages. `@stoachain/kadena-stoic-legacy` is the response: a single, frozen-in-time, byte-attested vendoring of the four `@kadena/*` packages that the StoaChain stack actually consumes — published under StoaChain's npmjs scope and covered by a single canonical BSD-3-Clause license file (`LICENSE-attribution.md`) that preserves Kadena LLC's original copyright verbatim and documents every source-level modification from upstream.
 
+> Version-history entries below name packages as they were called at the time of that release — `@stoachain/ouronet-core` and `@stoachain/ouronet-codex` are the former names of the `@ouronet/*` packages, which moved to [`OuroborosNetwork/ouronet-libs`](https://github.com/OuroborosNetwork/ouronet-libs) in the Phase-4 reorganisation.
+
 ## Status
 
 **`4.3.6` on public npmjs** — **PATCH (atomic-triplet alignment with `@stoachain/stoa-core@4.3.6` + `@stoachain/ouronet-core@4.3.6`).** Released 2026-06-11. NO code changes in this package; version bumped solely to maintain the atomic-triplet invariant. The v4.3.6 change (a `@stoachain/stoa-core` auto-gas-limit floor fix) lives entirely in `@stoachain/stoa-core`. This package's CommonJS build is unaffected. Functionally identical to 4.3.5; consumers may pin to either interchangeably.

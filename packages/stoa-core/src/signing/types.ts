@@ -1,6 +1,6 @@
 /**
  * Signing interfaces — the contract consumers implement to plug their own
- * key-storage backend into `@stoachain/ouronet-core`'s signing core.
+ * key-storage backend into `@stoachain/stoa-core`'s signing core.
  *
  * Phase 3a introduces these types. Phase 3b wires the first consumer
  * (`CodexSigningStrategy`) + collapses the 23 CFM-modal `handleExecute`

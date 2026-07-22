@@ -1,4 +1,4 @@
-// @stoachain/ouronet-core/errors
+// @stoachain/stoa-core/errors
 //
 // Structured error types for signing + simulation failures, with pattern-
 // matching helpers that wrap raw errors/responses into SigningError instances

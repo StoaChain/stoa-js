@@ -24,7 +24,7 @@
  * (chainweaver/eckowallet) sigs since both are standard Ed25519 over
  * the same canonical cmd-hash bytes.
  *
- * Public surface (re-exported from `@stoachain/ouronet-core/signing`):
+ * Public surface (re-exported from `@stoachain/stoa-core/signing`):
  *
  *   - `signPartial(tx, keypairs)` — sign with whatever keys you hold;
  *     other signer slots stay intact. Drops `onMissingKey` on purpose:

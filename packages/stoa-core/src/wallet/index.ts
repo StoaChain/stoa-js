@@ -1,4 +1,4 @@
-// @stoachain/ouronet-core/wallet
+// @stoachain/stoa-core/wallet
 //
 // HD keypair derivation (KadenaWalletBuilder) + runtime account class
 // (KadenaWallet) + the CodexStorageAdapter interface each consumer

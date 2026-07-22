@@ -136,7 +136,7 @@ describe("UnknownPredicateError", () => {
     expect((caught as Error).message).toContain("some-unknown-predicate");
   });
 
-  it("is re-exported from the @stoachain/ouronet-core/guard barrel", () => {
+  it("is re-exported from the @ouronet/ouronet-core/guard barrel", () => {
     expect(typeof UnknownPredicateError).toBe("function");
     const e = new UnknownPredicateError("test");
     expect(e.name).toBe("UnknownPredicateError");

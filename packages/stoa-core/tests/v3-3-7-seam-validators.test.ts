@@ -20,9 +20,9 @@
  * v3.3.7 ships:
  *
  *   - `InvalidPactReaderError extends TypeError` from
- *     `@stoachain/ouronet-core/reads`.
+ *     `@ouronet/ouronet-core/reads`.
  *   - `InvalidLoggerError extends TypeError` from
- *     `@stoachain/ouronet-core/observability`.
+ *     `@ouronet/ouronet-core/observability`.
  *   - `setPactReader` rejects non-function inputs.
  *   - `setLogger` rejects non-object inputs AND objects whose `warn`
  *     or `error` are non-callable.

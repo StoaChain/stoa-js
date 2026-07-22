@@ -37,7 +37,7 @@ export interface IKeyset {
  * {@link GuardAnalysis}, falling back to keys-all semantics so callers
  * who do not branch on the bit continue to get conservative behavior.
  *
- * Re-exported from `@stoachain/ouronet-core/guard` as part of the v2.3.0
+ * Re-exported from `@stoachain/stoa-core/guard` as part of the v2.3.0
  * additive public surface — supersedes the previous silent
  * console-only warning diagnostic.
  *

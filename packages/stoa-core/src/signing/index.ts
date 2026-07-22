@@ -1,4 +1,4 @@
-// @stoachain/ouronet-core/signing
+// @stoachain/stoa-core/signing
 //
 // Pure public-key derivation (primitives) + the universal-signing core
 // (routes koala/foreign → nacl, chainweaver/eckowallet → WASM) + the

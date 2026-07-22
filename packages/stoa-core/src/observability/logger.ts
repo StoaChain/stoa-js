@@ -1,7 +1,7 @@
 /**
  * Pluggable logger seam — getLogger + setLogger.
  *
- * Problem it solves: `@stoachain/ouronet-core` historically called
+ * Problem it solves: `@stoachain/ouronet-core` (this stack, pre-split) historically called
  * `console.warn` / `console.error` directly across `src/network`,
  * `src/errors`, and `src/interactions/*`. Consumers (OuronetUI in the
  * browser, AncientHolder HUB on the server) have no way to redirect that
