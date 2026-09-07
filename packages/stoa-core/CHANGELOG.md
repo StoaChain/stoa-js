@@ -4,6 +4,26 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.4.0 — 2026-09-07
+
+**MINOR — Yin Engine live gas-price floor, additive.** Atomic pair with `@stoachain/kadena-stoic-legacy@4.4.0`.
+
+StoaChain's minimum gas price moved from a fixed constant to a live-rising "Yin Engine" floor: starts at `GENESIS_MIN_GAS_ANU` (10,000 ANU) at genesis `2026-02-23T18:00:00Z` (unix `1771869600`), rises by 1 ANU every 3 hours (`GAS_PRICE_INTERVAL_S` = 10,800s), capped at `MAX_GAS_ANU` (400,000 ANU). Post-fork, chainweb-node rejects any signed transaction priced below the floor as of its own `creationTime`.
+
+This formula had already been independently re-implemented four times across the ecosystem (OuronetUI, `@ouronet/ouronet-core`, `@ancientpantheon/khronoton-core`, and the AncientHoldings hub) before landing here as the single canonical source. `@stoachain/stoa-core` is a direct or transitive dependency of essentially every StoaChain consumer, so this is the one place everyone should get it from going forward.
+
+New exports on `@stoachain/stoa-core/gas` (`src/gas/yinEngine.ts`, re-exported via `gas/index.ts`):
+- `GENESIS_TIME_S`, `GENESIS_MIN_GAS_ANU`, `MAX_GAS_ANU`, `GAS_PRICE_INTERVAL_S` — the formula's constants.
+- `minGasPriceAnu(creationTimeS)` — the floor (ANU) for a given `creationTime`. Clamps pre-genesis to `GENESIS_MIN_GAS_ANU`, is monotonically non-decreasing, and never exceeds `MAX_GAS_ANU`.
+- `anuToStoaNumber(anu)` — precision-safe ANU→STOA `number` conversion for values going into a transaction's meta (chainweb hashes and validates it exactly). Builds the exact decimal string via `padStart` rather than doing plain float division (`anu / ANU_PER_STOA`, which the existing `anuToStoa` still does and remains correct for display purposes). Round-trips exactly across the full 10,000–400,000 ANU range.
+- `stoaGasMeta(nowS?)` — the anti-race primitive: one clock read produces both `creationTime` and the `gasPrice` derived from that exact `creationTime`, so a tick-boundary crossing between two separate reads can't silently underprice a transaction.
+
+`CodexSigningStrategy.execute()`'s `buildCtx` (in `src/signing/codexStrategy.ts`) now also carries `gasPrice` and `creationTime`, sourced from a single `stoaGasMeta()` call per `execute()` invocation — both the simulate build and the real build see the identical pair. This extends the same seam that already solves the equivalent problem for `gasLimit`. Purely additive to the `build` callback's context object: existing consumers that destructure only `{ gasLimit, capsKeyPub, guardPubs }` are unaffected.
+
+No exports removed or changed shape. No behavior change to any existing function (`anuToStoa`, `GAS_PRICE_MIN_ANU`, `calculateAutoGasLimit`, etc. are all untouched). `@stoachain/kadena-stoic-legacy@4.4.0` carries no code changes — bumped solely to hold the atomic-pair invariant.
+
+**763 specs pass** (was 737; +26 from the new Yin Engine test-vector suite plus the `CodexSigningStrategy` anti-race regression test).
+
 ## 4.3.7 — 2026-07-22
 
 **PATCH — dependency rename, no functional change.** Atomic pair with `@stoachain/kadena-stoic-legacy@4.3.7`.

@@ -217,6 +217,38 @@ describe("CodexSigningStrategy.execute — pipeline orchestration", () => {
     expect(builds[1].gasLimit).toBeLessThan(500_000); // calibrated down from 500k ceiling
   });
 
+  it("passes an identical creationTime/gasPrice pair to both the sim build and the real build (anti-race property)", async () => {
+    // The Yin Engine floor rises over time; if gasPrice/creationTime were
+    // derived from two separate clock reads (one per build() call), a tick
+    // boundary crossing between them would silently underprice the real tx
+    // relative to what was simulated. buildCtx must derive both from a
+    // single stoaGasMeta() call per execute() invocation.
+    const builds: Array<{ gasLimit: number; gasPrice: number; creationTime: number }> = [];
+    const client = mockPactClient({ simulateGas: 1234 });
+    const resolver = mockResolver({
+      codexPubs: [PUB_A, PUB_B],
+      byPub: { [PUB_A]: KP_A, [PUB_B]: KP_B },
+    });
+    const strategy = new CodexSigningStrategy(resolver, client);
+    const residentGuard: IKeyset = { pred: "keys-all", keys: [PUB_B] };
+
+    await strategy.execute({
+      build: (ctx) => {
+        builds.push(ctx);
+        return buildMockTx(ctx);
+      },
+      guards: [residentGuard],
+      paymentKey: null,
+    });
+
+    expect(builds.length).toBe(2);
+    expect(typeof builds[0].gasPrice).toBe("number");
+    expect(typeof builds[0].creationTime).toBe("number");
+    // Both calls (sim + real) must see the exact same pair.
+    expect(builds[1].creationTime).toBe(builds[0].creationTime);
+    expect(builds[1].gasPrice).toBe(builds[0].gasPrice);
+  });
+
   it("throws when simulate returns failure", async () => {
     const client = mockPactClient({ simulateFail: true });
     const resolver = mockResolver({

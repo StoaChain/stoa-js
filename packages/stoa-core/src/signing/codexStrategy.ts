@@ -20,7 +20,7 @@
 import type { ICommand, IUnsignedCommand } from "@stoachain/kadena-stoic-legacy/types";
 import { analyzeGuard, selectCapsSigningKey } from "../guard/index.js";
 import type { IKeyset } from "../guard/index.js";
-import { calculateAutoGasLimit } from "../gas/index.js";
+import { calculateAutoGasLimit, stoaGasMeta } from "../gas/index.js";
 import { runWithTimeout } from "../network/index.js";
 import { createTimeoutError } from "../errors/index.js";
 import { fromKeypair, universalSignTransaction } from "./universalSign.js";
@@ -71,6 +71,8 @@ export class CodexSigningStrategy implements SigningStrategy {
       gasLimit: number;
       capsKeyPub: string;
       guardPubs: string[];
+      gasPrice: number;
+      creationTime: number;
     }) => IUnsignedCommand;
     guards: IKeyset[];
     paymentKey?: string | null;
@@ -213,11 +215,18 @@ export class CodexSigningStrategy implements SigningStrategy {
     const capsKeypair = await this.resolver.getKeyPairByPublicKey(caps.key);
 
     // ── F. Build → simulate → calibrate gas → rebuild → sign → submit
+    // Single clock read for the whole execute() invocation: both the sim
+    // build and the real build must see the identical creationTime/gasPrice
+    // pair, or a tick-boundary crossing between them would silently
+    // underprice the real tx relative to what was simulated.
+    const { creationTime, gasPrice } = stoaGasMeta();
     const guardPubs = guardKeypairs.map((k) => k.publicKey);
     const buildCtx = (gasLimit: number) => ({
       gasLimit,
       capsKeyPub: capsKeypair.publicKey,
       guardPubs,
+      gasPrice,
+      creationTime,
     });
 
     const sim = build(buildCtx(500_000));

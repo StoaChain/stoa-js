@@ -4,6 +4,12 @@ All notable changes to `@stoachain/kadena-stoic-legacy`.
 
 This package was born at v4.1.0 as a sovereign supply-chain replacement for the upstream `@kadena/*` npm packages following Kadena LLC's dissolution. Released atomically alongside `@stoachain/stoa-core@4.1.0` + `@stoachain/ouronet-core@4.1.0` out of the [`StoaChain/stoa-js`](https://github.com/StoaChain/stoa-js) monorepo — a single `vX.Y.Z` git tag publishes all three packages.
 
+## 4.4.0 — 2026-09-07
+
+**MINOR (atomic-pair alignment with `@stoachain/stoa-core@4.4.0`).** Released 2026-09-07. NO code changes in this package; the version is bumped solely to hold the atomic-pair invariant. The 4.4.0 change — the Yin Engine live-rising gas-price floor formula, promoted into `@stoachain/stoa-core/gas` as the ecosystem's single canonical source — lives entirely in `@stoachain/stoa-core`. Vendor source remains byte-identical to upstream `@kadena/{client,cryptography-utils,types,hd-wallet}` at 1.18.3 / 0.4.4 / 0.7.0 / 0.6.2. Functionally identical to 4.3.7; consumers may pin to either interchangeably.
+
+**55 specs pass** (unchanged from 4.3.7).
+
 ## 4.3.7 — 2026-07-22
 
 **PATCH (atomic-pair alignment with `@stoachain/stoa-core@4.3.7`).** Released 2026-07-22. NO code changes in this package; the version is bumped solely to hold the atomic-pair invariant. The 4.3.7 change — repointing the DALOS dependency from `@stoachain/dalos-crypto@4.0.3` to `@ouronet/dalos-crypto@4.0.4` — lives entirely in `@stoachain/stoa-core`. Vendor source remains byte-identical to upstream `@kadena/{client,cryptography-utils,types,hd-wallet}` at 1.18.3 / 0.4.4 / 0.7.0 / 0.6.2. Functionally identical to 4.3.6; consumers may pin to either interchangeably.
