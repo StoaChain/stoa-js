@@ -76,7 +76,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@ouronet/dalos-crypto": "4.0.4"
+    "@ouronet/dalos-crypto": "4.5.1"
   },
   "peerDependencies": {
     "@stoachain/kadena-stoic-legacy": "4.4.0",

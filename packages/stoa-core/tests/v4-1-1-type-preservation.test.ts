@@ -13,8 +13,10 @@ import { SmartAccountAuthError } from "@stoachain/stoa-core/signing";
 import { InvalidPactReaderError } from "@stoachain/stoa-core/reads";
 
 describe("REQ-29: stoa-core public type-shape preservation", () => {
-  it("SeedType is a string-literal union of {koala, chainweaver, eckowallet}", () => {
-    expectTypeOf<SeedType>().toEqualTypeOf<"koala" | "chainweaver" | "eckowallet">();
+  it("SeedType is a string-literal union of {koala, chainweaver, eckowallet, stoic}", () => {
+    expectTypeOf<SeedType>().toEqualTypeOf<
+      "koala" | "chainweaver" | "eckowallet" | "stoic"
+    >();
   });
 
   it("IKeyset has {keys, pred, keysetRef?}", () => {
