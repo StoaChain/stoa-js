@@ -4,6 +4,22 @@ All notable changes to `@stoachain/stoa-core`.
 
 This package was born from the v4.0.0 split of `@stoachain/ouronet-core`. Pre-v4 history of the chain-generic surfaces (signing, wallet, crypto, network failover, gas, guard, errors, observability, dalos, reads, pact-format) lives in the [`@stoachain/ouronet-core` CHANGELOG](https://github.com/StoaChain/stoa-js/blob/main/packages/ouronet-core/CHANGELOG.md) v0.x–v3.3.8 entries — every release of `@stoachain/ouronet-core` shipped that infrastructure baked into the same package.
 
+## 4.5.0 — 2026-09-15
+
+**MINOR — `createWalletPairFromDalosBitString`, the "stoic" SeedType, additive.** Atomic pair with `@stoachain/kadena-stoic-legacy@4.5.0`.
+
+Adds a new derivation path on `KadenaWalletBuilder` for the Stoic Chainweb flow: `createWalletPairFromDalosBitString(bitString, index)` derives a Chainweb Ed25519 keypair + `k:` account name directly from an already-validated 1600-bit DALOS Genesis seed bitstring, via `@ouronet/dalos-crypto/chainweb`'s `generateFromBitStringAtIndex`. Unlike the mnemonic-based paths, there is no word count or checksum to validate — the bitstring's validity is the caller's responsibility (typically the DALOS Genesis registry, upstream of this call) — so this is kept as a sibling static method rather than folded into `createWalletPairFromMnemonic`, whose contract is specifically "validate + derive from a mnemonic string."
+
+`SeedType` gains a new `"stoic"` member. `isValidMnemonic` gets an explicit `case "stoic": return false` rather than falling through to the BIP39 default branch, since a bitstring has nothing meaningful for that method to validate.
+
+`@ouronet/dalos-crypto` dependency bumped `4.0.4` → `4.5.1` for the new `/chainweb` subpath. Return values (`publicKey`/`secretKey`) are hex-encoded to match the shape every other method on `KadenaWalletBuilder` already returns; `address` is additionally surfaced since it's the actual spendable account name this derivation exists to produce.
+
+Verified against the frozen Go↔TypeScript DALOS test-vector corpus (determinism + index-independence).
+
+No exports removed or changed shape; no behavior change to any existing method. `@stoachain/kadena-stoic-legacy@4.5.0` carries no code changes — bumped solely to hold the atomic-pair invariant.
+
+**775 specs pass** (was 763; +12 from the new `wallet-builder-stoic.test.ts` frozen-corpus suite).
+
 ## 4.4.0 — 2026-09-07
 
 **MINOR — Yin Engine live gas-price floor, additive.** Atomic pair with `@stoachain/kadena-stoic-legacy@4.4.0`.
